@@ -35,6 +35,7 @@ class Config(BaseModel):
             return int(value)
         return value or 15
 
+
 config = Config(
     ADMINS=os.getenv("ADMINS", ""),
     INBOUND_ID=os.getenv("INBOUND_ID", 1)

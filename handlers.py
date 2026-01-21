@@ -3,7 +3,8 @@ import os
 import logging
 import requests
 import json
-from functions import XUIAPI  
+from functions import RemnawaveWrapper 
+from functions import create_vless_profile, get_user_stats, get_online_users
 from datetime import datetime, timedelta
 from aiogram import Dispatcher, Router, F, Bot
 from aiogram.types import InlineKeyboardButton
@@ -16,13 +17,12 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, WebAppInfo
 from config import config
 from database import (
-    StaticProfile, get_user, create_user, apply_promo_code, create_or_update_promo_code, 
+    get_user, create_user, apply_promo_code, create_or_update_promo_code, 
     get_all_promocodes_list, delete_promocode,
-    get_all_users, create_static_profile, get_static_profiles, 
+    get_all_users, get_static_profiles, 
     User, PromoCode, Session, get_user_stats as db_user_stats
 )
 from typing import Dict, TypedDict, List
-from functions import create_vless_profile, delete_client_by_email, get_user_stats, create_static_client, get_global_stats, get_online_users
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ router = Router()
 
 MAX_MESSAGE_LENGTH = 4096
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-BANNER_PATH = os.path.join(BASE_DIR, "img", "vpn_banner.jpeg")
+BANNER_PATH = os.path.join(BASE_DIR, "img", "vpn_banner.jpg")
 
 # ------------------------------
 # Состояния для ввода промокода
@@ -170,11 +170,12 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
     if not user.subscription_end or user.subscription_end < now:
         status = "Нет подписки"
         expire_date = "-"
-        sub_text = ""  # <-- ссылка не показываем
+        sub_text = ""  # ссылки нет
     else:
         status = "Активна"
         expire_date = user.subscription_end.strftime("%d-%m-%Y %H:%M")
-        sub_text = f"🔗 **Ваша ссылка для подключения:** `https://shix-vpn.space:2096/sub/{user.sub_id}`\n\n"
+        # 🔑 показываем реально рабочую ссылку из sub_id
+        sub_text = f"🔗 **Ваша ссылка для подключения:** `{user.sub_id}`\n\n" if user.sub_id else ""
 
     # Формируем текст меню
     text = (
@@ -201,15 +202,13 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         row = callback_buttons[i:i+2]
         builder.row(*[InlineKeyboardButton(text=t, callback_data=d) for t, d in row])
 
-    # === Кнопки в отдельной строке ===
     # Реферальная программа
     builder.row(InlineKeyboardButton(text="👥 Реферальная программа", callback_data="referral"))
-    # Поддержка (URL)
+    # Админ меню
     if user.is_admin:
         builder.row(InlineKeyboardButton(text="⚠️ Админ. меню", callback_data="admin_menu"))
 
     builder.row(InlineKeyboardButton(text="🆘 Поддержка", url="https://t.me/shix_vpn?direct"))
-    # Админ меню (только для админов)
 
     # Отправка или редактирование сообщения
     if message_id:
@@ -239,45 +238,15 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
             parse_mode='Markdown'
         )
 
-# ------------------------------
-# Обновить сообщение
-# ------------------------------
-async def update_message(bot: Bot, callback: CallbackQuery, text: str = None, photo: FSInputFile = None, reply_markup: InlineKeyboardBuilder = None, parse_mode: str = "Markdown"):
-    """Удаляет старое сообщение и отправляет новое (с текстом или фото)"""
-    chat_id = callback.from_user.id
-    message_id = callback.message.message_id
 
-    # Удаляем старое
-    try:
-        await bot.delete_message(chat_id=chat_id, message_id=message_id)
-    except:
-        pass  # если не удалось удалить, просто идем дальше
-
-    # Отправляем новое
-    if photo:
-        await bot.send_photo(
-            chat_id=chat_id,
-            photo=photo,
-            caption=text or "",
-            parse_mode=parse_mode,
-            reply_markup=reply_markup.as_markup() if reply_markup else None
-        )
-    else:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=text or "",
-            parse_mode=parse_mode,
-            reply_markup=reply_markup.as_markup() if reply_markup else None
-        )
-
-# ------------------------------
-# Создание профиля
-# ------------------------------
+# =========================================================
+# /start
+# =========================================================
 @router.message(Command("start"))
 async def start_cmd(message: Message, bot: Bot):
     logger.info(f"ℹ️ Команда start от {message.from_user.id}")
 
-    xui = XUIAPI()  # создаём X-UI API сессию
+    xui = RemnawaveWrapper()  # создаём API сессию
 
     # -------------------------------
     # 1️⃣ Получаем реферера из ссылки
@@ -310,7 +279,7 @@ async def start_cmd(message: Message, bot: Bot):
 
     else:
         # -------------------------------
-        # 3️⃣ Создаём нового пользователя
+        # 3️⃣ Создаём нового пользователя в БД
         # -------------------------------
         is_admin = message.from_user.id in config.ADMINS
         await create_user(
@@ -318,22 +287,25 @@ async def start_cmd(message: Message, bot: Bot):
             full_name=message.from_user.full_name,
             username=message.from_user.username,
             is_admin=is_admin,
-            referrer_id=referrer_id  # сохраняем пригласившего
+            referrer_id=referrer_id
         )
 
         # Получаем свежего пользователя
         user = await get_user(message.from_user.id)
 
         # -------------------------------
-        # 4️⃣ Создаём X-UI профиль
+        # 4️⃣ Создаём профиль на панели Remnawave
         # -------------------------------
         profile_data = await create_vless_profile(user.telegram_id)
         if profile_data:
+            # получаем реально рабочую ссылку подписки
+            sub_url = profile_data.get("sub_url")
             with Session() as session:
                 db_user = session.query(User).filter_by(id=user.id).first()
                 db_user.vless_profile_data = json.dumps(profile_data)
+                db_user.sub_id = sub_url  # сохраняем ссылку в БД
                 session.commit()
-            logger.info(f"✅ X-UI профиль создан для {user.telegram_id}")
+            logger.info(f"✅ X-UI профиль создан для {user.telegram_id}, ссылка: {sub_url}")
         else:
             logger.warning(f"⚠️ Не удалось создать X-UI профиль для {user.telegram_id}")
 
@@ -348,7 +320,6 @@ async def start_cmd(message: Message, bot: Bot):
         )
 
         if referrer_id:
-            # Доп. бонусное сообщение, если есть реферер
             welcome_text += (
                 "\n\n🎁 На вашем балансе ждёт бонус за приглашение! "
                 "Пригласите 3 друзей и получите полный пакет MIND 💰."
@@ -363,17 +334,48 @@ async def start_cmd(message: Message, bot: Bot):
             )
 
         await message.answer(welcome_text, parse_mode='Markdown')
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
 
     # -------------------------------
-    # 6️⃣ Закрываем X-UI сессию
+    # 6️⃣ Закрываем сессию
     # -------------------------------
     await xui.close()
 
     # -------------------------------
-    # 7️⃣ Показываем меню
+    # 7️⃣ Показываем меню с правильной ссылкой
     # -------------------------------
     await show_menu(bot, message.from_user.id)
+
+# ------------------------------
+# Обновить сообщение
+# ------------------------------
+async def update_message(bot: Bot, callback: CallbackQuery, text: str = None, photo: FSInputFile = None, reply_markup: InlineKeyboardBuilder = None, parse_mode: str = "Markdown"):
+    """Удаляет старое сообщение и отправляет новое (с текстом или фото)"""
+    chat_id = callback.from_user.id
+    message_id = callback.message.message_id
+
+    # Удаляем старое
+    try:
+        await bot.delete_message(chat_id=chat_id, message_id=message_id)
+    except:
+        pass  # если не удалось удалить, просто идем дальше
+
+    # Отправляем новое
+    if photo:
+        await bot.send_photo(
+            chat_id=chat_id,
+            photo=photo,
+            caption=text or "",
+            parse_mode=parse_mode,
+            reply_markup=reply_markup.as_markup() if reply_markup else None
+        )
+    else:
+        await bot.send_message(
+            chat_id=chat_id,
+            text=text or "",
+            parse_mode=parse_mode,
+            reply_markup=reply_markup.as_markup() if reply_markup else None
+        )
 
 # ------------------------------
 # Профиль
@@ -472,35 +474,39 @@ async def connect_profile(callback: CallbackQuery):
     if not user:
         await callback.answer("🛑 Ошибка профиля")
         return
-    
-    if user.subscription_end < datetime.utcnow():
+
+    # Проверка подписки
+    now = datetime.utcnow()
+    if not user.subscription_end or user.subscription_end < now:
         await callback.answer("⚠️ Подписка истекла! Продлите подписку.")
         return
-    
-    # ✅ Проверяем только наличие профиля, не создаём его
-    if not user.vless_profile_data:
-        await callback.answer("⚠️ Ваш VPN профиль ещё не создан. Попробуйте позже.")
+
+    # Проверяем наличие ссылки на подписку
+    sub_url = None
+    if user.vless_profile_data:
+        profile_data = safe_json_loads(user.vless_profile_data, default={})
+        sub_url = profile_data.get("sub_url") or profile_data.get("subscriptionUrl")
+    if not sub_url and user.sub_id:
+        sub_url = f"https://sub.shix-vpn.space/{user.sub_id}"
+
+    if not sub_url:
+        await callback.answer("⚠️ Профиль ещё не создан. Попробуйте позже.")
         return
-    
-    profile_data = safe_json_loads(user.vless_profile_data, default={})
-    if not profile_data:
-        await callback.answer("⚠️ Ваш VPN профиль пуст. Попробуйте позже.")
-        return
-    
-    sub_url = user.sub_id
+
+    # ✅ Можно показывать ссылку пользователю даже без Remnawave API
     text = (
         "🎉 **Ваш VPN профиль готов!**\n\n"
         "ℹ️ **Инструкция по подключению:**\n"
         "1. Скачайте приложение для вашей платформы\n"
         "2. Скопируйте эту ссылку и импортируйте в приложение:\n\n"
-        f"`https://shix-vpn.space:2096/sub/{sub_url}`\n\n"
+        f"`{sub_url}`\n\n"
         "3. Активируйте соединение в приложении."
     )
 
     builder = InlineKeyboardBuilder()
     builder.button(text='🖥️ Windows', url='https://github.com/2dust/v2rayN/releases/download/7.13.8/v2rayN-windows-64-desktop.zip')
     builder.button(text='🐧 Linux', url='https://github.com/MatsuriDayo/nekoray/releases/download/4.0.1/nekoray-4.0.1-2024-12-12-debian-x64.deb')
-    builder.button(text='🍎 Mac', url='https://github.com/yanue/V2rayU/releases/download/v4.2.6/V2rayU-64.dmg ')
+    builder.button(text='🍎 Mac', url='https://github.com/yanue/V2rayU/releases/download/v4.2.6/V2rayU-64.dmg')
     builder.button(text='🍏 iOS', url='https://apps.apple.com/ru/app/v2raytun/id6476628951')
     builder.button(text='🤖 Android', url='https://github.com/2dust/v2rayNG/releases/download/1.10.16/v2rayNG_1.10.16_arm64-v8a.apk')
     builder.button(text="Назад", callback_data="back_to_menu")
@@ -738,19 +744,20 @@ async def admin_menu(callback: CallbackQuery):
     if not user or not user.is_admin:
         await callback.answer("🛑 Доступ запрещен!")
         return
-    
+
     total, with_sub, without_sub = await db_user_stats()
     online_count = await get_online_users()
-    
+    offline_count = max(with_sub - online_count, 0)  # чтобы не было отрицательного
+
     text = (
         "🛡️ **Административное меню** 🛡️\n\n"
         f"👥 **Всего пользователей**: `{total}`\n"
         f"💎 **С подпиской**: `{with_sub}`\n"
         f"❌ **Без подписки**: `{without_sub}`\n"
         f"🟢 **Онлайн**: `{online_count}`\n"
-        f"🔴 **Офлайн**: `{with_sub - online_count}`"
+        f"🔴 **Офлайн**: `{offline_count}`"
     )
-    
+
     builder = InlineKeyboardBuilder()
 
     # Первая строка: + время и - время
@@ -764,15 +771,15 @@ async def admin_menu(callback: CallbackQuery):
     # Третья строка: Рассылка
     builder.button(text="📢 Рассылка", callback_data="admin_send_message")
 
-    # Четвёртая строка: слева Создать промокод, справа Список промокодов
+    # Четвёртая строка: Создать промокод и Список промокодов
     builder.button(text="🎁 Создать промокод", callback_data="admin_create_promo")
     builder.button(text="📦 Список промокодов", callback_data="admin_promocodes")
 
     # Пятая строка: Назад
     builder.button(text="Назад", callback_data="back_to_menu")
 
-    # Настройка ширины строк (каждое число — количество кнопок в строке)
-    builder.adjust(2, 1, 1, 1, 1)
+    # Настройка ширины строк
+    builder.adjust(2, 2, 1, 2, 1)
 
     await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode='Markdown')
 
@@ -1015,18 +1022,6 @@ async def enter_max_uses(message: Message, state: FSMContext):
 
     # Чистим состояние — больше сообщений удалять не нужно
     await state.clear()
-
-
-
-
-
-
-
-
-
-
-
-
 
 # ------------------------------
 # Кнопка "Список промокодов" в админке
@@ -1407,26 +1402,6 @@ async def static_profile_add(callback: CallbackQuery, state: FSMContext):
     await callback.message.answer("Введите имя для статического профиля:")
     await state.set_state(AdminStates.CREATE_STATIC_PROFILE)
 
-@router.message(AdminStates.CREATE_STATIC_PROFILE)
-async def process_static_profile_name(message: Message, state: FSMContext):
-    profile_name = message.text
-    profile_data = await create_static_client(profile_name)
-    
-    if profile_data:
-        vless_url = "https://admin.com"
-        await create_static_profile(profile_name, vless_url)
-        profiles = await get_static_profiles()
-        for profile in profiles:
-            if profile.name == profile_name:
-                id = profile.id
-        builder = InlineKeyboardBuilder()
-        builder.button(text="🗑️ Удалить", callback_data=f"delete_static_{id}")
-        await message.answer(f"Профиль создан!\n\n`{vless_url}`", reply_markup=builder.as_markup(), parse_mode='Markdown')
-    else:
-        await message.answer("Ошибка при создании профиля")
-    
-    await state.clear()
-
 @router.callback_query(F.data == "static_profile_list")
 async def static_profile_list(callback: CallbackQuery):
     profiles = await get_static_profiles()
@@ -1445,21 +1420,6 @@ async def static_profile_list(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("delete_static_"))
 async def handle_delete_static_profile(callback: CallbackQuery):
     try:
-        profile_id = int(callback.data.split("_")[-1])
-        
-        with Session() as session:
-            profile = session.query(StaticProfile).filter_by(id=profile_id).first()
-            if not profile:
-                await callback.answer("⚠️ Профиль не найден")
-                return
-            
-            success = await delete_client_by_email(profile.name)
-            if not success:
-                logger.error(f"🛑 Ошибка удаления клиента из инбаунда: {profile.name}")
-            
-            session.delete(profile)
-            session.commit()
-        
         await callback.answer("✅ Профиль удален!")
         await callback.message.delete()
     except Exception as e:
@@ -1494,27 +1454,6 @@ async def user_stats(callback: CallbackQuery):
         f"🔽 Скачано: `{download} {download_size}`\n"
     )
     await callback.message.answer(text, parse_mode='Markdown')
-
-@router.callback_query(F.data == "admin_network_stats")
-async def network_stats(callback: CallbackQuery):
-    stats = await get_global_stats()
-
-    upload = f"{stats.get('upload', 0) / 1024 / 1024:.2f}"
-    upload_size = 'MB' if int(float(upload)) < 1024 else 'GB'
-    if upload_size == "GB":
-        upload = f"{int(float(upload) / 1024):.2f}"
-
-    download = f"{stats.get('download', 0) / 1024 / 1024:.2f}"
-    download_size = 'MB' if int(float(download)) < 1024 else 'GB'
-    if download_size == "GB":
-        download = f"{int(float(download) / 1024):.2f}"
-    
-    await callback.answer()
-    text = (
-        "📊 **Статистика использования сети:**\n\n"
-        f"🔼 Upload - `{upload} {upload_size}` | 🔽 Download - `{download} {download_size}`"
-    )
-    await callback.message.edit_text(text, parse_mode='Markdown')
 
 
 

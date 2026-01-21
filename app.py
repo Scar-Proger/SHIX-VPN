@@ -1,7 +1,7 @@
-import json
 import asyncio
 import logging
 import warnings
+import uuid
 from datetime import datetime, timedelta
 
 import coloredlogs
@@ -15,10 +15,7 @@ from database import (
     User,
     init_db,
     get_all_users,
-    delete_user_profile
 )
-from functions import delete_client_by_email
-
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -35,7 +32,7 @@ dp: Dispatcher | None = None
 
 
 # =================================================
-# BACKGROUND TASK — ПРОВЕРКА ПОДПИСОК
+# BACKGROUND TASK — ПРОВЕРКА ПОДПИСОК (REMNAWAVE)
 # =================================================
 async def check_subscriptions():
     while True:
@@ -44,7 +41,7 @@ async def check_subscriptions():
             users = await get_all_users()
 
             for user in users:
-                # уведомление за 24 часа
+                # ---------- уведомление за 24 часа ----------
                 if (
                     user.subscription_end
                     and user.subscription_end - now < timedelta(days=1)
@@ -66,20 +63,30 @@ async def check_subscriptions():
                     except Exception as e:
                         logger.warning(f"Notify error: {e}")
 
-                # подписка истекла
-                if user.subscription_end and user.subscription_end <= now and user.vless_profile_data:
+                # ---------- подписка истекла ----------
+                if user.subscription_end and user.subscription_end <= now:
                     try:
-                        profile = json.loads(user.vless_profile_data)
-                        success = await delete_client_by_email(profile["email"])
+                        with Session() as session:
+                            db_user = session.query(User).filter_by(
+                                telegram_id=user.telegram_id
+                            ).first()
+                            if not db_user:
+                                continue
 
-                        if success:
-                            await delete_user_profile(user.telegram_id)
-                            await bot.send_message(
-                                user.telegram_id,
-                                "❌ Подписка истекла. VPN профиль удалён."
-                            )
+                            # 🔑 REMNAWAVE LOGIC
+                            # меняем sub_id — старая подписка умирает
+                            db_user.sub_id = uuid.uuid4().hex
+                            db_user.subscription_end = None
+                            db_user.notified = False
+                            session.commit()
+
+                        await bot.send_message(
+                            user.telegram_id,
+                            "❌ Подписка истекла.\nДоступ к VPN отключён."
+                        )
+
                     except Exception as e:
-                        logger.warning(f"Delete error: {e}")
+                        logger.warning(f"Expire handling error: {e}")
 
         except Exception as e:
             logger.warning(f"Subscription check error: {e}")
@@ -170,12 +177,19 @@ async def payment_webhook(request: Request):
             return {"error": "user not found"}
 
         now = datetime.utcnow()
+
+        # если подписка активна — продлеваем
         if user.subscription_end and user.subscription_end > now:
             user.subscription_end += timedelta(days=30 * months)
         else:
             user.subscription_end = now + timedelta(days=30 * months)
 
         user.notified = False
+
+        # если sub_id нет — создаём
+        if not user.sub_id:
+            user.sub_id = uuid.uuid4().hex
+
         session.commit()
 
     await bot.send_message(
@@ -184,3 +198,4 @@ async def payment_webhook(request: Request):
     )
 
     return {"ok": True}
+

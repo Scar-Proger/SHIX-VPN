@@ -1,10 +1,9 @@
-fastapi
-uvicorn
 aiogram
-coloredlogs
-sqlalchemy
-asyncpg
-pydantic
 aiohttp
 requests
-python-dotenv
+SQLAlchemy
+pydantic
+fastapi
+uvicorn
+coloredlogs
+typing-extensions

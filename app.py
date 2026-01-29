@@ -6,6 +6,8 @@ from datetime import timedelta
 import coloredlogs
 from fastapi import FastAPI
 from aiogram import Bot, Dispatcher
+from fastapi.staticfiles import StaticFiles
+import os
 
 from config import config
 from handlers import setup_handlers
@@ -27,6 +29,14 @@ logger = logging.getLogger(__name__)
 
 # -------------------- FASTAPI --------------------
 app = FastAPI()
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app.mount(
+    "/assets",
+    StaticFiles(directory=os.path.join(BASE_DIR, "assets")),
+    name="assets"
+)
 
 # -------------------- AIROGRAM -------------------
 bot: Bot | None = None

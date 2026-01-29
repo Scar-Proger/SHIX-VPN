@@ -55,7 +55,7 @@ async def get_promo_code(code: str):
 def is_subscription_active(user) -> bool:
     if not user.subscription_end:
         return False
-    return user.subscription_end > datetime.utcnow()
+    return user.subscription_end > now_local()
 
 def t(user, key: str, **kwargs) -> str:
     lang = getattr(user, "language", "ru") or "ru"
@@ -137,10 +137,6 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
         bot=bot,
         chat_id=callback.from_user.id
     )
-
-
-
-
 
 
 
@@ -235,7 +231,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
     if not user:
         return
 
-    now = datetime.utcnow()
+    now = now_local()
 
     if not user.subscription_end or user.subscription_end < now:
         status = t(user, "no_subscription")

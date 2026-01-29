@@ -64,7 +64,8 @@ def generate_sub_id() -> str:
     return secrets.token_urlsafe(12).replace("-", "").replace("_", "")
 
 def now_local():
-    return datetime.now()
+    return datetime.utcnow() + timedelta(hours=3)
+
 
 # ==================================================
 # Таблица пользователей

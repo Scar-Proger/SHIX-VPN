@@ -9,6 +9,7 @@ from aiogram import Bot, Dispatcher
 from fastapi.staticfiles import StaticFiles
 import os
 
+
 from config import config
 from handlers import setup_handlers
 from database import (

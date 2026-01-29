@@ -1,28 +1,27 @@
-import asyncio
 import os
 import logging
-import requests
 import json
-from functions import RemnawaveWrapper 
+
+from database import now_local
+from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users
 from datetime import datetime, timedelta
 from aiogram import Dispatcher, Router, F, Bot
-from aiogram.types import InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import FSInputFile
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.types import InlineKeyboardMarkup
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, WebAppInfo
 from config import config
+from locales import TEXTS
 from database import (
     get_user, create_user, apply_promo_code, create_or_update_promo_code, 
     get_all_promocodes_list, delete_promocode,
     get_all_users, get_static_profiles, 
     User, PromoCode, Session, get_user_stats as db_user_stats
 )
-from typing import Dict, TypedDict, List
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,6 @@ router = Router()
 
 MAX_MESSAGE_LENGTH = 4096
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-BANNER_PATH = os.path.join(BASE_DIR, "img", "vpn_banner.jpg")
 
 # ------------------------------
 # Состояния для ввода промокода
@@ -53,6 +51,20 @@ async def get_promo_code(code: str):
     """Возвращает объект PromoCode из БД, если он активен"""
     with Session() as session:
         return session.query(PromoCode).filter_by(code=code.upper(), is_active=True).first()
+    
+def is_subscription_active(user) -> bool:
+    if not user.subscription_end:
+        return False
+    return user.subscription_end > datetime.utcnow()
+
+def t(user, key: str, **kwargs) -> str:
+    lang = getattr(user, "language", "ru") or "ru"
+    lang_dict = TEXTS.get(lang, TEXTS["ru"])
+
+    if key not in lang_dict:
+        return f"❗{key}"
+
+    return lang_dict[key].format(**kwargs)
 
 class AdminStates(StatesGroup):
     ADD_TIME = State()
@@ -65,77 +77,74 @@ class AdminStates(StatesGroup):
     REMOVE_TIME_AMOUNT = State()
     SEND_MESSAGE_TARGET = State()
 
-# =========================================================
-# LAVA
-# =========================================================
-
-class LavaPrice(TypedDict):
-    offer_id: str
-    amount: int  # RUB
-
-LAVA_PRICES: Dict[int, List[LavaPrice]] = {}
-DISCOUNTS = [0, 5, 10, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
-
-def load_lava_prices(api_key: str) -> None:
-    """Загружает Lava прайс и сопоставляет его с нашим прайс-листом"""
-    url = "https://gate.lava.top/api/v2/products"
-    headers = {
-        "accept": "application/json",
-        "X-Api-Key": api_key
-    }
-
+async def is_subscribed(bot: Bot, user_id: int) -> bool:
     try:
-        r = requests.get(url, headers=headers, timeout=15)
-        r.raise_for_status()
-    except requests.RequestException as e:
-        logger.error(f"🛑 Ошибка запроса к Lava API: {e}")
+        member = await bot.get_chat_member(
+            chat_id=config.REQUIRED_CHANNEL_ID,
+            user_id=user_id
+        )
+        return member.status in ("member", "administrator", "creator")
+    except TelegramBadRequest:
+        return False
+    
+async def send_subscribe_required(bot: Bot, chat_id: int):
+    kb = InlineKeyboardBuilder()
+
+    kb.button(
+        text="📢 Подписаться на канал",
+        url=config.REQUIRED_CHANNEL_URL
+    )
+
+    kb.button(
+        text="✅ Я подписался",
+        callback_data="check_subscription"
+    )
+
+    kb.adjust(1)
+
+    await bot.send_photo(
+        chat_id=chat_id,
+        photo=FSInputFile("assets/vpn_banner.jpg"),  # путь к картинке
+        caption=(
+            "🔒 **Для использования бота необходимо подписаться на канал**\n\n"
+            "После подписки нажмите кнопку ниже 👇"
+        ),
+        reply_markup=kb.as_markup(),
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data == "check_subscription")
+async def check_subscription(callback: CallbackQuery, bot: Bot):
+
+    if not await is_subscribed(bot, callback.from_user.id):
+        await callback.answer(
+            "🚫 Вы ещё не подписались",
+            show_alert=True
+        )
         return
 
-    data = r.json()
-    logger.info(f"🔥 Lava raw data: {data}")
+    # если подписан — закрываем "часики"
+    await callback.answer("✅ Подписка подтверждена")
 
-    LAVA_PRICES.clear()
+    # удаляем сообщение с требованием подписки
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
 
-    for product in data.get("items", []):
-        for offer in product.get("offers", []):
-            # Ищем цену в RUB
-            rub_price = None
-            for price in offer.get("prices", []):
-                if price.get("currency") == "RUB":
-                    rub_price = int(price["amount"])
-                    break
+    # показываем профиль
+    await show_menu(
+        bot=bot,
+        chat_id=callback.from_user.id
+    )
 
-            if not rub_price:
-                continue
 
-            # Сопоставляем с нашим прайсом
-            months = None
-            for m, base_price in config.CUSTOM_LAVA_PRICES.items():
-                for discount in DISCOUNTS:
-                    if abs(rub_price - int(base_price * (100 - discount) / 100)) <= 1:
-                        months = m
-                        break
-                if months:
-                    break
 
-            if months:
-                if months not in LAVA_PRICES:
-                    LAVA_PRICES[months] = []
-                LAVA_PRICES[months].append({
-                    "offer_id": offer["id"],
-                    "amount": rub_price
-                })
 
-            else:
-                logger.warning(f"[LOG] Цена {rub_price} ₽ не соответствует нашему прайсу, offer {offer.get('id')} пропущен")
 
-    if not LAVA_PRICES:
-        logger.error("[LOG] Lava цены загружены, но словарь LAVA_PRICES пуст. Проверьте продукты и валюту.")
-    else:
-        logger.info(f"[LOG] Lava prices успешно загружены: {LAVA_PRICES}")
 
-def price_with_discount(base: int, discount: int) -> int:
-    return int(base * (100 - discount) / 100)
+
+
 
 def split_text(text: str, max_length: int = MAX_MESSAGE_LENGTH) -> list:
     """Разбивает текст на части указанной максимальной длины"""
@@ -156,87 +165,199 @@ def split_text(text: str, max_length: int = MAX_MESSAGE_LENGTH) -> list:
     return parts
 
 
+async def edit_text(
+    callback: CallbackQuery,
+    text: str,
+    reply_markup: InlineKeyboardBuilder | InlineKeyboardMarkup | None = None,
+    parse_mode: str = "Markdown"
+):
+    if isinstance(reply_markup, InlineKeyboardBuilder):
+        reply_markup = reply_markup.as_markup()
+
+    await callback.message.edit_text(
+        text=text,
+        reply_markup=reply_markup,
+        parse_mode=parse_mode
+    )
+
+
+async def edit_caption(
+    bot: Bot,
+    chat_id: int,
+    message_id: int,
+    caption: str,
+    reply_markup=None,
+    parse_mode="Markdown"
+):
+    await bot.edit_message_caption(
+        chat_id=chat_id,
+        message_id=message_id,
+        caption=caption,
+        reply_markup=reply_markup,
+        parse_mode=parse_mode
+    )
+
+
+def format_time_left(end_date: datetime, user) -> str:
+    now = now_local()
+    delta = end_date - now
+
+    if delta.total_seconds() <= 0:
+        return t(user, "time_expired")
+
+    total_seconds = int(delta.total_seconds())
+
+    days = total_seconds // 86400
+    hours = (total_seconds % 86400) // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+
+    d = t(user, "time_day")
+    h = t(user, "time_hour")
+    m = t(user, "time_min")
+    s = t(user, "time_sec")
+
+    if days > 0:
+        return f"{days} {d} {hours} {h}"
+    elif hours > 0:
+        return f"{hours} {h} {minutes} {m}"
+    elif minutes > 0:
+        return f"{minutes} {m} {seconds} {s}"
+    else:
+        return f"{seconds} {s}"
+
+
 # =========================================================
 # UX
 # =========================================================
 async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
-    """Функция для отображения меню (редактировать существующее сообщение или отправлять новое)"""
     user = await get_user(chat_id)
     if not user:
         return
 
-    # Проверка подписки
     now = datetime.utcnow()
-    if not user.subscription_end or user.subscription_end < now:
-        status = "Нет подписки"
-        expire_date = "-"
-        sub_text = ""  # ссылки нет
-    else:
-        status = "Активна"
-        expire_date = user.subscription_end.strftime("%d-%m-%Y %H:%M")
-        # 🔑 показываем реально рабочую ссылку из sub_id
-        sub_text = f"🔗 **Ваша ссылка для подключения:** `{user.sub_id}`\n\n" if user.sub_id else ""
 
-    # Формируем текст меню
+    if not user.subscription_end or user.subscription_end < now:
+        status = t(user, "no_subscription")
+        expire_date = "-"
+        time_left_text = "-"
+        sub_text = "-"
+    else:
+        status = t(user, "active")
+        expire_date = user.subscription_end.strftime("%d-%m-%Y %H:%M")
+        time_left = format_time_left(user.subscription_end, user)
+        time_left_text = t(user, "subscription_left", time=time_left)
+
+        sub_text = (
+            t(user, "sub_link", link=user.sub_id)
+            if user.sub_id else ""
+        )
+
     text = (
-        f"👤 **Профиль:** `{user.full_name}`\n\n"
-        f"🆔 **ID Telegram:** `{user.telegram_id}`\n\n"
-        f"{sub_text}"
-        f"✅ **Статус подписки:** `{status}`\n\n"
-        f"📅 **Дата окончания подписки:** `{expire_date}`\n\n"
-        f"💡 Используйте кнопки ниже, чтобы управлять подпиской и получать максимум от SHIX VPN."
+        t(user, "profile", name=user.full_name) + "\n\n" +
+        t(user, "telegram_id", id=user.telegram_id) + "\n\n" +
+        sub_text +
+        t(user, "subscription_status", status=status) + "\n\n" +
+        time_left_text + "\n\n" +
+        t(user, "subscription_end", date=expire_date) + "\n\n" +
+        t(user, "menu_hint")
     )
 
     builder = InlineKeyboardBuilder()
 
-    renew_text = "💵 Продлить" if status == "Активна" else "💵 Купить"
+    renew_text = (
+        t(user, "btn_renew")
+        if status == t(user, "active")
+        else t(user, "btn_buy")
+    )
 
-    # === Основные кнопки по 2 в ряд ===
-    callback_buttons = [
-        (renew_text, "renew_sub"),
-        ("✅ Подключить", "connect"),
-        ("🎁 Промокод", "promo_code"),
-        ("ℹ️ О нас", "help")
-    ]
-    for i in range(0, len(callback_buttons), 2):
-        row = callback_buttons[i:i+2]
-        builder.row(*[InlineKeyboardButton(text=t, callback_data=d) for t, d in row])
+    # 1 ряд — btn_connect
+    builder.row(
+        InlineKeyboardButton(
+            text=t(user, "btn_connect"),
+            callback_data="connect"
+        )
+    )
 
-    # Реферальная программа
-    builder.row(InlineKeyboardButton(text="👥 Реферальная программа", callback_data="referral"))
-    # Админ меню
+    # 2 ряд — renew_sub и btn_promo
+    builder.row(
+        InlineKeyboardButton(
+            text=renew_text,
+            callback_data="renew_sub"
+        ),
+        InlineKeyboardButton(
+            text=t(user, "btn_promo"),
+            callback_data="promo_code"
+        )
+    )
+
+    # 3 ряд — только btn_referral
+    builder.row(
+        InlineKeyboardButton(
+            text=t(user, "btn_referral"),
+            callback_data="referral"
+        )
+    )
+
+    # 4 ряд — только btn_investments
+    builder.row(
+        InlineKeyboardButton(
+            text=t(user, "btn_investments"),
+            callback_data="investments"
+        )
+    )
+
+    # 5 ряд — btn_help и btn_settings
+    builder.row(
+        InlineKeyboardButton(
+            text=t(user, "btn_help"),
+            callback_data="help"
+        ),
+        InlineKeyboardButton(
+            text=t(user, "btn_settings"),
+            callback_data="settings"
+        )
+    )
+
+    # 6 ряд — админ панель (если админ)
     if user.is_admin:
-        builder.row(InlineKeyboardButton(text="⚠️ Админ. меню", callback_data="admin_menu"))
+        builder.row(
+            InlineKeyboardButton(
+                text=t(user, "btn_admin"),
+                callback_data="admin_menu"
+            )
+        )
 
-    builder.row(InlineKeyboardButton(text="🆘 Поддержка", url="https://t.me/shix_vpn?direct"))
+    # 7 ряд — btn_support (ссылка)
+    builder.row(
+        InlineKeyboardButton(
+            text=t(user, "btn_support"),
+            url="https://t.me/MegaShix_VPN?direct"
+        )
+    )
 
-    # Отправка или редактирование сообщения
+
     if message_id:
         try:
-            await bot.edit_message_text(
+            await bot.edit_message_caption(
                 chat_id=chat_id,
                 message_id=message_id,
-                text=text,
+                caption=text,
                 reply_markup=builder.as_markup(),
-                parse_mode='Markdown'
+                parse_mode="Markdown"
             )
-        except TelegramBadRequest as e:
-            if "there is no text in the message to edit" in str(e):
-                await bot.send_message(
-                    chat_id=chat_id,
-                    text=text,
-                    reply_markup=builder.as_markup(),
-                    parse_mode='Markdown'
-                )
-            else:
-                raise
-    else:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=text,
-            reply_markup=builder.as_markup(),
-            parse_mode='Markdown'
-        )
+            return
+        except TelegramBadRequest:
+            pass
+
+    # если message_id нет ИЛИ edit упал — шлём новое фото
+    await bot.send_photo(
+        chat_id=chat_id,
+        photo=FSInputFile("assets/vpn_banner.jpg"),
+        caption=text,
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown"
+    )
 
 
 # =========================================================
@@ -244,138 +365,138 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
 # =========================================================
 @router.message(Command("start"))
 async def start_cmd(message: Message, bot: Bot):
-    logger.info(f"ℹ️ Команда start от {message.from_user.id}")
 
-    xui = RemnawaveWrapper()  # создаём API сессию
+    # 🔒 ПРОВЕРКА ПОДПИСКИ
+    if not await is_subscribed(bot, message.from_user.id):
+        await send_subscribe_required(bot, message.chat.id)
+        return
+    
+    telegram_id = message.from_user.id
+    logger.info(f"ℹ️   /start от {telegram_id}")
 
     # -------------------------------
-    # 1️⃣ Получаем реферера из ссылки
+    # 1️⃣ Получаем реферера
     # -------------------------------
     referrer_id = None
-    if " " in message.text:
-        candidate = message.text.split(" ")[1]
-        if candidate.isdigit():
-            referrer_id = int(candidate)
+    if message.text and " " in message.text:
+        arg = message.text.split(" ", 1)[1]
+        if arg.isdigit():
+            referrer_id = int(arg)
 
     # -------------------------------
-    # 2️⃣ Получаем пользователя
+    # 2️⃣ Проверяем пользователя
     # -------------------------------
-    user = await get_user(message.from_user.id)
+    user = await get_user(telegram_id)
 
-    if user:
-        # Обновляем данные
-        updated = False
-        with Session() as session:
-            db_user = session.query(User).filter_by(id=user.id).first()
-            if db_user.full_name != message.from_user.full_name:
-                db_user.full_name = message.from_user.full_name
-                updated = True
-            if db_user.username != message.from_user.username:
-                db_user.username = message.from_user.username
-                updated = True
-            if updated:
-                session.commit()
-                logger.info(f"🔄 Данные пользователя обновлены: {message.from_user.id}")
-
-    else:
-        # -------------------------------
-        # 3️⃣ Создаём нового пользователя в БД
-        # -------------------------------
-        is_admin = message.from_user.id in config.ADMINS
-        await create_user(
-            telegram_id=message.from_user.id,
-            full_name=message.from_user.full_name,
-            username=message.from_user.username,
-            is_admin=is_admin,
-            referrer_id=referrer_id
+    # =====================================================
+    # 🆕 НОВЫЙ ПОЛЬЗОВАТЕЛЬ
+    # =====================================================
+    if not user:
+        # UX: стикер + ожидание
+        wait_sticker = await message.answer_sticker(
+            "CAACAgEAAxkBAAFBQzppd5A_4Wk22T_jJFOGCrkkcV8ZLwACXA4AAoI0egEaqUfk_mnHQTgE"
         )
 
-        # Получаем свежего пользователя
-        user = await get_user(message.from_user.id)
+        wait_msg = await message.answer(
+            TEXTS["ru"]["creating_profile"]  # язык ещё не выбран
+        )
 
-        # -------------------------------
-        # 4️⃣ Создаём профиль на панели Remnawave
-        # -------------------------------
-        profile_data = await create_vless_profile(user.telegram_id)
+        # 3️⃣ Создаём пользователя
+        await create_user(
+            telegram_id=telegram_id,
+            full_name=message.from_user.full_name,
+            username=message.from_user.username,
+            is_admin=telegram_id in config.ADMINS,
+            referrer_id=referrer_id,
+            language="ru"  # дефолт
+        )
+
+        user = await get_user(telegram_id)
+
+        # 4️⃣ Создаём профиль Remnawave
+        profile_data = await create_vless_profile(telegram_id)
+
         if profile_data:
-            # получаем реально рабочую ссылку подписки
             sub_url = profile_data.get("sub_url")
+
             with Session() as session:
                 db_user = session.query(User).filter_by(id=user.id).first()
                 db_user.vless_profile_data = json.dumps(profile_data)
-                db_user.sub_id = sub_url  # сохраняем ссылку в БД
+                db_user.sub_id = sub_url
                 session.commit()
-            logger.info(f"✅ X-UI профиль создан для {user.telegram_id}, ссылка: {sub_url}")
+
+            logger.info(f"✅  Профиль создан для {telegram_id}")
         else:
-            logger.warning(f"⚠️ Не удалось создать X-UI профиль для {user.telegram_id}")
+            logger.error(f"❌  Не удалось создать профиль для {telegram_id}")
+
+        # Убираем ожидание
+        await wait_msg.delete()
+        await wait_sticker.delete()
 
         # -------------------------------
-        # 5️⃣ Приветственное сообщение
+        # 5️⃣ Welcome
         # -------------------------------
-        welcome_text = (
-            f"Добро пожаловать в `{(await bot.get_me()).full_name}`!\n\n"
-            "Воспользуйтесь бесплатным доступом к нашему VPN сервису.\n\n"
-            "Мы №1 там, где другие сдаются.\n"
-            "Первый сервис от экосистемы Shix Space Labs — для тех, кто выбирает лучшее."
+        msg = await bot.send_photo(
+            chat_id=telegram_id,
+            photo=FSInputFile("assets/vpn_banner.jpg"),
+            caption=t(
+                user,
+                "welcome",
+                bot_name=(await bot.get_me()).full_name
+            ),
+            parse_mode="Markdown"
         )
 
+        # -------------------------------
+        # 6️⃣ Уведомляем реферера
+        # -------------------------------
         if referrer_id:
-            welcome_text += (
-                "\n\n🎁 На вашем балансе ждёт бонус за приглашение! "
-                "Пригласите 3 друзей и получите полный пакет MIND 💰."
-            )
-
-            # Уведомляем пригласившего
             await bot.send_message(
                 referrer_id,
-                f"⚡️ Ваш реферал [@{message.from_user.username or 'Без имени'}](tg://user?id={message.from_user.id}) только что присоединился! "
-                "Не тормози, приглашай друзей!",
+                t(
+                    user,
+                    "referral_notify",
+                    name=message.from_user.username or message.from_user.full_name,
+                    id=telegram_id
+                ),
                 parse_mode="Markdown"
             )
 
-        await message.answer(welcome_text, parse_mode='Markdown')
-        await asyncio.sleep(1)
-
-    # -------------------------------
-    # 6️⃣ Закрываем сессию
-    # -------------------------------
-    await xui.close()
-
-    # -------------------------------
-    # 7️⃣ Показываем меню с правильной ссылкой
-    # -------------------------------
-    await show_menu(bot, message.from_user.id)
-
-# ------------------------------
-# Обновить сообщение
-# ------------------------------
-async def update_message(bot: Bot, callback: CallbackQuery, text: str = None, photo: FSInputFile = None, reply_markup: InlineKeyboardBuilder = None, parse_mode: str = "Markdown"):
-    """Удаляет старое сообщение и отправляет новое (с текстом или фото)"""
-    chat_id = callback.from_user.id
-    message_id = callback.message.message_id
-
-    # Удаляем старое
-    try:
-        await bot.delete_message(chat_id=chat_id, message_id=message_id)
-    except:
-        pass  # если не удалось удалить, просто идем дальше
-
-    # Отправляем новое
-    if photo:
-        await bot.send_photo(
-            chat_id=chat_id,
-            photo=photo,
-            caption=text or "",
-            parse_mode=parse_mode,
-            reply_markup=reply_markup.as_markup() if reply_markup else None
+        # ⬇️ ВАЖНО: передаём message_id
+        await show_menu(
+            bot,
+            chat_id=telegram_id,
+            message_id=msg.message_id
         )
-    else:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=text or "",
-            parse_mode=parse_mode,
-            reply_markup=reply_markup.as_markup() if reply_markup else None
-        )
+        return
+
+    # =====================================================
+    # 👤 СУЩЕСТВУЮЩИЙ ПОЛЬЗОВАТЕЛЬ
+    # =====================================================
+    with Session() as session:
+        db_user = session.query(User).filter_by(telegram_id=telegram_id).first()
+
+        if not db_user:
+            logger.error(f"❌ Пользователь не найден: {telegram_id}")
+            return
+
+        updated = False
+
+        if db_user.full_name != message.from_user.full_name:
+            db_user.full_name = message.from_user.full_name
+            updated = True
+
+        if db_user.username != message.from_user.username:
+            db_user.username = message.from_user.username
+            updated = True
+
+        if updated:
+            session.commit()
+            logger.info(f"🔄 Обновлены данные пользователя {telegram_id}")
+
+
+    await show_menu(bot, telegram_id)
+
 
 # ------------------------------
 # Профиль
@@ -401,34 +522,116 @@ async def menu_cmd(message: Message, bot: Bot):
             for key, value in update_data.items():
                 setattr(db_user, key, value)
             session.commit()
-            logger.info(f"🔄 Данные пользователя обновлены в меню: {message.from_user.id}")
+            logger.info(f"🔄  Данные пользователя обновлены в меню: {message.from_user.id}")
     
     await show_menu(bot, message.from_user.id)
+
+
+# ------------------------------
+# Настройки
+# ------------------------------
+@router.callback_query(F.data == "settings")
+async def settings_cb(callback: CallbackQuery):
+    user = await get_user(callback.from_user.id)
+    await callback.answer()
+
+    builder = InlineKeyboardBuilder()
+
+    builder.button(text=t(user, "lang_ru"), callback_data="set_lang:ru")
+    builder.button(text=t(user, "lang_en"), callback_data="set_lang:en")
+    builder.button(text=t(user, "lang_zh"), callback_data="set_lang:zh")
+    builder.button(text=t(user, "back"), callback_data="back_to_menu")
+
+    builder.adjust(1, 2, 1)
+
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption=t(user, "choose_language"),
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown"
+    )
+
+
+# ------------------------------
+# Сохранение языка
+# ------------------------------
+@router.callback_query(F.data.startswith("set_lang:"))
+async def set_language(callback: CallbackQuery, bot: Bot):
+    lang = callback.data.split(":")[1]
+
+    with Session() as session:
+        db_user = session.query(User).filter_by(
+            telegram_id=callback.from_user.id
+        ).first()
+
+        if not db_user:
+            await callback.answer()
+            return
+
+        db_user.language = lang
+        session.commit()
+
+    # 🔁 берём пользователя УЖЕ с новым языком
+    user = await get_user(callback.from_user.id)
+
+    await callback.answer(t(user, "settings_saved"))
+
+    # ✅ РЕДАКТИРУЕМ текущее сообщение, а не шлём новое
+    await show_menu(
+        bot,
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id
+    )
+
 
 # ------------------------------
 # Помощь
 # ------------------------------
 @router.callback_query(F.data == "help")
-async def help_msg(callback: CallbackQuery, bot: Bot):
-    await callback.answer()
-    
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="🌐 Наш канал", url="https://t.me/+42MdJtX5B9I4ZDIy"))
-    builder.row(InlineKeyboardButton(text="📄 Пользовательское соглашение", url="https://example.com/terms"))
-    builder.row(InlineKeyboardButton(text="🔒 Политика конфиденциальности", url="https://example.com/privacy"))
-    builder.row(InlineKeyboardButton(text="Назад", callback_data="back_to_menu"))
+async def help_msg(callback: CallbackQuery):
+    user = await get_user(callback.from_user.id)
+    if not user:
+        await callback.answer()
+        return
 
-    text = (
-        "SHIX VPN — это первый сервис от экосистемы Shix Space Labs :\n"
-        "• Высокая скорость\n"
-        "• Стабильное соединение\n"
-        "• Надёжность работы\n\n"
-        "Там, где другие сдаются — мы продолжаем работать для вас."
+    await callback.answer()
+
+    builder = InlineKeyboardBuilder()
+
+    builder.row(
+        InlineKeyboardButton(
+            text=t(user, "help_channel"),
+            url="https://t.me/+42MdJtX5B9I4ZDIy"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=t(user, "help_terms"),
+            url="https://telegra.ph/Polzovatelskoe-soglashenie-01-28-69"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=t(user, "help_privacy"),
+            url="https://telegra.ph/Politika-konfidencialnosti-01-28-101"
+        )
+    )
+    builder.row(
+        InlineKeyboardButton(
+            text=t(user, "back"),
+            callback_data="back_to_menu"
+        )
     )
 
-    photo = FSInputFile(BANNER_PATH)
-    
-    await update_message(bot, callback, text=text, photo=photo, reply_markup=builder, parse_mode="HTML")
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption=t(user, "help_text"),
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown"
+    )
+
 
 # ------------------------------
 # Реферальная программа
@@ -437,33 +640,30 @@ async def help_msg(callback: CallbackQuery, bot: Bot):
 async def referral_program(callback: CallbackQuery):
     user = await get_user(callback.from_user.id)
     if not user:
-        await callback.answer("🛑 Ошибка профиля")
+        await callback.answer("🛑 Profile error")
         return
 
-    # 👉 твоя реферальная ссылка
-    referral_link = f"https://t.me/shix_vpn_bot?start={user.telegram_id}"
+    await callback.answer()
 
-    text = (
-        "👑 **Станьте нашим партнёром и получайте 30%** со всех платежей "
-        "ваших пользователей **пожизненно**.\n\n"
-        "🌟 Выплаты начисляются **с каждого платежа**, пока клиент пользуется нашим сервисом.\n\n"
-        "📊 **В личном кабинете доступно:**\n"
-        "• История платежей\n"
-        "• 💴 Баланс\n"
-        "• 🤑 Запрос на вывод\n\n"
-        "🔔 Вы будете получать **уведомления по каждой операции прямо в Telegram** — удобно и прозрачно.\n\n"
-        "🔗 **Ваша реферальная ссылка:**\n"
-        f"`{referral_link}`"
+    referral_link = f"https://t.me/MegaShixVPN_bot?start={user.telegram_id}"
+
+    text = t(
+        user,
+        "referral_text",
+        link=referral_link
     )
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="Назад", callback_data="back_to_menu")
+    builder.button(text=t(user, "back"), callback_data="back_to_menu")
 
-    await callback.message.edit_text(
-        text,
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption=text,
         reply_markup=builder.as_markup(),
         parse_mode="Markdown"
     )
+
 
 # ------------------------------
 # Помощь по подключению
@@ -472,181 +672,100 @@ async def referral_program(callback: CallbackQuery):
 async def connect_profile(callback: CallbackQuery):
     user = await get_user(callback.from_user.id)
     if not user:
-        await callback.answer("🛑 Ошибка профиля")
+        await callback.answer(t(None, "connect_no_profile"))
         return
 
     # Проверка подписки
     now = datetime.utcnow()
     if not user.subscription_end or user.subscription_end < now:
-        await callback.answer("⚠️ Подписка истекла! Продлите подписку.")
+        await callback.answer(t(user, "connect_sub_expired"))
         return
 
-    # Проверяем наличие ссылки на подписку
+    # Проверяем наличие ссылки
     sub_url = None
     if user.vless_profile_data:
         profile_data = safe_json_loads(user.vless_profile_data, default={})
         sub_url = profile_data.get("sub_url") or profile_data.get("subscriptionUrl")
+
     if not sub_url and user.sub_id:
         sub_url = f"https://sub.shix-vpn.space/{user.sub_id}"
 
     if not sub_url:
-        await callback.answer("⚠️ Профиль ещё не создан. Попробуйте позже.")
+        await callback.answer(t(user, "connect_not_ready"))
         return
 
-    # ✅ Можно показывать ссылку пользователю даже без Remnawave API
-    text = (
-        "🎉 **Ваш VPN профиль готов!**\n\n"
-        "ℹ️ **Инструкция по подключению:**\n"
-        "1. Скачайте приложение для вашей платформы\n"
-        "2. Скопируйте эту ссылку и импортируйте в приложение:\n\n"
-        f"`{sub_url}`\n\n"
-        "3. Активируйте соединение в приложении."
+    await callback.answer()
+
+    text = t(
+        user,
+        "connect_text",
+        sub_url=sub_url
     )
 
     builder = InlineKeyboardBuilder()
-    builder.button(text='🖥️ Windows', url='https://github.com/2dust/v2rayN/releases/download/7.13.8/v2rayN-windows-64-desktop.zip')
-    builder.button(text='🐧 Linux', url='https://github.com/MatsuriDayo/nekoray/releases/download/4.0.1/nekoray-4.0.1-2024-12-12-debian-x64.deb')
-    builder.button(text='🍎 Mac', url='https://github.com/yanue/V2rayU/releases/download/v4.2.6/V2rayU-64.dmg')
-    builder.button(text='🍏 iOS', url='https://apps.apple.com/ru/app/v2raytun/id6476628951')
-    builder.button(text='🤖 Android', url='https://github.com/2dust/v2rayNG/releases/download/1.10.16/v2rayNG_1.10.16_arm64-v8a.apk')
-    builder.button(text="Назад", callback_data="back_to_menu")
-    builder.adjust(2, 2, 1, 1)
+    builder.button(
+        text=t(user, "btn_connect_now"),
+        web_app=WebAppInfo(url=sub_url)
+    )
+    builder.button(text=t(user, "back"), callback_data="back_to_menu")
+    builder.adjust(1, 1)
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode='Markdown')
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption=text,
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown"
+    )
+
 
 # ------------------------------
 # Продление подписки
 # ------------------------------
 @router.callback_query(F.data == "renew_sub")
-async def renew_cb(callback: CallbackQuery, bot: Bot):
-    await callback.answer()
-    photo = FSInputFile(BANNER_PATH)
-
+async def renew_cb(callback: CallbackQuery):
     user = await get_user(callback.from_user.id)
-    discount = user.active_discount if user else 0  # 0 если скидки нет
+    await callback.answer()
 
-    kb = InlineKeyboardBuilder()
-    found_any = False
-
-    for months, base_price in config.CUSTOM_LAVA_PRICES.items():
-        # Цена с учётом скидки
-        price = int(base_price * (100 - discount) / 100)
-
-        # Проверяем, есть ли offerId в LAVA_PRICES с такой ценой
-        offers_for_month = LAVA_PRICES.get(months, [])
-        offer_found = None
-        for offer in offers_for_month:
-            if offer["amount"] == price:
-                offer_found = offer
-                break
-
-        if not offer_found:
-            continue  # пропускаем тариф, если Lava не имеет такого offerId с этой ценой
-
-        found_any = True
-
-        # Формируем текст кнопки
-        if months == 12:
-            label = f"1 год — {price} ₽"
-        elif months == 24:
-            label = f"2 года — {price} ₽"
-        else:
-            label = f"{months} мес — {price} ₽/мес"
-
-        if discount:
-            label += f" (с учётом скидки {discount}%)"
-
-        # callback_data с учётом offerId из Lava
-        kb.button(text=label, callback_data=f"lava_{months}_{offer_found['offer_id']}")
-
-    if not found_any:
-        await update_message(bot, callback,
-                             text="❌ Тарифы временно недоступны",
-                             reply_markup=_back_kb("back_to_menu"))
-        return
-
-    kb.button(text="Назад", callback_data="back_to_menu")
-    kb.adjust(1)
-
-    await update_message(bot, callback,
-                         text="🔥 Выберите тариф с учётом вашей скидки:",
-                         photo=photo,
-                         reply_markup=kb)
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption=t(user, "renew_unavailable"),
+        reply_markup=_back_kb(t(user, "back"), "back_to_menu"),
+        parse_mode="Markdown"
+    )
 
 # ------------------------------
 # Создание платежки через Lava
 # ------------------------------
 @router.callback_query(F.data.startswith("lava_"))
 async def lava_pay_cb(callback: CallbackQuery, bot: Bot):
-    await callback.answer()
+    return
 
-    parts = callback.data.split("_")
-    months = int(parts[1])
-    offer_id = parts[2]
-
-    user_email = f"user{callback.from_user.id}@example.com"
-
-    # Создаём инвойс через Lava API
-    try:
-        r = requests.post(
-            "https://gate.lava.top/api/v3/invoice",
-            headers={
-                "accept": "application/json",
-                "Content-Type": "application/json",
-                "X-Api-Key": config.LAVA_API_KEY,
-            },
-            json={
-                "email": user_email,
-                "offerId": offer_id,
-                "currency": "RUB",
-            },
-            timeout=15,
-        )
-        r.raise_for_status()
-        data = r.json()
-    except requests.RequestException as e:
-        await update_message(bot, callback,
-                             text=f"❌ Ошибка Lava API:\n{e}",
-                             reply_markup=_back_kb("renew_sub"))
-        return
-
-    if r.status_code == 201:
-        pay_url = data.get("paymentUrl")
-
-        kb = InlineKeyboardBuilder()
-        kb.button(text="💳 Оплатить", web_app=WebAppInfo(url=pay_url))
-        kb.button(text="Назад", callback_data="renew_sub")
-        kb.adjust(1)
-
-        user = await get_user(callback.from_user.id)
-        discount_text = f" ({user.active_discount}% скидка)" if user and user.active_discount else ""
-
-        await update_message(bot, callback,
-                             text=f"💎 Подписка: {months} мес\n💰 Стоимость: {price_with_discount(config.CUSTOM_LAVA_PRICES[months], user.active_discount if user else 0)} ₽{discount_text}\n\nНажмите кнопку ниже для оплаты 👇",
-                             reply_markup=kb)
-    else:
-        await update_message(bot, callback,
-                             text=f"❌ Ошибка создания платежа\nКод: {r.status_code}",
-                             reply_markup=_back_kb("renew_sub"))
 
 # ------------------------------
 # Обработчик кнопки "Промокод"
 # ------------------------------
 @router.callback_query(F.data == "promo_code")
-async def promo_code_cb(callback: CallbackQuery, state: FSMContext, bot: Bot):
+async def promo_code_cb(callback: CallbackQuery, state: FSMContext):
+    user = await get_user(callback.from_user.id)
     await callback.answer()
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="⬅️ Назад", callback_data="back_to_menu")
+    builder.button(text=t(user, "back"), callback_data="back_to_menu")
 
-    msg = await callback.message.edit_text(
-        "🎁 Введите ваш промокод для активации:",
-        reply_markup=builder.as_markup()
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption=t(user, "promo_enter"),
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown"
     )
 
-    # сохраняем ID сообщения бота
-    await state.update_data(bot_message_id=msg.message_id)
+    # сохраняем ID сообщения (оно НЕ меняется)
+    await state.update_data(bot_message_id=callback.message.message_id)
     await state.set_state(PromoCodeStates.waiting_for_code)
+
 
 # ------------------------------
 # Обработчик ввода промокода
@@ -663,56 +782,49 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     chat_id = message.chat.id
     user_message_id = message.message_id
 
-    # Удаляем сообщение пользователя
+    # ❌ удаляем сообщение пользователя
     try:
         await bot.delete_message(chat_id, user_message_id)
     except:
         pass
 
-    # Удаляем предыдущее сообщение бота
-    if bot_message_id:
-        try:
-            await bot.delete_message(chat_id, bot_message_id)
-        except:
-            pass
-
     code_input = message.text.strip().upper()
     result = await apply_promo_code(user.telegram_id, code_input)
 
-    # ---------- НЕВЕРНЫЙ ПРОМОКОД ----------
+    # ---------- ❌ НЕВЕРНЫЙ ПРОМОКОД ----------
     if "error" in result:
         builder = InlineKeyboardBuilder()
-        builder.button(text="Назад", callback_data="back_to_menu")
+        builder.button(text=t(user, "back"), callback_data="back_to_menu")
 
-        msg = await bot.send_message(
-            chat_id,
-            "❌ Неверный промокод.\n\n🎁 Введите промокод ещё раз:",
-            reply_markup=builder.as_markup()
+        await bot.edit_message_caption(
+            chat_id=chat_id,
+            message_id=bot_message_id,
+            caption=t(user, "promo_invalid"),
+            reply_markup=builder.as_markup(),
+            parse_mode="Markdown"
         )
-
-        await state.clear()
-        await state.update_data(bot_message_id=msg.message_id)
-        await state.set_state(PromoCodeStates.waiting_for_code)
         return
 
-    # ---------- УСПЕХ ----------
-    await bot.send_message(
-        chat_id,
-        (
-            f"✅ Промокод применён!\n"
-            f"💰 Ваша скидка обновлена на: {result['discount_percent']}%"
+    # ---------- ✅ УСПЕХ ----------
+    await bot.edit_message_caption(
+        chat_id=chat_id,
+        message_id=bot_message_id,
+        caption=t(
+            user,
+            "promo_applied",
+            discount=result["discount_percent"]
         ),
         parse_mode="Markdown"
     )
 
     await state.clear()
-    await show_menu(bot, chat_id)
 
-
-
-
-
-
+    # 🔁 возвращаем главное меню (тем же сообщением)
+    await show_menu(
+        bot,
+        chat_id=chat_id,
+        message_id=bot_message_id
+    )
 
 
 
@@ -739,15 +851,26 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
 
 
 @router.callback_query(F.data == "admin_menu")
-async def admin_menu(callback: CallbackQuery):
+async def admin_menu(callback: CallbackQuery, bot: Bot):
     user = await get_user(callback.from_user.id)
     if not user or not user.is_admin:
-        await callback.answer("🛑 Доступ запрещен!")
+        await callback.answer("🛑 Доступ запрещён")
         return
 
+    await callback.answer()
+
+    try:
+        await bot.delete_message(
+            chat_id=callback.message.chat.id,
+            message_id=callback.message.message_id
+        )
+    except Exception:
+        pass
+
+    # -------- статистика --------
     total, with_sub, without_sub = await db_user_stats()
     online_count = await get_online_users()
-    offline_count = max(with_sub - online_count, 0)  # чтобы не было отрицательного
+    offline_count = max(with_sub - online_count, 0)
 
     text = (
         "🛡️ **Административное меню** 🛡️\n\n"
@@ -760,28 +883,27 @@ async def admin_menu(callback: CallbackQuery):
 
     builder = InlineKeyboardBuilder()
 
-    # Первая строка: + время и - время
     builder.button(text="+ время", callback_data="admin_add_time")
     builder.button(text="- время", callback_data="admin_remove_time")
 
-    # Вторая строка: Список пользователей и Статистика сети
     builder.button(text="📋 Список пользователей", callback_data="admin_user_list")
-    builder.button(text="📊 Статистика исп. сети", callback_data="admin_network_stats")
+    builder.button(text="📊 Статистика сети", callback_data="admin_network_stats")
 
-    # Третья строка: Рассылка
     builder.button(text="📢 Рассылка", callback_data="admin_send_message")
 
-    # Четвёртая строка: Создать промокод и Список промокодов
     builder.button(text="🎁 Создать промокод", callback_data="admin_create_promo")
     builder.button(text="📦 Список промокодов", callback_data="admin_promocodes")
 
-    # Пятая строка: Назад
-    builder.button(text="Назад", callback_data="back_to_menu")
+    builder.button(text="Выйти", callback_data="exit_admin")
 
-    # Настройка ширины строк
-    builder.adjust(2, 2, 1, 2, 1)
+    builder.adjust(2, 1, 1, 1, 1, 1, 1)
 
-    await callback.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode='Markdown')
+    await bot.send_message(
+        chat_id=callback.from_user.id,
+        text=text,
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown"
+    )
 
 # ------------------------------
 # Кнопка создания промокода в админке
@@ -977,50 +1099,62 @@ async def promo_discount_cb(callback: CallbackQuery, state: FSMContext):
 # ------------------------------
 @router.message(AdminPromoStates.waiting_for_max_uses)
 async def enter_max_uses(message: Message, state: FSMContext):
+    # --------- валидируем ввод ---------
     try:
         max_uses = int(message.text.strip())
         if max_uses <= 0:
             raise ValueError
     except ValueError:
-        await message.answer("❌ Введите корректное положительное число для максимальных использований:")
+        await message.answer(
+            "❌ Введите корректное положительное число для максимальных использований:"
+        )
         return
 
     data = await state.get_data()
     messages_to_delete = data.get("messages_to_delete", [])
 
-    # Добавляем сообщение пользователя
+    # сохраняем сообщение пользователя для удаления
     messages_to_delete.append(message.message_id)
 
-    # Удаляем все старые сообщения
+    # удаляем старые сообщения
     for msg_id in messages_to_delete:
         try:
             await message.bot.delete_message(message.chat.id, msg_id)
-        except:
+        except Exception:
             pass
 
-    code = data.get("code")
-    discount_percent = data.get("discount_percent")
+    # --------- берём данные из FSM ---------
+    code: str = data["code"]
+    discount_percent: int = data["discount_percent"]
 
-    promo = await create_or_update_promo_code(
+    # --------- СОЗДАЁМ ПРОМОКОД ---------
+    promo_data = await create_or_update_promo_code(
         code=code,
         discount_percent=discount_percent,
         max_uses=max_uses
     )
 
+    # promo_data — это dict, НЕ ORM
+    promo_code = promo_data["code"]
+    promo_discount = promo_data["discount_percent"]
+    promo_max_uses = promo_data["max_uses"]
+
+    # --------- клавиатура ---------
     kb = InlineKeyboardBuilder()
     kb.button(text="⚠️ Админ. меню", callback_data="admin_menu")
     kb.adjust(1)
 
+    # --------- отправляем сообщение ---------
     await message.answer(
-        f"✅ Промокод создан!\n\n"
-        f"🎁 Код: `{promo['code']}`\n"
-        f"💰 Скидка: `{promo['discount_percent']}%`\n"
-        f"🔢 Максимум использований: `{promo['max_uses']}`",
+        "✅ **Промокод создан!**\n\n"
+        f"🎁 Код: `{promo_code}`\n"
+        f"💰 Скидка: `{promo_discount}%`\n"
+        f"🔢 Максимум использований: `{promo_max_uses}`",
         reply_markup=kb.as_markup(),
-        parse_mode='Markdown'
+        parse_mode="Markdown"
     )
 
-    # Чистим состояние — больше сообщений удалять не нужно
+    # --------- очищаем FSM ---------
     await state.clear()
 
 # ------------------------------
@@ -1046,45 +1180,56 @@ async def _edit_promocode_message(message, state: FSMContext):
     data = await state.get_data()
     promos = data.get("promos", [])
     index = data.get("index", 0)
+
+    if not promos:
+        await message.edit_text("❌ Промокодов нет.")
+        return
+
     promo = promos[index]
 
-    remaining_uses = promo['max_uses'] - promo['used_count']
+    remaining_uses = promo.max_uses - promo.used_count
     is_active = remaining_uses > 0
 
     text = (
-        f"🎁 Промокод #{index + 1}\n"  # нумерация
-        f"Код: {promo['code']}\n"
-        f"💰 Скидка: {promo['discount_percent']}%\n"
-        f"🔢 Максимум использований: {promo['max_uses']}\n"
-        f"✅ Использован: {promo['used_count']} раз\n"
-        f"🔹 Осталось использований: {remaining_uses}\n"
-        f"🔹 Активен: {'Да' if is_active else 'Нет'}"
+        f"🎁 Промокод #{index + 1}\n\n"
+        f"🔑 Код: `{promo.code}`\n"
+        f"💰 Скидка: `{promo.discount_percent}%`\n"
+        f"🔢 Максимум использований: `{promo.max_uses}`\n"
+        f"✅ Использован: `{promo.used_count}` раз\n"
+        f"🔹 Осталось: `{remaining_uses}`\n"
+        f"🟢 Активен: {'Да' if is_active else 'Нет'}"
     )
 
     builder = InlineKeyboardBuilder()
 
-    # Навигационные стрелки
+    # Навигация
     if index > 0:
         builder.button(text="⬅️", callback_data="promocode_prev")
     if index < len(promos) - 1:
         builder.button(text="➡️", callback_data="promocode_next")
 
-    # Удаление промокода
-    builder.button(text="Удалить промокод", callback_data=f"promocode_delete_{index}")
+    # Удалить
+    builder.button(
+        text="Удалить промокод",
+        callback_data=f"promocode_delete_{promo.id}"
+    )
 
     # Назад
     builder.button(text="Назад", callback_data="admin_menu")
 
-    # Настройка ширины строк
-    # 2 кнопки стрелок + удалить + назад = 4 на одной строке, лучше разнести:
+    # Раскладка
     if index > 0 and index < len(promos) - 1:
-        builder.adjust(2, 1, 1)  # стрелки, удалить, назад
+        builder.adjust(2, 1, 1)
     elif index > 0 or index < len(promos) - 1:
-        builder.adjust(1, 1, 1)  # стрелка, удалить, назад
+        builder.adjust(1, 1, 1)
     else:
-        builder.adjust(1, 1)  # удалить + назад
+        builder.adjust(1, 1)
 
-    await message.edit_text(text, reply_markup=builder.as_markup())
+    await message.edit_text(
+        text,
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown"
+    )
 
 # ------------------------------
 # Удаление промокода
@@ -1461,35 +1606,48 @@ async def user_stats(callback: CallbackQuery):
 
 
 
+@router.callback_query(F.data == "exit_admin")
+async def exit_admin(callback: CallbackQuery, bot: Bot, state: FSMContext):
+    await callback.answer()
+    await state.clear()
+
+    # 🗑 УДАЛЯЕМ админ-панель / любое текущее сообщение
+    try:
+        await bot.delete_message(
+            chat_id=callback.message.chat.id,
+            message_id=callback.message.message_id
+        )
+    except Exception:
+        pass
+
+    # 📩 ПРИСЫЛАЕМ ГЛАВНОЕ МЕНЮ НОВЫМ СООБЩЕНИЕМ
+    await show_menu(
+        bot=bot,
+        chat_id=callback.from_user.id
+    )
 
 
 @router.callback_query(F.data == "back_to_menu")
 async def back_to_menu(callback: CallbackQuery, bot: Bot, state: FSMContext):
     await callback.answer()
-
-    # Очистка состояния FSM (если было)
     await state.clear()
 
-    chat_id = callback.from_user.id
-    message_id = callback.message.message_id
+    await show_menu(
+        bot=bot,
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id
+    )
 
-    # 1. Удаляем сообщение (фото или текст)
-    try:
-        await bot.delete_message(chat_id=chat_id, message_id=message_id)
-    except:
-        pass  # если не удалось удалить, идем дальше
-
-    # 2. Отправляем профиль заново (текст)
-    await show_menu(bot, chat_id)
-
-def _back_kb(callback_data: str):
+def _back_kb(text: str, callback_data: str):
     kb = InlineKeyboardBuilder()
-    kb.button(text="Назад", callback_data=callback_data)
-    return kb
+    kb.button(text=text, callback_data=callback_data)
+    return kb.as_markup()
+
+
 
 def setup_handlers(dp: Dispatcher):
     dp.include_router(router)
-    logger.info("✅ Обработчики успешно настроены")
+    logger.info("✅  Обработчики успешно настроены")
 
 def safe_json_loads(data, default=None):
     if not data:

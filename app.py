@@ -2,20 +2,22 @@ import asyncio
 import logging
 import warnings
 import uuid
-from datetime import datetime, timedelta
-
+from datetime import timedelta
 import coloredlogs
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from aiogram import Bot, Dispatcher
 
 from config import config
-from handlers import setup_handlers, load_lava_prices
+from handlers import setup_handlers
 from database import (
+    now_local,
     Session,
     User,
     init_db,
     get_all_users,
 )
+
+from btn import subscription_action_keyboard
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -31,28 +33,31 @@ bot: Bot | None = None
 dp: Dispatcher | None = None
 
 
-# =================================================
-# BACKGROUND TASK — ПРОВЕРКА ПОДПИСОК (REMNAWAVE)
-# =================================================
 async def check_subscriptions():
     while True:
         try:
-            now = datetime.utcnow()
+            now = now_local() 
             users = await get_all_users()
 
             for user in users:
-                # ---------- уведомление за 24 часа ----------
-                if (
-                    user.subscription_end
-                    and user.subscription_end - now < timedelta(days=1)
-                    and user.subscription_end >= now
-                    and not user.notified
-                ):
+                if not user.subscription_end:
+                    continue
+
+                delta = user.subscription_end - now
+
+                # ---- уведомление за 2 часа ----
+                if timedelta(0) < delta <= timedelta(hours=2) and not user.notified:
                     try:
                         await bot.send_message(
                             user.telegram_id,
-                            "⚠️ Ваша подписка истекает через 24 часа!"
+                            "🎁 **Ваша тестовая подписка почти закончилась!**\n\n"
+                            "⏳ **Осталось всего 2 часа**\n\n"
+                            "🔒 Продлите на **30 дней всего за 69 ₽** и пользуйтесь VPN без ограничений.\n\n"
+                            "⚡️ Нажмите **«Оформить сейчас»** ⬇️",
+                            reply_markup=subscription_action_keyboard(is_active=True),
+                            parse_mode="Markdown"
                         )
+
                         with Session() as session:
                             db_user = session.query(User).filter_by(
                                 telegram_id=user.telegram_id
@@ -60,11 +65,12 @@ async def check_subscriptions():
                             if db_user:
                                 db_user.notified = True
                                 session.commit()
-                    except Exception as e:
-                        logger.warning(f"Notify error: {e}")
 
-                # ---------- подписка истекла ----------
-                if user.subscription_end and user.subscription_end <= now:
+                    except Exception as e:
+                        logger.warning(f"Ошибка уведомления пользователя {user.telegram_id}: {e}")
+
+                # ---- подписка истекла ----
+                elif delta <= timedelta(0):
                     try:
                         with Session() as session:
                             db_user = session.query(User).filter_by(
@@ -73,8 +79,6 @@ async def check_subscriptions():
                             if not db_user:
                                 continue
 
-                            # 🔑 REMNAWAVE LOGIC
-                            # меняем sub_id — старая подписка умирает
                             db_user.sub_id = uuid.uuid4().hex
                             db_user.subscription_end = None
                             db_user.notified = False
@@ -82,17 +86,21 @@ async def check_subscriptions():
 
                         await bot.send_message(
                             user.telegram_id,
-                            "❌ Подписка истекла.\nДоступ к VPN отключён."
+                            "❌ **Срок действия подписки истёк!**\n\n"
+                            "🔒 VPN временно отключён\n\n"
+                            "⛔️ Доступ к сервисам приостановлен\n\n"
+                            "👉 Чтобы восстановить подключение, продлите подписку ⬇️",
+                            reply_markup=subscription_action_keyboard(is_active=False),
+                            parse_mode="Markdown"
                         )
 
                     except Exception as e:
-                        logger.warning(f"Expire handling error: {e}")
+                        logger.warning(f"Ошибка обработки окончания подписки {user.telegram_id}: {e}")
 
         except Exception as e:
-            logger.warning(f"Subscription check error: {e}")
+            logger.warning(f"Критическая ошибка в задаче проверки подписок: {e}")
 
         await asyncio.sleep(3600)
-
 
 # =================================================
 # ADMIN STATUS
@@ -129,11 +137,10 @@ async def start_bot():
     await update_admins_status()
 
     setup_handlers(dp)
-    load_lava_prices(config.LAVA_API_KEY)
 
     asyncio.create_task(check_subscriptions())
 
-    logger.info("🤖 Bot started")
+    logger.info("🤖 Бот запущен!")
     await dp.start_polling(bot)
 
 
@@ -143,59 +150,3 @@ async def start_bot():
 @app.on_event("startup")
 async def startup():
     asyncio.create_task(start_bot())
-
-
-# =================================================
-# HEALTH CHECK
-# =================================================
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
-
-
-# =================================================
-# PAYMENT WEBHOOK
-# =================================================
-@app.post("/payment/webhook")
-async def payment_webhook(request: Request):
-    payload = await request.json()
-    logger.info(f"💰 Payment webhook: {payload}")
-
-    if payload.get("status") != "paid":
-        return {"ok": True}
-
-    meta = payload.get("metadata", {})
-    telegram_id = meta.get("telegram_id")
-    months = int(meta.get("months", 1))
-
-    if not telegram_id:
-        return {"error": "telegram_id missing"}
-
-    with Session() as session:
-        user = session.query(User).filter_by(telegram_id=telegram_id).first()
-        if not user:
-            return {"error": "user not found"}
-
-        now = datetime.utcnow()
-
-        # если подписка активна — продлеваем
-        if user.subscription_end and user.subscription_end > now:
-            user.subscription_end += timedelta(days=30 * months)
-        else:
-            user.subscription_end = now + timedelta(days=30 * months)
-
-        user.notified = False
-
-        # если sub_id нет — создаём
-        if not user.sub_id:
-            user.sub_id = uuid.uuid4().hex
-
-        session.commit()
-
-    await bot.send_message(
-        telegram_id,
-        f"✅ Оплата получена!\nПодписка продлена на {months} мес."
-    )
-
-    return {"ok": True}
-

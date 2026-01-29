@@ -1,0 +1,356 @@
+TEXTS = {
+    "ru": {
+        # RU
+        "time_day": "дн.",
+        "time_hour": "ч.",
+        "time_min": "мин.",
+        "time_sec": "сек.",
+        "time_expired": "Истекла",
+
+        # ===== Common =====
+        "back": "Назад",
+        "yes": "Да",
+        "no": "Нет",
+
+        # ===== Start / Welcome =====
+        "creating_profile": "⚙️ Создаём ваш профиль, пожалуйста подождите...",
+        "welcome": (
+            "Добро пожаловать в `{bot_name}`!\n\n"
+            "Воспользуйтесь бесплатным доступом к нашему VPN сервису на 24 часа.\n\n"
+            "Мы №1 там, где другие сдаются.\n\n"
+            "Первый сервис от экосистемы **Shix Space Labs** — "
+            "для тех, кто выбирает лучшее."
+        ),
+
+        "referral_notify": (
+            "⚡️ **Ура! У тебя новый реферал!**\n\n"
+            "👤 [{name}](tg://user?id={id}) **только что присоединился!**\n\n"
+            "💥 **Это значит, что твоя сеть растёт, а доход стремительно увеличивается!**\n\n"
+            "📈 Чем больше друзей присоединяется, тем больше твои бонусы!\n\n"
+            "✨ **Делись ссылкой дальше и увеличивай свой заработок!**"
+        ),
+
+        # ===== Menu =====
+        "profile": "👤 **Профиль:** `{name}`",
+        "telegram_id": "🆔 **ID Telegram:** `{id}`",
+
+        "sub_link": "🔗 **Ваша ссылка для подключения:** `{link}`\n\n",
+
+        "subscription_status": "✅ **Статус подписки:** `{status}`",
+        "subscription_left": "⏳ **До конца подписки:** {time}",
+        "subscription_end": "📅 **Дата окончания подписки:** `{date}`",
+
+        "no_subscription": "Нет подписки",
+        "active": "Активна",
+
+        "menu_hint": (
+            "💡 Используйте кнопки ниже, чтобы управлять подпиской "
+            "и получать максимум от MegaShix VPN."
+        ),
+
+        # ===== Buttons =====
+        "btn_buy": "💳 Купить",
+        "btn_renew": "💳 Продлить",
+        "btn_connect": "🚀 Подключиться",
+        "btn_promo": "🎁 Промокод",
+        "btn_help": "ℹ️ О нас",
+        "btn_investments": "📈 Инвестиции (SOON)",
+        "btn_settings": "⚙️ Настройки",
+        "btn_referral": "🤝 Партнёрская программа",
+        "btn_admin": "⚠️ Админ. меню",
+        "btn_support": "🆘 Поддержка",
+
+        # ===== Settings =====
+        "choose_language": "🌍 Выберите язык интерфейса:",
+        "lang_ru": "🇷🇺 Русский",
+        "lang_en": "🇬🇧 English",
+        "lang_zh": "🇨🇳 中文",
+        "settings_saved": "✅ Настройки сохранены",
+
+        "help_text": (
+            "MegaShix VPN — это первый сервис от экосистемы Shix Space Labs:\n\n"
+            "• Высокая скорость\n"
+            "• Стабильное соединение\n"
+            "• Надёжность работы\n\n"
+            "Там, где другие сдаются — мы продолжаем работать для вас."
+        ),
+        "help_channel": "🌐 Наш канал",
+        "help_terms": "📄 Пользовательское соглашение",
+        "help_privacy": "🔒 Политика конфиденциальности",
+
+        "referral_text": (
+            "👑 Станьте партнёром и получайте **40%** со всех платежей ваших пользователей "
+            "на протяжении **3 лет**.\n\n"
+            "🌟 Выплаты начисляются с каждого платежа, пока клиенты пользуются нашим сервисом.\n\n"
+            "💰 **Пример:** друг пополнил 500₽ → ваш бонус **200 ₽**\n\n"
+            "💸 **Вывод от 1000 ₽** на удобный способ оплаты\n\n"
+            "🔗 **Ваша реферальная ссылка:**\n"
+            "`{link}`\n\n"
+            "✨ Делитесь ссылкой — зарабатывайте легко!"
+        ),
+
+        # ===== Connect =====
+        "connect_no_profile": "🛑 Ошибка профиля",
+        "connect_sub_expired": "⚠️ Подписка истекла! Продлите подписку.",
+        "connect_not_ready": "⚠️ Профиль ещё не создан. Попробуйте позже.",
+
+        "connect_text": (
+            "🎉 **Ваш VPN профиль готов!**\n\n"
+            "ℹ️ **Инструкция по подключению:**\n\n"
+            "1. Скачайте приложение для вашей платформы\n"
+            "2. Скопируйте эту ссылку и импортируйте в приложение:\n\n"
+            "`{sub_url}`\n\n"
+            "3. Активируйте соединение в приложении."
+        ),
+
+        "btn_connect_now": "🚀 Подключиться",
+
+        # ===== Renew =====
+        "renew_unavailable": "❌ Тарифы временно недоступны",
+
+        "promo_enter": "🎁 Введите ваш промокод для активации:",
+
+        "promo_invalid": "❌ Неверный промокод.\n\n🎁 Введите промокод ещё раз:",
+        "promo_applied": (
+            "✅ **Промокод применён!**\n"
+            "💰 Ваша скидка обновлена на: `{discount}%`"
+        ),
+    },
+
+    "en": {
+        # EN
+        "time_day": "d",
+        "time_hour": "h",
+        "time_min": "min",
+        "time_sec": "sec",
+        "time_expired": "Expired",
+
+        # ===== Common =====
+        "back": "Back",
+        "yes": "Yes",
+        "no": "No",
+
+        # ===== Start / Welcome =====
+        "creating_profile": "⚙️ Creating your profile, please wait...",
+        "welcome": (
+            "Welcome to `{bot_name}`!\n\n"
+            "Use our VPN service with **24-hour free access**.\n\n"
+            "We are #1 where others give up.\n\n"
+            "The first service of the **Shix Space Labs** ecosystem — "
+            "for those who choose the best."
+        ),
+
+        "referral_notify": (
+            "⚡️ **Hooray! You have a new referral!**\n\n"
+            "👤 [{name}](tg://user?id={id}) **has just joined!**\n\n"
+            "💥 **This means your network is growing and your income is increasing fast!**\n\n"
+            "📈 The more friends join, the bigger your bonuses become!\n\n"
+            "✨ **Share your link and boost your earnings even more!**"
+        ),
+
+        "profile": "👤 **Profile:** `{name}`",
+        "telegram_id": "🆔 **Telegram ID:** `{id}`",
+
+        "sub_link": "🔗 **Your connection link:** `{link}`\n\n",
+
+        "subscription_status": "✅ **Subscription status:** `{status}`",
+        "subscription_left": "⏳ **Time left on subscription:** {time}",
+        "subscription_end": "📅 **Expiration date:** `{date}`",
+
+        "no_subscription": "No subscription",
+        "active": "Active",
+
+        "menu_hint": (
+            "💡 Use the buttons below to manage your subscription "
+            "and get the most out of MegaShix VPN."
+        ),
+
+        "btn_buy": "💳 Buy",
+        "btn_renew": "💳 Renew",
+        "btn_connect": "🚀 Connect",
+        "btn_promo": "🎁 Promo code",
+        "btn_help": "ℹ️ About",
+        "btn_investments": "📈 Investments (SOON)",
+        "btn_settings": "⚙️ Settings",
+        "btn_referral": "🤝 Referral program",
+        "btn_admin": "⚠️ Admin menu",
+        "btn_support": "🆘 Support",
+
+        # ===== Settings =====
+        "choose_language": "🌍 Choose interface language:",
+        "lang_ru": "🇷🇺 Russian",
+        "lang_en": "🇬🇧 English",
+        "lang_zh": "🇨🇳 Chinese",
+        "settings_saved": "✅ Settings saved",
+
+        "help_text": (
+            "MegaShix VPN is the first service of the Shix Space Labs ecosystem:\n\n"
+            "• High speed\n"
+            "• Stable connection\n"
+            "• Reliable performance\n\n"
+            "Where others give up — we keep working for you."
+        ),
+        "help_channel": "🌐 Our channel",
+        "help_terms": "📄 Terms of Service",
+        "help_privacy": "🔒 Privacy Policy",
+
+        "referral_text": (
+            "👑 Become a partner and earn **40%** from all payments made by your users "
+            "for **3 years**.\n\n"
+            "🌟 Rewards are credited from every payment as long as your clients use our service.\n\n"
+            "💰 **Example:** your friend tops up 500₽ → your reward is **200 ₽**\n\n"
+            "💸 **Payout from 1000 ₽** to a convenient payment method\n\n"
+            "🔗 **Your referral link:**\n"
+            "`{link}`\n\n"
+            "✨ Share the link and earn easily!"
+        ),
+
+        # ===== Connect =====
+        "connect_no_profile": "🛑 Profile error",
+        "connect_sub_expired": "⚠️ Subscription expired! Please renew your plan.",
+        "connect_not_ready": "⚠️ Profile is not ready yet. Please try again later.",
+
+        "connect_text": (
+            "🎉 **Your VPN profile is ready!**\n\n"
+            "ℹ️ **Connection instructions:**\n\n"
+            "1. Download the app for your platform\n"
+            "2. Copy this link and import it into the app:\n\n"
+            "`{sub_url}`\n\n"
+            "3. Activate the connection in the app."
+        ),
+
+        "btn_connect_now": "🚀 Connect",
+
+        # ===== Renew =====
+        "renew_unavailable": "❌ Plans are temporarily unavailable",
+
+        "promo_enter": "🎁 Enter your promo code to activate it:",
+
+        "promo_invalid": "❌ Invalid promo code.\n\n🎁 Please enter the promo code again:",
+        "promo_applied": (
+            "✅ **Promo code applied!**\n"
+            "💰 Your discount has been updated to: `{discount}%`"
+        ),
+    },
+
+    "zh": {
+        # ZH
+        "time_day": "天",
+        "time_hour": "小时",
+        "time_min": "分钟",
+        "time_sec": "秒",
+        "time_expired": "已过期",
+
+        # ===== Common =====
+        "back": "返回",
+        "yes": "是",
+        "no": "否",
+
+        # ===== Start / Welcome =====
+        "creating_profile": "⚙️ 正在创建您的账户，请稍候…",
+        "welcome": (
+            "欢迎使用 `{bot_name}`！\n\n"
+            "您可以免费体验我们的 VPN 服务 **24 小时**。\n\n"
+            "当别人放弃时，我们依然坚持。\n\n"
+            "**Shix Space Labs** 生态系统的首个服务 —— "
+            "为追求更好体验的人而生。"
+        ),
+
+        "referral_notify": (
+            "⚡️ **太棒了！你有一位新推荐用户！**\n\n"
+            "👤 [{name}](tg://user?id={id}) **刚刚加入了我们！**\n\n"
+            "💥 **这意味着你的网络正在扩大，收入也在快速增长！**\n\n"
+            "📈 邀请的朋友越多，获得的奖励就越多！\n\n"
+            "✨ **继续分享你的链接，轻松提升收益！**"
+        ),
+
+        # ===== Menu =====
+        "profile": "👤 **个人资料：** `{name}`",
+        "telegram_id": "🆔 **Telegram 用户 ID：** `{id}`",
+
+        "sub_link": "🔗 **您的连接链接：** `{link}`\n\n",
+
+        "subscription_status": "✅ **订阅状态：** `{status}`",
+        "subscription_left": "⏳ **订阅剩余时间：** {time}",
+        "subscription_end": "📅 **到期时间：** `{date}`",
+
+        "no_subscription": "无订阅",
+        "active": "已激活",
+
+        "menu_hint": (
+            "💡 使用下方按钮管理您的订阅，"
+            "充分体验 MegaShix VPN 的强大功能。"
+        ),
+
+        # ===== Buttons =====
+        "btn_buy": "💳 购买",
+        "btn_renew": "💳 续费",
+        "btn_connect": "🚀 连接",
+        "btn_promo": "🎁 优惠码",
+        "btn_help": "ℹ️ 关于我们",
+        "btn_investments": "📈 投资 (即将推出)",
+        "btn_settings": "⚙️ 设置",
+        "btn_referral": "🤝 推荐计划",
+        "btn_admin": "⚠️ 管理菜单",
+        "btn_support": "🆘 客服支持",
+
+        # ===== Settings =====
+        "choose_language": "🌍 请选择界面语言：",
+        "lang_ru": "🇷🇺 俄语",
+        "lang_en": "🇬🇧 英语",
+        "lang_zh": "🇨🇳 中文",
+        "settings_saved": "✅ 设置已保存",
+
+        # ===== Help =====
+        "help_text": (
+            "MegaShix VPN 是 Shix Space Labs 生态系统中的首个服务：\n\n"
+            "• 高速连接\n"
+            "• 稳定运行\n"
+            "• 安全可靠\n\n"
+            "当别人停止时，我们仍在为您服务。"
+        ),
+        "help_channel": "🌐 官方频道",
+        "help_terms": "📄 用户协议",
+        "help_privacy": "🔒 隐私政策",
+
+        # ===== Referral =====
+        "referral_text": (
+            "👑 成为合作伙伴，在 **3 年内** 从您推荐用户的所有支付中获得 **40%** 收益。\n\n"
+            "🌟 只要您的客户继续使用服务，每一笔支付都会为您带来奖励。\n\n"
+            "💰 **示例：** 好友充值 500₽ → 您可获得 **200 ₽**\n\n"
+            "💸 **1000 ₽ 起即可提现**，支持多种支付方式\n\n"
+            "🔗 **您的推荐链接：**\n"
+            "`{link}`\n\n"
+            "✨ 分享链接，轻松赚钱！"
+        ),
+
+        # ===== Connect =====
+        "connect_no_profile": "🛑 账户错误",
+        "connect_sub_expired": "⚠️ 订阅已过期，请续费。",
+        "connect_not_ready": "⚠️ 配置尚未完成，请稍后再试。",
+
+        "connect_text": (
+            "🎉 **您的 VPN 配置已准备就绪！**\n\n"
+            "ℹ️ **连接说明：**\n\n"
+            "1. 下载适用于您设备的平台应用\n"
+            "2. 复制以下链接并导入到应用中：\n\n"
+            "`{sub_url}`\n\n"
+            "3. 在应用中启用连接。"
+        ),
+
+        "btn_connect_now": "🚀 立即连接",
+
+        # ===== Renew =====
+        "renew_unavailable": "❌ 套餐暂时不可用",
+
+        # ===== Promo =====
+        "promo_enter": "🎁 请输入您的优惠码：",
+
+        "promo_invalid": "❌ 优惠码无效。\n\n🎁 请重新输入优惠码：",
+        "promo_applied": (
+            "✅ **优惠码已成功使用！**\n"
+            "💰 您的折扣已更新为：`{discount}%`"
+        ),
+    }
+
+}

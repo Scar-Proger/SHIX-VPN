@@ -81,7 +81,7 @@ TEXTS = {
 
         "referral_text": (
             "👑 Станьте партнёром и получайте **40%** со всех платежей ваших пользователей "
-            "на протяжении **3 лет**.\n\n"
+            "на протяжении **3 месяцев**.\n\n"
             "🌟 Выплаты начисляются с каждого платежа, пока клиенты пользуются нашим сервисом.\n\n"
             "💰 **Пример:** друг пополнил 500₽ → ваш бонус **200 ₽**\n\n"
             "💸 **Вывод от 1000 ₽** на удобный способ оплаты\n\n"
@@ -201,7 +201,7 @@ TEXTS = {
 
         "referral_text": (
             "👑 Become a partner and earn **40%** from all payments made by your users "
-            "for **3 years**.\n\n"
+            "for **3 months**.\n\n"
             "🌟 Rewards are credited from every payment as long as your clients use our service.\n\n"
             "💰 **Example:** your friend tops up 500₽ → your reward is **200 ₽**\n\n"
             "💸 **Payout from 1000 ₽** to a convenient payment method\n\n"
@@ -324,7 +324,7 @@ TEXTS = {
 
         # ===== Referral =====
         "referral_text": (
-            "👑 成为合作伙伴，在 **3 年内** 从您推荐用户的所有支付中获得 **40%** 收益。\n\n"
+            "👑 成为合作伙伴，在 **3 个月内** 从您推荐用户的所有支付中获得 **40%** 收益。\n\n"
             "🌟 只要您的客户继续使用服务，每一笔支付都会为您带来奖励。\n\n"
             "💰 **示例：** 好友充值 500₽ → 您可获得 **200 ₽**\n\n"
             "💸 **1000 ₽ 起即可提现**，支持多种支付方式\n\n"

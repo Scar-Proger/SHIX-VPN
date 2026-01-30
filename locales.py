@@ -37,11 +37,12 @@ TEXTS = {
         "sub_link": "🔗 **Ваша ссылка для подключения:** `{link}`\n\n",
 
         "subscription_status": "✅ **Статус подписки:** `{status}`",
-        "subscription_left": "⏳ **До конца подписки:** {time}",
+        "subscription_left": "⏳ **До конца подписки:** `{time}`",
         "subscription_end": "📅 **Дата окончания подписки:** `{date}`",
 
-        "no_subscription": "Нет подписки",
         "active": "Активна",
+        "no_subscription": "Нет подписки",
+        "subscription_inactive": "Не активна",
 
         "menu_hint": (
             "💡 Используйте кнопки ниже, чтобы управлять подпиской "
@@ -110,10 +111,13 @@ TEXTS = {
 
         "promo_enter": "🎁 Введите ваш промокод для активации:",
 
+        "promo_expired": "❌ Активации этого промокода закончились.",
+        "promo_already_used": "⚠️ Вы уже использовали этот промокод.",
+
         "promo_invalid": "❌ Неверный промокод.\n\n🎁 Введите промокод ещё раз:",
         "promo_applied": (
-            "✅ **Промокод применён!**\n"
-            "💰 Ваша скидка обновлена на: `{discount}%`"
+            "✅ **Промокод `{code}` применён!**\n"
+            "💰 Теперь ваша скидка на подписку: `{discount}%`"
         ),
     },
 
@@ -159,6 +163,7 @@ TEXTS = {
 
         "no_subscription": "No subscription",
         "active": "Active",
+        "subscription_inactive": "Inactive",
 
         "menu_hint": (
             "💡 Use the buttons below to manage your subscription "
@@ -222,14 +227,17 @@ TEXTS = {
         "btn_connect_now": "🚀 Connect",
 
         # ===== Renew =====
-        "renew_unavailable": "❌ Plans are temporarily unavailable",
+        "renew_unavailable": "❌ Plans are temporarily unavailable.",
 
         "promo_enter": "🎁 Enter your promo code to activate it:",
 
-        "promo_invalid": "❌ Invalid promo code.\n\n🎁 Please enter the promo code again:",
+        "promo_expired": "❌ This promo code has no remaining activations.",
+        "promo_already_used": "⚠️ You have already used this promo code.",
+
+        "promo_invalid": "❌ Invalid promo code.\n\n🎁 Please try again:",
         "promo_applied": (
-            "✅ **Promo code applied!**\n"
-            "💰 Your discount has been updated to: `{discount}%`"
+            "✅ **Promo code `{code}` applied!**\n"
+            "💰 Your subscription discount is now `{discount}%`"
         ),
     },
 
@@ -276,6 +284,7 @@ TEXTS = {
 
         "no_subscription": "无订阅",
         "active": "已激活",
+        "subscription_inactive": "未激活",
 
         "menu_hint": (
             "💡 使用下方按钮管理您的订阅，"
@@ -343,14 +352,18 @@ TEXTS = {
         # ===== Renew =====
         "renew_unavailable": "❌ 套餐暂时不可用",
 
-        # ===== Promo =====
-        "promo_enter": "🎁 请输入您的优惠码：",
+        # ===== Renew =====
+        "renew_unavailable": "❌ 套餐暂时不可用。",
 
-        "promo_invalid": "❌ 优惠码无效。\n\n🎁 请重新输入优惠码：",
+        "promo_enter": "🎁 请输入您的优惠码进行激活：",
+
+        "promo_expired": "❌ 此优惠码的使用次数已用完。",
+        "promo_already_used": "⚠️ 您已经使用过此优惠码。",
+
+        "promo_invalid": "❌ 无效的优惠码。\n\n🎁 请再试一次：",
         "promo_applied": (
-            "✅ **优惠码已成功使用！**\n"
-            "💰 您的折扣已更新为：`{discount}%`"
+            "✅ **优惠码 `{code}` 已成功使用！**\n"
+            "💰 当前订阅折扣为 `{discount}%`"
         ),
     }
-
 }

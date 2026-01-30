@@ -2,11 +2,14 @@ import os
 from pydantic import BaseModel, Field, field_validator
 from typing import List
 
+
+#7833570599:AAFUPOwN3AWmWExYiwmyKJlcjysbiXIR3zU
+#8067598636:AAHM-I14-dWlxNuBqOZIh3oYdHh3uLgrwYw тест
 class Config(BaseModel):
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "7833570599:AAFUPOwN3AWmWExYiwmyKJlcjysbiXIR3zU")
     ADMINS: List[int] = [
         1799274098,
-        6805707915,
+        6805707915
     ]
 
     REMNAWAVE_API_URL: str = os.getenv("REMNAWAVE_API_URL", "https://panel.shix-vpn.space/api")

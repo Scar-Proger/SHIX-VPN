@@ -37,34 +37,52 @@ class RemnawaveWrapper:
     async def find_user_by_telegram_id(self, telegram_id: int) -> Optional[Dict]:
         await self._ensure_session()
 
-        async with self.session.get(self._url("/users/")) as resp:
-            if resp.status != 200:
-                logger.error("❌ Не удалось получить список пользователей Remnawave")
-                return None
+        start = 0
+        size = 100
 
-            data = await resp.json()
-            response = data.get("response", {})
+        while True:
+            async with self.session.get(
+                self._url("/users/"),
+                params={
+                    "start": start,
+                    "size": size,
+                    "filters": "[]",
+                    "sorting": "[]",
+                },
+            ) as resp:
+                if resp.status != 200:
+                    logger.error("❌ Remnawave: не удалось получить список пользователей")
+                    return None
 
-            users = response.get("items", [])
-            if not isinstance(users, list):
-                logger.error(
-                    f"❌ Неожиданный формат списка пользователей Remnawave. "
-                    f"Ожидался список, получено: {type(users)}"
-                )
-                return None
+                data = await resp.json()
+                response = data.get("response", {})
+                users = response.get("users", [])
+                total = response.get("total", 0)
 
-            for user in users:
-                if not isinstance(user, dict):
-                    logger.warning(
-                        f"⚠️ Пропущен пользователь с некорректным форматом: {type(user)}"
-                    )
-                    continue
+                if not users:
+                    break
 
-                if user.get("note") == f"tg:{telegram_id}":
-                    logger.info(f"🔎 Пользователь с Telegram ID {telegram_id} найден в Remnawave")
-                    return user
+                for user in users:
+                    if not isinstance(user, dict):
+                        continue
 
-        logger.info(f"ℹ️ Пользователь с Telegram ID {telegram_id} в Remnawave не найден")
+                    if user.get("username") == f"user_{telegram_id}":
+                        logger.info(f"✅ Найден RW пользователь по username: {telegram_id}")
+                        return user
+
+                    if user.get("note") == f"tg:{telegram_id}":
+                        logger.info(f"✅ Найден RW пользователь по note: {telegram_id}")
+                        return user
+
+                    if user.get("telegramId") == telegram_id:
+                        logger.info(f"✅ Найден RW пользователь по telegramId: {telegram_id}")
+                        return user
+
+                start += size
+                if start >= total:
+                    break
+
+        logger.warning(f"⚠️ RW пользователь не найден: telegram_id={telegram_id}")
         return None
 
 
@@ -76,16 +94,16 @@ class RemnawaveWrapper:
 
         payload = {
             "uuid": user_uuid,
-            **payload
+            **payload,
         }
 
-        async with self.session.patch(
-            self._url("/users/"),
-            json=payload
-        ) as resp:
+        async with self.session.patch(self._url("/users/"), json=payload) as resp:
+            text = await resp.text()
+
             if resp.status != 200:
-                text = await resp.text()
-                logger.error(f"❌ Ошибка обновления пользователя {user_uuid}: {text}")
+                logger.error(
+                    f"❌ Remnawave PATCH error [{resp.status}] for {user_uuid}: {text}"
+                )
                 return None
 
             data = await resp.json()
@@ -93,12 +111,12 @@ class RemnawaveWrapper:
 
 
     # -------------------------
-    # CREATE или UPDATE пользователя
+    # CREATE пользователя
     # -------------------------
     async def create_user(self, telegram_id: int) -> Optional[Dict]:
         await self._ensure_session()
 
-        expire_at = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+        expire_at = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
 
         existing_user = await self.find_user_by_telegram_id(telegram_id)
 
@@ -169,10 +187,22 @@ class RemnawaveWrapper:
 
 
 
+
+
+
+
+
+
+
+
+
+
+
     async def delete_user(self, user_id: str) -> bool:
         await self._ensure_session()
         async with self.session.delete(self._url(f"/users/{user_id}/")) as resp:
             return resp.status in (200, 204)
+
 
     async def get_user(self, user_id: str) -> Optional[Dict]:
         await self._ensure_session()
@@ -245,5 +275,39 @@ async def get_online_users():
     api = RemnawaveWrapper()
     try:
         return await api.get_online_users()
+    finally:
+        await api.close()
+
+async def sync_remnawave_expire(telegram_id: int, new_end: datetime) -> bool:
+    api = RemnawaveWrapper()
+    try:
+        rw_user = await api.find_user_by_telegram_id(telegram_id)
+
+        if not rw_user:
+            logger.error(f"❌ sync_expire: RW user not found tg={telegram_id}")
+            return False
+
+        if "uuid" not in rw_user:
+            logger.error(f"❌ sync_expire: RW user without uuid tg={telegram_id}")
+            return False
+
+        expire_at = new_end.astimezone(timezone.utc).isoformat()
+
+        updated = await api.update_user(
+            rw_user["uuid"],
+            {"expireAt": expire_at}
+        )
+
+        if not updated:
+            logger.error(
+                f"❌ sync_expire: failed to update expireAt tg={telegram_id}"
+            )
+            return False
+
+        logger.info(
+            f"✅ Remnawave expire updated tg={telegram_id} → {expire_at}"
+        )
+        return True
+
     finally:
         await api.close()

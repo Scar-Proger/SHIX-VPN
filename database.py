@@ -161,7 +161,7 @@ async def create_user(
             full_name=full_name,
             username=username,
             sub_id=generate_sub_id(),
-            subscription_end=now_local() + timedelta(hours=24),
+            subscription_end=now_local() + timedelta(days=30),
             is_admin=is_admin,
             referrer_id=referrer_id,
             referrals_count=0,
@@ -286,21 +286,27 @@ async def apply_promo_code(user_id: int, code: str):
     with Session() as session:
         user = session.query(User).filter_by(telegram_id=user_id).first()
         if not user:
-            return {"error": "Пользователь не найден"}
+            return {"error": "user_not_found"}
 
         promo = session.query(PromoCode).filter_by(code=code.upper()).first()
-        if not promo or not promo.is_active:
-            return {"error": "Промокод недоступен"}
+        if not promo:
+            return {"error": "promo_not_found"}
 
+        # ❌ пользователь уже использовал
         used = session.query(UserPromoCode).filter_by(
             user_id=user.id,
             promo_id=promo.id
         ).first()
         if used:
-            return {"error": "Вы уже использовали этот промокод"}
+            return {"error": "promo_already_used"}
 
-        usage = UserPromoCode(user_id=user.id, promo_id=promo.id)
-        session.add(usage)
+        # ❌ промокод закончился
+        if not promo.is_active or promo.used_count >= promo.max_uses:
+            return {"error": "promo_expired"}
+
+
+        # ✅ применяем
+        session.add(UserPromoCode(user_id=user.id, promo_id=promo.id))
 
         user.active_promo_id = promo.id
         user.active_discount = promo.discount_percent
@@ -309,7 +315,12 @@ async def apply_promo_code(user_id: int, code: str):
         promo.is_active = promo.used_count < promo.max_uses
 
         session.commit()
-        return {"success": True}
+
+        return {
+            "success": True,
+            "code": promo.code,
+            "discount_percent": promo.discount_percent
+        }
 
 async def delete_promocode(code: str):
     with Session() as session:

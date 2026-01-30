@@ -4,7 +4,7 @@ import json
 
 from database import now_local
 from aiogram.types import FSInputFile
-from functions import create_vless_profile, get_user_stats, get_online_users
+from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire
 from datetime import datetime, timedelta
 from aiogram import Dispatcher, Router, F, Bot
 from aiogram.filters import Command
@@ -30,6 +30,17 @@ router = Router()
 MAX_MESSAGE_LENGTH = 4096
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+class AdminStates(StatesGroup):
+    ADD_TIME = State()
+    REMOVE_TIME = State()
+    CREATE_STATIC_PROFILE = State()
+    SEND_MESSAGE = State()
+    ADD_TIME_USER = State()
+    REMOVE_TIME_USER = State()
+    ADD_TIME_AMOUNT = State()
+    REMOVE_TIME_AMOUNT = State()
+    SEND_MESSAGE_TARGET = State()
+
 # ------------------------------
 # Состояния для ввода промокода
 # ------------------------------
@@ -52,10 +63,12 @@ async def get_promo_code(code: str):
     with Session() as session:
         return session.query(PromoCode).filter_by(code=code.upper(), is_active=True).first()
     
+
 def is_subscription_active(user) -> bool:
     if not user.subscription_end:
         return False
     return user.subscription_end > now_local()
+
 
 def t(user, key: str, **kwargs) -> str:
     lang = getattr(user, "language", "ru") or "ru"
@@ -66,16 +79,6 @@ def t(user, key: str, **kwargs) -> str:
 
     return lang_dict[key].format(**kwargs)
 
-class AdminStates(StatesGroup):
-    ADD_TIME = State()
-    REMOVE_TIME = State()
-    CREATE_STATIC_PROFILE = State()
-    SEND_MESSAGE = State()
-    ADD_TIME_USER = State()
-    REMOVE_TIME_USER = State()
-    ADD_TIME_AMOUNT = State()
-    REMOVE_TIME_AMOUNT = State()
-    SEND_MESSAGE_TARGET = State()
 
 async def is_subscribed(bot: Bot, user_id: int) -> bool:
     try:
@@ -87,6 +90,7 @@ async def is_subscribed(bot: Bot, user_id: int) -> bool:
     except TelegramBadRequest:
         return False
     
+
 async def send_subscribe_required(bot: Bot, chat_id: int):
     kb = InlineKeyboardBuilder()
 
@@ -112,6 +116,7 @@ async def send_subscribe_required(bot: Bot, chat_id: int):
         reply_markup=kb.as_markup(),
         parse_mode="Markdown"
     )
+
 
 @router.callback_query(F.data == "check_subscription")
 async def check_subscription(callback: CallbackQuery, bot: Bot):
@@ -194,7 +199,6 @@ async def edit_caption(
     )
 
 
-
 def format_time_left(end_date: datetime, user) -> str:
     now = now_local()
     delta = end_date - now
@@ -236,9 +240,12 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
 
     if not user.subscription_end or user.subscription_end < now:
         status = t(user, "no_subscription")
-        expire_date = "-"
-        time_left_text = "-"
-        sub_text = "-"
+        expire_date = t(user, "subscription_inactive")
+        time_left = t(user, "subscription_inactive")
+
+        time_left_text = t(user, "subscription_left", time=time_left)
+        sub_text = ""
+
     else:
         status = t(user, "active")
         expire_date = user.subscription_end.strftime("%d-%m-%Y %H:%M")
@@ -788,40 +795,48 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     code_input = message.text.strip().upper()
     result = await apply_promo_code(user.telegram_id, code_input)
 
-    # ---------- ❌ НЕВЕРНЫЙ ПРОМОКОД ----------
+    # ---------- ❌ ОШИБКИ ----------
     if "error" in result:
         builder = InlineKeyboardBuilder()
         builder.button(text=t(user, "back"), callback_data="back_to_menu")
+        builder.adjust(1)
+
+        error_map = {
+            "promo_expired": "promo_expired",
+            "promo_already_used": "promo_already_used",
+            "promo_not_found": "promo_invalid",
+        }
+
+        text_key = error_map.get(result["error"], "promo_invalid")
 
         await bot.edit_message_caption(
             chat_id=chat_id,
             message_id=bot_message_id,
-            caption=t(user, "promo_invalid"),
+            caption=t(user, text_key),
             reply_markup=builder.as_markup(),
             parse_mode="Markdown"
         )
         return
 
-    # ---------- ✅ УСПЕХ ----------
+    builder = InlineKeyboardBuilder()
+    builder.button(text=t(user, "back"), callback_data="back_to_menu")
+    builder.adjust(1)
+
     await bot.edit_message_caption(
         chat_id=chat_id,
         message_id=bot_message_id,
         caption=t(
             user,
             "promo_applied",
+            code=result["code"],
             discount=result["discount_percent"]
         ),
+        reply_markup=builder.as_markup(),
         parse_mode="Markdown"
     )
 
     await state.clear()
 
-    # 🔁 возвращаем главное меню (тем же сообщением)
-    await show_menu(
-        bot,
-        chat_id=chat_id,
-        message_id=bot_message_id
-    )
 
 
 
@@ -845,8 +860,9 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
 
 
 
-
-
+# ------------------------------
+# Админ меню
+# ------------------------------
 @router.callback_query(F.data == "admin_menu")
 async def admin_menu(callback: CallbackQuery, bot: Bot):
     user = await get_user(callback.from_user.id)
@@ -902,6 +918,7 @@ async def admin_menu(callback: CallbackQuery, bot: Bot):
         parse_mode="Markdown"
     )
 
+
 # ------------------------------
 # Кнопка создания промокода в админке
 # ------------------------------
@@ -933,6 +950,7 @@ async def admin_create_promo_cb(callback: CallbackQuery, state: FSMContext):
     # сохраняем ID для удаления на следующем шаге
     await state.update_data(messages_to_delete=[msg.message_id])
     await state.set_state(AdminPromoStates.waiting_for_code)
+
 
 # ------------------------------
 # Ввод самого промокода
@@ -978,6 +996,7 @@ async def enter_promo_code_admin(message: Message, state: FSMContext):
     # Переходим к следующему шагу
     await state.set_state(AdminPromoStates.waiting_for_discount)
 
+
 # ------------------------------
 # Ввод процента скидки
 # ------------------------------
@@ -995,7 +1014,7 @@ async def promo_discount_cb(callback: CallbackQuery, state: FSMContext):
 
     # Кнопки для следующего шага (ввод максимального количества использований)
     kb = InlineKeyboardBuilder()
-    kb.button(text="⬅️ Назад", callback_data="admin_create_promo")
+    kb.button(text="Назад", callback_data="admin_create_promo")
     kb.adjust(1)
 
     # Отправляем новое сообщение
@@ -1010,6 +1029,7 @@ async def promo_discount_cb(callback: CallbackQuery, state: FSMContext):
     await state.update_data(messages_to_delete=[msg.message_id])
 
     await state.set_state(AdminPromoStates.waiting_for_max_uses)
+
 
 # ------------------------------
 # Ввод самого промокода
@@ -1051,6 +1071,7 @@ async def enter_promo_code_admin(message: Message, state: FSMContext):
 
     await state.set_state(AdminPromoStates.waiting_for_discount)
 
+
 # ------------------------------
 # Выбор процента скидки
 # ------------------------------
@@ -1090,6 +1111,7 @@ async def promo_discount_cb(callback: CallbackQuery, state: FSMContext):
     await state.update_data(messages_to_delete=[msg.message_id])
 
     await state.set_state(AdminPromoStates.waiting_for_max_uses)
+
 
 # ------------------------------
 # Ввод максимального количества использований
@@ -1154,6 +1176,7 @@ async def enter_max_uses(message: Message, state: FSMContext):
     # --------- очищаем FSM ---------
     await state.clear()
 
+
 # ------------------------------
 # Кнопка "Список промокодов" в админке
 # ------------------------------
@@ -1161,14 +1184,18 @@ async def enter_max_uses(message: Message, state: FSMContext):
 async def show_promocodes(callback: CallbackQuery, state: FSMContext):
     promos = await get_all_promocodes_list()
     if not promos:
+        kb = InlineKeyboardBuilder()
+        kb.button(text="Назад", callback_data="admin_menu")
+
         await callback.message.edit_text(
             "❌ Промокодов пока нет.",
-            reply_markup=InlineKeyboardBuilder().button("Назад", callback_data="admin_menu").as_markup()
+            reply_markup=kb.as_markup()
         )
         return
 
     await state.update_data(promos=promos, index=0)
     await _edit_promocode_message(callback.message, state)
+
 
 # ------------------------------
 # Отображение промокода с кнопкой "Удалить"
@@ -1228,41 +1255,47 @@ async def _edit_promocode_message(message, state: FSMContext):
         parse_mode="Markdown"
     )
 
+
 # ------------------------------
 # Удаление промокода
 # ------------------------------
 @router.callback_query(F.data.startswith("promocode_delete_"))
 async def promocode_delete(callback: CallbackQuery, state: FSMContext):
     await callback.answer("Удаляю промокод...")
-    index = int(callback.data.split("_")[-1])
-    
+
+    promo_id = int(callback.data.split("_")[-1])
+
     data = await state.get_data()
     promos = data.get("promos", [])
-    
-    if index >= len(promos):
+
+    promo_to_delete = next((p for p in promos if p.id == promo_id), None)
+    if not promo_to_delete:
         await callback.message.answer("❌ Промокод не найден.")
         return
 
-    # Удаляем промокод из базы
-    promo_to_delete = promos.pop(index)
-    await delete_promocode(promo_to_delete['code'])
+    # Удаляем из БД
+    await delete_promocode(promo_to_delete.code)
 
-    # Обновляем список в состоянии
+    # Удаляем из списка
+    promos = [p for p in promos if p.id != promo_id]
     await state.update_data(promos=promos)
 
     if not promos:
         kb = InlineKeyboardBuilder()
         kb.button(text="Назад", callback_data="admin_menu")
         kb.adjust(1)
-        await callback.message.edit_text("❌ Промокодов больше нет.", reply_markup=kb.as_markup())
+        await callback.message.edit_text(
+            "❌ Промокодов больше нет.",
+            reply_markup=kb.as_markup()
+        )
         return
 
-    # Корректируем индекс для просмотра следующего/предыдущего
-    new_index = min(index, len(promos) - 1)
+    # Обновляем индекс
+    new_index = min(data.get("index", 0), len(promos) - 1)
     await state.update_data(index=new_index)
 
-    # Перерисовываем сообщение с новым промокодом
     await _edit_promocode_message(callback.message, state)
+
 
 # ------------------------------
 # Следующий промокод
@@ -1275,6 +1308,7 @@ async def promocode_next(callback: CallbackQuery, state: FSMContext):
     if index < len(promos) - 1:
         await state.update_data(index=index + 1)
         await _edit_promocode_message(callback.message, state)
+
 
 # ------------------------------
 # Предыдущий промокод
@@ -1310,7 +1344,18 @@ async def promocode_prev(callback: CallbackQuery, state: FSMContext):
 
 
 
-# Обработчики для управления временем подписки
+
+
+
+
+
+
+
+
+
+
+
+# Обработчики для управления дабавления временем подписки
 @router.callback_query(F.data == "admin_add_time")
 async def admin_add_time_start(callback: CallbackQuery, state: FSMContext):
     await callback.answer()  # Снимаем анимацию
@@ -1330,38 +1375,52 @@ async def admin_add_time_user(message: Message, state: FSMContext):
 @router.message(AdminStates.ADD_TIME_AMOUNT)
 async def admin_add_time_amount(message: Message, state: FSMContext):
     data = await state.get_data()
-    user_id = data['user_id']
-    parts = message.text.split()
-    
-    if len(parts) != 4:
-        await message.answer("Ошибка: нужно ввести 4 числа")
-        return
-    
-    try:
-        months, days, hours, minutes = map(int, parts)
-        total_seconds = (
-            months * 30 * 24 * 60 * 60 +
-            days * 24 * 60 * 60 +
-            hours * 60 * 60 +
-            minutes * 60
-        )
-        
-        with Session() as session:
-            user = session.query(User).filter_by(telegram_id=user_id).first()
-            if user:
-                if user.subscription_end > datetime.utcnow():
-                    user.subscription_end += timedelta(seconds=total_seconds)
-                else:
-                    user.subscription_end = datetime.utcnow() + timedelta(seconds=total_seconds)
-                session.commit()
-                await message.answer(f"✅ Добавлено время пользователю {user_id}")
-            else:
-                await message.answer("❌ Пользователь не найден")
-    except Exception as e:
-        await message.answer(f"Ошибка: {str(e)}")
-    finally:
-        await state.clear()
+    user_id = data["user_id"]
 
+    try:
+        months, days, hours, minutes = map(int, message.text.split())
+    except ValueError:
+        await message.answer("❌ Ошибка формата")
+        return
+
+    delta = timedelta(
+        days=months * 30 + days,
+        hours=hours,
+        minutes=minutes
+    )
+
+    with Session() as session:
+        user = session.query(User).filter_by(telegram_id=user_id).first()
+        if not user:
+            await message.answer("❌ Пользователь не найден")
+            return
+
+        now = now_local()
+        new_end = (
+            user.subscription_end + delta
+            if user.subscription_end and user.subscription_end > now
+            else now + delta
+        )
+
+        # 🔁 SYNC WITH REMNAWAVE
+        ok = await sync_remnawave_expire(user_id, new_end)
+        if not ok:
+            await message.answer("⚠️ Не удалось обновить Remnawave")
+            return
+
+        user.subscription_end = new_end
+        session.commit()
+
+    await message.answer(
+        f"✅ Подписка обновлена до {new_end.strftime('%d-%m-%Y %H:%M')}"
+    )
+    await state.clear()
+
+
+
+
+
+# Обработчики для управления удаления временем подписки
 @router.callback_query(F.data == "admin_remove_time")
 async def admin_remove_time_start(callback: CallbackQuery, state: FSMContext):
     await callback.answer()  # Снимаем анимацию
@@ -1381,38 +1440,61 @@ async def admin_remove_time_user(message: Message, state: FSMContext):
 @router.message(AdminStates.REMOVE_TIME_AMOUNT)
 async def admin_remove_time_amount(message: Message, state: FSMContext):
     data = await state.get_data()
-    user_id = data['user_id']
-    parts = message.text.split()
-    
-    if len(parts) != 4:
-        await message.answer("Ошибка: нужно ввести 4 числа")
-        return
-    
+    user_id = data["user_id"]
+
     try:
-        months, days, hours, minutes = map(int, parts)
-        total_seconds = (
-            months * 30 * 24 * 60 * 60 +
-            days * 24 * 60 * 60 +
-            hours * 60 * 60 +
-            minutes * 60
-        )
-        
-        with Session() as session:
-            user = session.query(User).filter_by(telegram_id=user_id).first()
-            if user:
-                new_end = user.subscription_end - timedelta(seconds=total_seconds)
-                # Проверяем, чтобы не ушло в прошлое
-                if new_end < datetime.utcnow():
-                    new_end = datetime.utcnow()
-                user.subscription_end = new_end
-                session.commit()
-                await message.answer(f"✅ Удалено время у пользователя {user_id}")
-            else:
-                await message.answer("❌ Пользователь не найден")
-    except Exception as e:
-        await message.answer(f"Ошибка: {str(e)}")
-    finally:
-        await state.clear()
+        months, days, hours, minutes = map(int, message.text.split())
+    except ValueError:
+        await message.answer("❌ Ошибка формата")
+        return
+
+    delta = timedelta(
+        days=months * 30 + days,
+        hours=hours,
+        minutes=minutes
+    )
+
+    with Session() as session:
+        user = session.query(User).filter_by(telegram_id=user_id).first()
+        if not user or not user.subscription_end:
+            await message.answer("❌ Подписка не найдена")
+            return
+
+        new_end = max(now_local(), user.subscription_end - delta)
+
+        # 🔁 SYNC WITH REMNAWAVE
+        ok = await sync_remnawave_expire(user_id, new_end)
+        if not ok:
+            await message.answer("⚠️ Не удалось обновить Remnawave")
+            return
+
+        user.subscription_end = new_end
+        session.commit()
+
+    await message.answer(
+        f"✅ Подписка сокращена до {new_end.strftime('%d-%m-%Y %H:%M')}"
+    )
+    await state.clear()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Обработчики для вывода списка пользователей
 @router.callback_query(F.data == "admin_user_list")

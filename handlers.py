@@ -328,7 +328,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
     builder.row(
         InlineKeyboardButton(
             text=t(user, "btn_support"),
-            web_app=WebAppInfo(url="mailto:megashix.vpn@mail.ru")
+            url="mailto:megashix.vpn@mail.ru"
         )
     )
 

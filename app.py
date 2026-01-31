@@ -63,7 +63,7 @@ async def check_subscriptions():
                             user.telegram_id,
                             "🎁 **Ваша тестовая подписка почти закончилась!**\n\n"
                             "⏳ **Осталось всего 2 часа**\n\n"
-                            "🔒 Продлите на **30 дней всего за 69 ₽** и пользуйтесь VPN без ограничений.\n\n"
+                            "🔒 Продлите на **30 дней всего за 99 ₽** и пользуйтесь VPN без ограничений.\n\n"
                             "⚡️ Нажмите **«Оформить сейчас»** ⬇️",
                             reply_markup=subscription_action_keyboard(is_active=True),
                             parse_mode="Markdown"

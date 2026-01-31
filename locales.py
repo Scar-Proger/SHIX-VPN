@@ -121,11 +121,11 @@ TEXTS = {
         "renew_unavailable": "❌ Тарифы временно недоступны",
 
         # ===== Tariffs =====
-        "tariff_1m": "99 ₽ — 1 месяц",
-        "tariff_3m": "89 ₽ — 3 месяца",
-        "tariff_6m": "79 ₽ — 6 месяцев",
-        "tariff_1y": "59 ₽ — 1 год",
-        "tariff_2y": "49 ₽ — 2 года",
+        "tariff_1m": "99 ₽/мес — 1 месяц",
+        "tariff_3m": "89 ₽/мес — 3 месяца",
+        "tariff_6m": "79 ₽/мес — 6 месяцев",
+        "tariff_1y": "59 ₽/мес — 1 год",
+        "tariff_2y": "49 ₽/мес — 2 года",
 
 
         "promo_enter": "🎁 Введите ваш промокод для активации:",
@@ -260,11 +260,11 @@ TEXTS = {
         "renew_unavailable": "❌ Tariffs are temporarily unavailable",
 
         # ===== Tariffs =====
-        "tariff_1m": "$99 — 1 month",
-        "tariff_3m": "$89 — 3 months",
-        "tariff_6m": "$79 — 6 months",
-        "tariff_1y": "$59 — 1 year",
-        "tariff_2y": "$49 — 2 years",
+        "tariff_1m": "99 ₽/mo — 1 month",
+        "tariff_3m": "89 ₽/mo — 3 months",
+        "tariff_6m": "79 ₽/mo — 6 months",
+        "tariff_1y": "59 ₽/mo — 1 year",
+        "tariff_2y": "49 ₽/mo — 2 years",
 
         "promo_enter": "🎁 Enter your promo code to activate it:",
 
@@ -401,11 +401,12 @@ TEXTS = {
         "renew_unavailable": "❌ 套餐暂时不可用",
 
         # ===== Tariffs =====
-        "tariff_1m": "99 ₽ — 1 个月",
-        "tariff_3m": "89 ₽ — 3 个月",
-        "tariff_6m": "79 ₽ — 6 个月",
-        "tariff_1y": "59 ₽ — 1 年",
-        "tariff_2y": "49 ₽ — 2 年",
+        "tariff_1m": "99 ₽/月 — 1 个月",
+        "tariff_3m": "89 ₽/月 — 3 个月",
+        "tariff_6m": "79 ₽/月 — 6 个月",
+        "tariff_1y": "59 ₽/月 — 1 年",
+        "tariff_2y": "49 ₽/月 — 2 年",
+
 
         # ===== Renew =====
         "renew_unavailable": "❌ 套餐暂时不可用。",

@@ -303,15 +303,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         )
     )
 
-    # 4 ряд — только btn_investments
-    builder.row(
-        InlineKeyboardButton(
-            text=t(user, "btn_investments"),
-            callback_data="investments"
-        )
-    )
-
-    # 5 ряд — btn_help и btn_settings
+    # 4 ряд — btn_help и btn_settings
     builder.row(
         InlineKeyboardButton(
             text=t(user, "btn_help"),
@@ -323,7 +315,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         )
     )
 
-    # 6 ряд — админ панель (если админ)
+    # 5 ряд — админ панель (если админ)
     if user.is_admin:
         builder.row(
             InlineKeyboardButton(
@@ -332,11 +324,11 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
             )
         )
 
-    # 7 ряд — btn_support (ссылка)
+    # 6 ряд — btn_support (ссылка)
     builder.row(
         InlineKeyboardButton(
             text=t(user, "btn_support"),
-            url="https://t.me/MegaShix_VPN?direct"
+            web_app=WebAppInfo(url="mailto:megashix.vpn@mail.ru")
         )
     )
 

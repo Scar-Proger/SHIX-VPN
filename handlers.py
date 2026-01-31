@@ -328,7 +328,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
     builder.row(
         InlineKeyboardButton(
             text=t(user, "btn_support"),
-            url="https://t.me/cold_snake"
+            url="https://mail.google.com/mail/?view=cm&to=megashix.vpn@mail.ru"
         )
     )
 

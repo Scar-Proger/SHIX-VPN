@@ -723,21 +723,22 @@ async def renew_cb(callback: CallbackQuery):
     user = await get_user(callback.from_user.id)
     await callback.answer()
 
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(user, "tariff_1m"), callback_data="tariff_1m")],
+        [InlineKeyboardButton(text=t(user, "tariff_3m"), callback_data="tariff_3m")],
+        [InlineKeyboardButton(text=t(user, "tariff_6m"), callback_data="tariff_6m")],
+        [InlineKeyboardButton(text=t(user, "tariff_1y"), callback_data="tariff_1y")],
+        [InlineKeyboardButton(text=t(user, "tariff_2y"), callback_data="tariff_2y")],
+        [InlineKeyboardButton(text=t(user, "back"), callback_data="back_to_menu")]
+    ])
+
     await callback.bot.edit_message_caption(
         chat_id=callback.from_user.id,
         message_id=callback.message.message_id,
-        caption=t(user, "renew_unavailable"),
-        reply_markup=_back_kb(t(user, "back"), "back_to_menu"),
+        caption=t(user, "renew_text"),
+        reply_markup=keyboard,
         parse_mode="Markdown"
     )
-
-# ------------------------------
-# Создание платежки через Lava
-# ------------------------------
-@router.callback_query(F.data.startswith("lava_"))
-async def lava_pay_cb(callback: CallbackQuery, bot: Bot):
-    return
-
 
 # ------------------------------
 # Обработчик кнопки "Промокод"

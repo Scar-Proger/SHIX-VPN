@@ -107,7 +107,26 @@ TEXTS = {
         "btn_connect_now": "🚀 Подключиться",
 
         # ===== Renew =====
+        "renew_text": (
+            "🔥 *Быстрый и безопасный VPN*\n\n"
+            "• Безлимитный трафик\n"
+            "• Лёгкий вход в банковские приложения\n"
+            "• Блокировка рекламы на YouTube\n"
+            "• До 5 устройств одновременно\n\n"
+            "⚡ Уже есть оплаченный VPN? Забудь о нём!\n"
+            "Мы компенсируем расходы и дадим доступ к нашему супер-скоростному VPN.\n\n"
+            "🚀 Подключайся и пользуйся только нашим VPN!"
+        ),
+
         "renew_unavailable": "❌ Тарифы временно недоступны",
+
+        # ===== Tariffs =====
+        "tariff_1m": "99 ₽ — 1 месяц",
+        "tariff_3m": "89 ₽ — 3 месяца",
+        "tariff_6m": "79 ₽ — 6 месяцев",
+        "tariff_1y": "59 ₽ — 1 год",
+        "tariff_2y": "49 ₽ — 2 года",
+
 
         "promo_enter": "🎁 Введите ваш промокод для активации:",
 
@@ -227,7 +246,25 @@ TEXTS = {
         "btn_connect_now": "🚀 Connect",
 
         # ===== Renew =====
-        "renew_unavailable": "❌ Plans are temporarily unavailable.",
+        "renew_text": (
+            "🔥 *Fast & Secure VPN*\n\n"
+            "• Unlimited traffic\n"
+            "• Easy access to banking apps\n"
+            "• Ad blocking on YouTube\n"
+            "• Up to 5 devices simultaneously\n\n"
+            "⚡ Already have a paid VPN? Forget about it!\n"
+            "We will compensate your expenses and give you access to our ultra-fast VPN.\n\n"
+            "🚀 Connect and use only our reliable VPN!"
+        ),
+
+        "renew_unavailable": "❌ Tariffs are temporarily unavailable",
+
+        # ===== Tariffs =====
+        "tariff_1m": "$99 — 1 month",
+        "tariff_3m": "$89 — 3 months",
+        "tariff_6m": "$79 — 6 months",
+        "tariff_1y": "$59 — 1 year",
+        "tariff_2y": "$49 — 2 years",
 
         "promo_enter": "🎁 Enter your promo code to activate it:",
 
@@ -350,7 +387,25 @@ TEXTS = {
         "btn_connect_now": "🚀 立即连接",
 
         # ===== Renew =====
+        "renew_text": (
+            "🔥 *快速且安全的 VPN*\n\n"
+            "• 无限流量\n"
+            "• 轻松访问银行应用\n"
+            "• 屏蔽 YouTube 广告\n"
+            "• 最多支持 5 台设备同时使用\n\n"
+            "⚡ 已经有付费 VPN？忘掉它吧！\n"
+            "我们将补偿你的费用，并为你提供超高速 VPN 服务。\n\n"
+            "🚀 立即连接，只使用我们的安全 VPN！"
+        ),
+
         "renew_unavailable": "❌ 套餐暂时不可用",
+
+        # ===== Tariffs =====
+        "tariff_1m": "99 ₽ — 1 个月",
+        "tariff_3m": "89 ₽ — 3 个月",
+        "tariff_6m": "79 ₽ — 6 个月",
+        "tariff_1y": "59 ₽ — 1 年",
+        "tariff_2y": "49 ₽ — 2 年",
 
         # ===== Renew =====
         "renew_unavailable": "❌ 套餐暂时不可用。",

@@ -225,13 +225,23 @@ class RemnawaveWrapper:
                 "download": data.get("download", 0),
             }
 
+
     async def get_online_users(self) -> int:
         await self._ensure_session()
-        async with self.session.get(self._url("/stats/online/")) as resp:
+
+        async with self.session.get(self._url("/system/stats")) as resp:
             if resp.status != 200:
+                logger.error("❌ RW system/stats error")
                 return 0
+
             data = await resp.json()
-            return int(data.get("online", 0))
+            return int(
+                data
+                .get("response", {})
+                .get("onlineStats", {})
+                .get("onlineNow", 0)
+            )
+
 
     # -------------------------
     # Закрытие сессии

@@ -10,7 +10,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from fastapi.staticfiles import StaticFiles
 import os
-from functions import delete_client_by_id
+from functions import delete_client_by_id, get_online_users
 
 
 from config import config

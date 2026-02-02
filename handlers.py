@@ -1496,7 +1496,7 @@ async def admin_user_list(callback: CallbackQuery):
     builder.button(text="✅ С подпиской", callback_data="user_list_active")
     builder.button(text="🛑 Без подписки", callback_data="user_list_inactive")
     builder.button(text="⏱️ Статические профили", callback_data="static_profiles_menu")
-    builder.button(text="⬅️ Назад", callback_data="admin_menu")
+    builder.button(text="Назад", callback_data="admin_menu")
     builder.adjust(1, 1, 1)
     await callback.message.edit_text("**Выберите фильтр**", reply_markup=builder.as_markup(), parse_mode='Markdown')
 
@@ -1554,7 +1554,7 @@ async def admin_send_message_start(callback: CallbackQuery, state: FSMContext):
     builder.button(text="✅ С подпиской", callback_data="target_active")
     builder.button(text="🛑 Без подписки", callback_data="target_inactive")
     builder.button(text="👥 Всем пользователям", callback_data="target_all")
-    builder.button(text="↩️ Назад", callback_data="admin_menu")
+    builder.button(text="Назад", callback_data="admin_menu")
     builder.adjust(1)
     
     await callback.message.edit_text(
@@ -1609,7 +1609,7 @@ async def static_profiles_menu(callback: CallbackQuery):
     builder = InlineKeyboardBuilder()
     builder.button(text="🆕 Добавить статический профиль", callback_data="static_profile_add")
     builder.button(text="📋 Вывести статические профили", callback_data="static_profile_list")
-    builder.button(text="⬅️ Назад", callback_data="admin_user_list")
+    builder.button(text="Назад", callback_data="admin_user_list")
     builder.adjust(1)
     await callback.message.edit_text("**Выберите действие**", reply_markup=builder.as_markup(), parse_mode='Markdown')
 
@@ -1709,11 +1709,6 @@ async def back_to_menu(callback: CallbackQuery, bot: Bot, state: FSMContext):
         chat_id=callback.from_user.id,
         message_id=callback.message.message_id
     )
-
-def _back_kb(text: str, callback_data: str):
-    kb = InlineKeyboardBuilder()
-    kb.button(text=text, callback_data=callback_data)
-    return kb.as_markup()
 
 
 

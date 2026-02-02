@@ -233,6 +233,15 @@ async def get_user_stats():
             .filter(User.subscription_end > now_local()).scalar()
         without_sub = total - with_sub
         return total, with_sub, without_sub
+    
+async def delete_user_completely(telegram_id: int):
+    with Session() as session:
+        user = session.query(User).filter_by(telegram_id=telegram_id).first()
+        if user:
+            session.delete(user)
+            session.commit()
+            logger.info(f"🗑 Пользователь полностью удалён из БД: {telegram_id}")
+
 
 # ==================================================
 # Промокоды

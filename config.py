@@ -23,6 +23,4 @@ class Config(BaseModel):
     REQUIRED_CHANNEL_ID: int = int(os.getenv("REQUIRED_CHANNEL_ID", "-1003654012741"))
     REQUIRED_CHANNEL_URL: str = os.getenv("REQUIRED_CHANNEL_URL", "https://t.me/+puDopsmMAV01ZWYy")
 
-
-
 config = Config()

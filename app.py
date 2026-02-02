@@ -21,6 +21,7 @@ from database import (
     User,
     init_db,
     get_all_users,
+    delete_user_completely
 )
 
 from btn import subscription_action_keyboard
@@ -153,10 +154,7 @@ async def check_channel_membership():
                                 telegram_id=user.telegram_id
                             ).first()
                             if db_user:
-                                db_user.subscription_end = None
-                                db_user.sub_id = None
-                                db_user.vless_profile_data = None
-                                session.commit()
+                                await delete_user_completely(user.telegram_id)
 
                         # 3️⃣ пробуем уведомить (МОЖЕТ УПАСТЬ)
                         try:
@@ -177,11 +175,7 @@ async def check_channel_membership():
                             telegram_id=user.telegram_id
                         ).first()
                         if db_user:
-                            db_user.subscription_end = None
-                            db_user.sub_id = None
-                            db_user.vless_profile_data = None
-                            session.commit()
-
+                            await delete_user_completely(user.telegram_id)
                     continue
 
                 except TelegramBadRequest:

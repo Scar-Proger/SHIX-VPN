@@ -1,13 +1,16 @@
 import asyncio
 import logging
 import warnings
+import json
 import uuid
 from datetime import timedelta
 import coloredlogs
 from fastapi import FastAPI
 from aiogram import Bot, Dispatcher
+from aiogram.exceptions import TelegramBadRequest
 from fastapi.staticfiles import StaticFiles
 import os
+from functions import delete_client_by_id
 
 
 from config import config
@@ -111,7 +114,69 @@ async def check_subscriptions():
         except Exception as e:
             logger.warning(f"Критическая ошибка в задаче проверки подписок: {e}")
 
-        await asyncio.sleep(3600)
+        await asyncio.sleep(600)
+
+async def check_channel_membership():
+    while True:
+        try:
+            users = await get_all_users()
+
+            for user in users:
+                try:
+                    member = await bot.get_chat_member(
+                        chat_id=config.REQUIRED_CHANNEL_ID,
+                        user_id=user.telegram_id
+                    )
+
+                    if member.status in ("left", "kicked"):
+                        logger.info(f"🚫 {user.telegram_id} вышел из канала")
+
+                        # 1️⃣ удаляем в Remnawave
+                        if user.vless_profile_data:
+                            try:
+                                data = json.loads(user.vless_profile_data)
+                                rw_uuid = data.get("uuid")
+
+                                if rw_uuid:
+                                    deleted = await delete_client_by_id(rw_uuid)
+                                    if deleted:
+                                        logger.info(f"✅ RW пользователь удалён: {rw_uuid}")
+                                    else:
+                                        logger.warning(f"⚠️ RW пользователь не удалён: {rw_uuid}")
+
+                            except (json.JSONDecodeError, TypeError) as e:
+                                logger.error(f"❌ Ошибка vless_profile_data у {user.telegram_id}: {e}")
+
+                        # 2️⃣ чистим БД
+                        with Session() as session:
+                            db_user = session.query(User).filter_by(
+                                telegram_id=user.telegram_id
+                            ).first()
+                            if db_user:
+                                db_user.subscription_end = None
+                                db_user.sub_id = None
+                                db_user.vless_profile_data = None
+                                session.commit()
+
+                        # 3️⃣ уведомляем
+                        await bot.send_message(
+                            user.telegram_id,
+                            "🚫 Вы вышли из канала, доступ к VPN отключён"
+                        )
+
+                except TelegramBadRequest:
+                    # если пользователь вообще недоступен
+                    continue
+
+        except Exception as e:
+            logger.error(f"Ошибка проверки подписки на канал: {e}")
+
+        await asyncio.sleep(60)  # раз в 10 минут
+
+
+
+
+
 
 # =================================================
 # ADMIN STATUS
@@ -150,6 +215,7 @@ async def start_bot():
     setup_handlers(dp)
 
     asyncio.create_task(check_subscriptions())
+    asyncio.create_task(check_channel_membership())
 
     logger.info("🤖 Бот запущен!")
     await dp.start_polling(bot)

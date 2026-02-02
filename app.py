@@ -12,7 +12,6 @@ from fastapi.staticfiles import StaticFiles
 import os
 from functions import delete_client_by_id, get_online_users
 
-
 from config import config
 from handlers import setup_handlers
 from database import (
@@ -34,6 +33,11 @@ logger = logging.getLogger(__name__)
 
 # -------------------- FASTAPI --------------------
 app = FastAPI()
+
+# -------------------- AIROGRAM -------------------
+bot: Bot | None = None
+dp: Dispatcher | None = None
+bot_started = False   # 🔒 ВАЖНО
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -223,6 +227,9 @@ async def start_bot():
     bot = Bot(token=config.BOT_TOKEN)
     dp = Dispatcher()
 
+    # 🔥 КРИТИЧНО: убираем старые webhooks / getUpdates
+    await bot.delete_webhook(drop_pending_updates=True)
+
     await init_db()
     await update_admins_status()
 
@@ -235,9 +242,17 @@ async def start_bot():
     await dp.start_polling(bot)
 
 
+
 # =================================================
 # FASTAPI STARTUP
 # =================================================
 @app.on_event("startup")
 async def startup():
+    global bot_started
+
+    if bot_started:
+        logger.warning("⚠️ Бот уже запущен, повторный запуск пропущен")
+        return
+
+    bot_started = True
     asyncio.create_task(start_bot())

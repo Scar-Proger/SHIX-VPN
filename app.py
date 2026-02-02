@@ -37,7 +37,6 @@ app = FastAPI()
 # -------------------- AIROGRAM -------------------
 bot: Bot | None = None
 dp: Dispatcher | None = None
-bot_started = False   # 🔒 ВАЖНО
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -248,11 +247,18 @@ async def start_bot():
 # =================================================
 @app.on_event("startup")
 async def startup():
-    global bot_started
+    global bot, dp
 
-    if bot_started:
-        logger.warning("⚠️ Бот уже запущен, повторный запуск пропущен")
-        return
+    logger.info("🚀 FastAPI startup")
 
-    bot_started = True
-    asyncio.create_task(start_bot())
+    bot = Bot(token=config.BOT_TOKEN)
+    dp = Dispatcher()
+
+    # ❗ ОБЯЗАТЕЛЬНО
+    await bot.delete_webhook(drop_pending_updates=True)
+
+    await init_db()
+    setup_handlers(dp)
+
+    # 🔥 ВАЖНО: НЕ create_task
+    asyncio.create_task(dp.start_polling(bot))

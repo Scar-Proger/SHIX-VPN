@@ -7,7 +7,7 @@ from datetime import timedelta
 import coloredlogs
 from fastapi import FastAPI
 from aiogram import Bot, Dispatcher
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from fastapi.staticfiles import StaticFiles
 import os
 from functions import delete_client_by_id
@@ -128,7 +128,7 @@ async def check_channel_membership():
                         user_id=user.telegram_id
                     )
 
-                    if member.status in ("left", "kicked"):
+                    if member.status not in ("member", "administrator", "creator"):
                         logger.info(f"🚫 {user.telegram_id} вышел из канала")
 
                         # 1️⃣ удаляем в Remnawave
@@ -158,21 +158,41 @@ async def check_channel_membership():
                                 db_user.vless_profile_data = None
                                 session.commit()
 
-                        # 3️⃣ уведомляем
-                        await bot.send_message(
-                            user.telegram_id,
-                            "🚫 Вы вышли из канала, доступ к VPN отключён"
-                        )
+                        # 3️⃣ пробуем уведомить (МОЖЕТ УПАСТЬ)
+                        try:
+                            await bot.send_message(
+                                user.telegram_id,
+                                "🚫 Вы вышли из канала, доступ к VPN отключён"
+                            )
+                        except TelegramForbiddenError:
+                            pass  # пользователь заблокировал бота
 
-                except TelegramBadRequest:
-                    # если пользователь вообще недоступен
+                except TelegramForbiddenError:
+                    # 🔥 пользователь заблокировал бота
+                    logger.info(f"⛔ {user.telegram_id} заблокировал бота")
+
+                    # доступ отключаем МОЛЧА
+                    with Session() as session:
+                        db_user = session.query(User).filter_by(
+                            telegram_id=user.telegram_id
+                        ).first()
+                        if db_user:
+                            db_user.subscription_end = None
+                            db_user.sub_id = None
+                            db_user.vless_profile_data = None
+                            session.commit()
+
                     continue
 
+                except TelegramBadRequest:
+                    continue
+
+                await asyncio.sleep(0.2)  # ⛔ защита от лимитов Telegram
+
         except Exception as e:
-            logger.error(f"Ошибка проверки подписки на канал: {e}")
+            logger.error(f"❌ Ошибка проверки подписки на канал: {e}")
 
-        await asyncio.sleep(60)  # раз в 10 минут
-
+        await asyncio.sleep(300)  # ✅ раз в 5 минут
 
 
 

@@ -762,17 +762,19 @@ async def tariff_selected(callback: CallbackQuery):
     total_amount = price * months
 
     # create_platega_payment — синхронная
-    pay_url = create_platega_payment(total_amount)
+    pay_url = await create_platega_payment(total_amount)
 
     if not pay_url:
         await callback.answer("Ошибка создания платежа", show_alert=True)
         return
 
+    title = t(user, tariff_key)
+
     text = (
-        t(user, "pay_tariff").format(title=t(user, tariff_key)) + "\n" +
-        t(user, "pay_price").format(price=price) + "\n" +
-        t(user, "pay_period").format(months=months) + "\n\n" +
-        t(user, "pay_total").format(total=total_amount)
+        f"{t(user, 'pay_tariff').replace('{title}', title)}\n"
+        f"{t(user, 'pay_price').format(price=price)}\n"
+        f"{t(user, 'pay_period').format(months=months)}\n\n"
+        f"{t(user, 'pay_total').format(total=total_amount)}"
     )
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[

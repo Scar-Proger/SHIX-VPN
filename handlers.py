@@ -776,17 +776,17 @@ async def tariff_selected(callback: CallbackQuery):
     title = t(user, tariff_key)
 
     text = (
-        f"{t(user, 'pay_tariff').replace('{title}', title)}\n"
-        f"{t(user, 'pay_price').format(price=price)}\n"
-        f"{t(user, 'pay_period').format(months=months)}\n\n"
-        f"{t(user, 'pay_total').format(total=total_amount)}"
+        f"{t(user, 'pay_tariff', title=title)}\n"
+        f"{t(user, 'pay_price', price=price)}\n"
+        f"{t(user, 'pay_period', months=months)}\n\n"
+        f"{t(user, 'pay_total', total=total_amount)}"
     )
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(
                 text=t(user, "btn_pay"),
-                url=payment_data["pay_url"]
+                web_app=WebAppInfo(url=payment_data["pay_url"])
             )
         ],
         [

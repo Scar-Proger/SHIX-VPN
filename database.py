@@ -142,6 +142,7 @@ class Payment(Base):
     id = Column(Integer, primary_key=True)
 
     user_id = Column(Integer, index=True, nullable=False)
+
     transaction_id = Column(String(64), unique=True, index=True, nullable=False)
 
     amount = Column(Integer, nullable=False)
@@ -150,6 +151,7 @@ class Payment(Base):
     status = Column(String(32), default="PENDING")  # PENDING / CONFIRMED / CANCELED
     created_at = Column(DateTime, default=now_local)
     confirmed_at = Column(DateTime, nullable=True)
+
 
 # ==================================================
 # Инициализация базы
@@ -371,9 +373,6 @@ async def create_payment(
     amount: int,
     months: int
 ) -> Payment:
-    """
-    Создаёт платёж в БД со статусом PENDING
-    """
     with Session() as session:
         payment = Payment(
             user_id=user_id,
@@ -385,7 +384,7 @@ async def create_payment(
         session.add(payment)
         session.commit()
         session.refresh(payment)
-        return payment
+        return payment 
 
 
 async def process_payment_result(
@@ -429,3 +428,4 @@ async def process_payment_result(
             return "CANCELED"
 
         return "ERROR"
+

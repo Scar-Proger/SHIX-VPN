@@ -764,6 +764,10 @@ async def tariff_selected(callback: CallbackQuery):
     # create_platega_payment — синхронная
     pay_url = create_platega_payment(total_amount)
 
+    if not pay_url:
+        await callback.answer("Ошибка создания платежа", show_alert=True)
+        return
+
     text = (
         t(user, "pay_tariff").format(title=t(user, tariff_key)) + "\n" +
         t(user, "pay_price").format(price=price) + "\n" +

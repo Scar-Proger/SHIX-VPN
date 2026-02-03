@@ -3,6 +3,9 @@ from pydantic import BaseModel
 from typing import List
 
 
+
+
+
 #7833570599:AAFUPOwN3AWmWExYiwmyKJlcjysbiXIR3zU
 #8067598636:AAHM-I14-dWlxNuBqOZIh3oYdHh3uLgrwYw тест
 class Config(BaseModel):

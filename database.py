@@ -10,12 +10,15 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime, timedelta
+from typing import Literal
 import logging
 import secrets
 import os
 from urllib.parse import quote_plus
 
 logger = logging.getLogger(__name__)
+
+PaymentResult = Literal["CONFIRMED", "PENDING", "CANCELED", "NOT_FOUND", "ERROR"]
 
 # ==================================================
 # Пути проекта и SSL-сертификат
@@ -133,6 +136,21 @@ class StaticProfile(Base):
     vless_url = Column(String(2048))
     created_at = Column(DateTime, default=now_local)
 
+class Payment(Base):
+    __tablename__ = "payments"
+
+    id = Column(Integer, primary_key=True)
+
+    user_id = Column(Integer, index=True, nullable=False)
+    transaction_id = Column(String(64), unique=True, index=True, nullable=False)
+
+    amount = Column(Integer, nullable=False)
+    months = Column(Integer, nullable=False)
+
+    status = Column(String(32), default="PENDING")  # PENDING / CONFIRMED / CANCELED
+    created_at = Column(DateTime, default=now_local)
+    confirmed_at = Column(DateTime, nullable=True)
+
 # ==================================================
 # Инициализация базы
 # ==================================================
@@ -242,7 +260,6 @@ async def delete_user_completely(telegram_id: int):
             session.commit()
             logger.info(f"🗑 Пользователь полностью удалён из БД: {telegram_id}")
 
-
 # ==================================================
 # Промокоды
 # ==================================================
@@ -343,3 +360,72 @@ async def delete_promocode(code: str):
 async def get_all_promocodes_list():
     with Session() as session:
         return session.query(PromoCode).order_by(PromoCode.id).all()
+    
+
+
+
+
+async def create_payment(
+    user_id: int,
+    transaction_id: str,
+    amount: int,
+    months: int
+) -> Payment:
+    """
+    Создаёт платёж в БД со статусом PENDING
+    """
+    with Session() as session:
+        payment = Payment(
+            user_id=user_id,
+            transaction_id=transaction_id,
+            amount=amount,
+            months=months,
+            status="PENDING"
+        )
+        session.add(payment)
+        session.commit()
+        session.refresh(payment)
+        return payment
+
+
+async def process_payment_result(
+    transaction_id: str,
+    payment_status: str
+) -> PaymentResult:
+    """
+    Обновляет платёж и подписку пользователя по статусу платежа
+    """
+    with Session() as session:
+        payment = session.query(Payment).filter_by(
+            transaction_id=transaction_id
+        ).first()
+
+        if not payment:
+            return "NOT_FOUND"
+
+        if payment_status == "CONFIRMED":
+            if payment.status != "CONFIRMED":
+                user = session.query(User).get(payment.user_id)
+                if not user:
+                    return "ERROR"
+
+                now = now_local()
+                base_date = max(user.subscription_end or now, now)
+                user.subscription_end = base_date + timedelta(days=30 * payment.months)
+
+                payment.status = "CONFIRMED"
+                payment.confirmed_at = now
+
+                session.commit()
+
+            return "CONFIRMED"
+
+        if payment_status == "PENDING":
+            return "PENDING"
+
+        if payment_status == "CANCELED":
+            payment.status = "CANCELED"
+            session.commit()
+            return "CANCELED"
+
+        return "ERROR"

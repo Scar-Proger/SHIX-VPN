@@ -5,9 +5,8 @@ import json
 from database import now_local
 from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire
-from payment.platega_payment import create_platega_payment
+from payment.platega_payment import create_platega_payment, get_platega_payment_status
 from datetime import datetime, timedelta
-
 from aiogram import Dispatcher, Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -22,7 +21,7 @@ from locales import TEXTS, TARIFFS
 from database import (
     get_user, create_user, apply_promo_code, create_or_update_promo_code, 
     get_all_promocodes_list, delete_promocode,
-    get_all_users, get_static_profiles, 
+    get_all_users, get_static_profiles, create_payment, process_payment_result,
     User, PromoCode, Session, get_user_stats as db_user_stats
 )
 
@@ -761,12 +760,18 @@ async def tariff_selected(callback: CallbackQuery):
     months = tariff["months"]
     total_amount = price * months
 
-    # create_platega_payment — синхронная
-    pay_url = await create_platega_payment(total_amount)
-
-    if not pay_url:
+    payment_data = await create_platega_payment(total_amount)
+    if not payment_data:
         await callback.answer("Ошибка создания платежа", show_alert=True)
         return
+
+    # 🔥 СОХРАНЯЕМ ПЛАТЁЖ В БД
+    await create_payment(
+        user_id=user.id,
+        transaction_id=payment_data["transaction_id"],
+        amount=total_amount,
+        months=months
+    )
 
     title = t(user, tariff_key)
 
@@ -781,7 +786,13 @@ async def tariff_selected(callback: CallbackQuery):
         [
             InlineKeyboardButton(
                 text=t(user, "btn_pay"),
-                url=pay_url
+                url=payment_data["pay_url"]
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="🔄 Проверить оплату",
+                callback_data=f"check_payment:{payment_data['transaction_id']}"
             )
         ],
         [
@@ -799,6 +810,40 @@ async def tariff_selected(callback: CallbackQuery):
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
+
+
+# ------------------------------
+# Проверка оплаты подписки
+# ------------------------------
+@router.callback_query(F.data.startswith("check_payment:"))
+async def check_payment(callback: CallbackQuery):
+    tx_id = callback.data.split(":", 1)[1]
+    await callback.answer()
+
+    data = await get_platega_payment_status(tx_id)
+    if not data:
+        await callback.answer("❌ Ошибка проверки платежа", show_alert=True)
+        return
+
+    result = await process_payment_result(
+        transaction_id=tx_id,
+        payment_status=data["status"]
+    )
+
+    if result == "CONFIRMED":
+        await callback.message.answer("✅ Оплата прошла! Подписка продлена")
+
+    elif result == "PENDING":
+        await callback.answer("⏳ Платёж ещё не завершён", show_alert=True)
+
+    elif result == "CANCELED":
+        await callback.answer("❌ Платёж отменён", show_alert=True)
+
+    elif result == "NOT_FOUND":
+        await callback.answer("⚠️ Платёж не найден", show_alert=True)
+
+    else:
+        await callback.answer("❌ Ошибка обработки платежа", show_alert=True)
 
 
 # ------------------------------

@@ -873,6 +873,11 @@ async def check_payment(callback: CallbackQuery):
         ]
     ])
 
+    # 🔥 ВОТ ЭТО ГЛАВНОЕ
+    if callback.message.caption == caption:
+        await callback.answer("⏳ Статус без изменений")
+        return
+
     await callback.bot.edit_message_caption(
         chat_id=callback.from_user.id,
         message_id=callback.message.message_id,

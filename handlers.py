@@ -818,32 +818,71 @@ async def tariff_selected(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("check_payment:"))
 async def check_payment(callback: CallbackQuery):
     tx_id = callback.data.split(":", 1)[1]
-    await callback.answer()
 
     data = await get_platega_payment_status(tx_id)
     if not data:
         await callback.answer("❌ Ошибка проверки платежа", show_alert=True)
         return
 
-    result = await process_payment_result(
-        transaction_id=tx_id,
-        payment_status=data["status"]
+    print("🔍 PLATEGA STATUS RESPONSE:", data)
+
+    status = (
+        data.get("status")
+        or data.get("state")
+        or data.get("paymentStatus")
     )
 
+    if not status:
+        await callback.answer("⚠️ Не удалось определить статус платежа", show_alert=True)
+        return
+
+    result = await process_payment_result(
+        transaction_id=tx_id,
+        payment_status=status
+    )
+
+    # ---------- ТЕКСТ ----------
     if result == "CONFIRMED":
-        await callback.message.answer("✅ Оплата прошла! Подписка продлена")
+        caption = "✅ **Оплата прошла успешно!**\n\nПодписка продлена 🎉"
 
     elif result == "PENDING":
-        await callback.answer("⏳ Платёж ещё не завершён", show_alert=True)
+        caption = "⏳ **Платёж ещё не завершён**\n\nПопробуйте проверить позже"
 
     elif result == "CANCELED":
-        await callback.answer("❌ Платёж отменён", show_alert=True)
+        caption = "❌ **Платёж отменён**"
 
     elif result == "NOT_FOUND":
-        await callback.answer("⚠️ Платёж не найден", show_alert=True)
+        caption = "⚠️ **Платёж не найден**"
 
     else:
-        await callback.answer("❌ Ошибка обработки платежа", show_alert=True)
+        caption = "❌ **Ошибка обработки платежа**"
+
+    # ---------- КНОПКИ ----------
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text="🔄 Проверить ещё раз",
+                callback_data=f"check_payment:{tx_id}"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="Назад",
+                callback_data="renew_sub"
+            )
+        ]
+    ])
+
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption=caption,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+    # 👈 закрываем "часики" у кнопки
+    await callback.answer()
 
 
 # ------------------------------

@@ -56,6 +56,8 @@ def _create_platega_payment_sync(amount: int) -> dict:
     }
 
 
+
+
 def _get_platega_payment_status_sync(transaction_id: str) -> dict:
     url = f"{config.PLATEGA_BASE_URL}/transaction/{transaction_id}"
 

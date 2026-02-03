@@ -1,6 +1,9 @@
 import aiohttp
 from config import config
 
+
+
+
 async def create_platega_payment(amount: int) -> dict | None:
     url = f"{config.PLATEGA_BASE_URL}/transaction/process"
 
@@ -11,7 +14,7 @@ async def create_platega_payment(amount: int) -> dict | None:
     }
 
     payload = {
-        "paymentMethod": 2,
+        "paymentMethod": "SBPQR",
         "paymentDetails": {
             "amount": amount,
             "currency": "RUB"
@@ -23,14 +26,26 @@ async def create_platega_payment(amount: int) -> dict | None:
 
     async with aiohttp.ClientSession() as session:
         async with session.post(url, headers=headers, json=payload) as resp:
-            if resp.status == 200:
-                data = await resp.json()
-                return {
-                    "transaction_id": data["id"],
-                    "pay_url": data["redirect"]
-                }
+            if resp.status != 200:
+                return None
 
-    return None
+            data = await resp.json()
+
+            transaction_id = (
+                data.get("id")
+                or data.get("transactionId")
+                or data.get("idTransaction")
+                or data.get("uuid")
+            )
+
+            if not transaction_id or "redirect" not in data:
+                print("❌ BAD PLATEGA RESPONSE:", data)
+                return None
+
+            return {
+                "transaction_id": transaction_id,
+                "pay_url": data["redirect"]
+            }
 
 async def get_platega_payment_status(transaction_id: str) -> dict | None:
     url = f"{config.PLATEGA_BASE_URL}/transaction/{transaction_id}"

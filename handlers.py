@@ -877,10 +877,10 @@ async def check_payment(callback: CallbackQuery):
             )
         )
 
-    # ⬅️ Назад — всегда
+    # Назад — всегда
     builder.row(
         InlineKeyboardButton(
-            text="⬅️ Назад",
+            text="Назад",
             callback_data="renew_sub"
         )
     )

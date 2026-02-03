@@ -813,7 +813,7 @@ async def tariff_selected(callback: CallbackQuery):
 
 
 # ------------------------------
-# Проверка оплаты подписки
+# Проверка оплаты подписки 
 # ------------------------------
 @router.callback_query(F.data.startswith("check_payment:"))
 async def check_payment(callback: CallbackQuery):
@@ -841,12 +841,18 @@ async def check_payment(callback: CallbackQuery):
         payment_status=status
     )
 
-    # ---------- ТЕКСТ ----------
+    # =========================================================
+    # ТЕКСТ
+    # =========================================================
     if result == "CONFIRMED":
         caption = "✅ **Оплата прошла успешно!**\n\nПодписка продлена 🎉"
 
     elif result == "PENDING":
-        caption = "⏳ **Платёж ещё не завершён**\n\nПопробуйте проверить позже"
+        caption = (
+            "⏳ **Платёж ещё не завершён**\n\n"
+            "Попробуйте проверить позже\n\n"
+            f"🕒 Последняя проверка: {now_local().strftime('%d.%m.%Y %H:%M:%S')}"
+        )
 
     elif result == "CANCELED":
         caption = "❌ **Платёж отменён**"
@@ -857,38 +863,44 @@ async def check_payment(callback: CallbackQuery):
     else:
         caption = "❌ **Ошибка обработки платежа**"
 
-    # ---------- КНОПКИ ----------
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [
+    # =========================================================
+    # КНОПКИ 
+    # =========================================================
+    builder = InlineKeyboardBuilder()
+
+    # 🔄 Проверить ещё раз — ТОЛЬКО если PENDING
+    if result == "PENDING":
+        builder.row(
             InlineKeyboardButton(
                 text="🔄 Проверить ещё раз",
                 callback_data=f"check_payment:{tx_id}"
             )
-        ],
-        [
-            InlineKeyboardButton(
-                text="Назад",
-                callback_data="renew_sub"
-            )
-        ]
-    ])
+        )
 
-    # 🔥 ВОТ ЭТО ГЛАВНОЕ
-    if callback.message.caption == caption:
-        await callback.answer("⏳ Статус без изменений")
-        return
-
-    await callback.bot.edit_message_caption(
-        chat_id=callback.from_user.id,
-        message_id=callback.message.message_id,
-        caption=caption,
-        reply_markup=keyboard,
-        parse_mode="Markdown"
+    # ⬅️ Назад — всегда
+    builder.row(
+        InlineKeyboardButton(
+            text="⬅️ Назад",
+            callback_data="renew_sub"
+        )
     )
 
-    # 👈 закрываем "часики" у кнопки
-    await callback.answer()
+    # =========================================================
+    # РЕДАКТИРУЕМ СООБЩЕНИЕ
+    # =========================================================
+    try:
+        await callback.bot.edit_message_caption(
+            chat_id=callback.from_user.id,
+            message_id=callback.message.message_id,
+            caption=caption,
+            reply_markup=builder.as_markup(),
+            parse_mode="Markdown"
+        )
+    except TelegramBadRequest:
+        # если Telegram сказал "message is not modified"
+        pass
 
+    await callback.answer()
 
 # ------------------------------
 # Обработчик кнопки "Промокод"

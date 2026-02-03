@@ -127,6 +127,11 @@ TEXTS = {
         "tariff_1y": "59 ₽/мес — 1 год",
         "tariff_2y": "49 ₽/мес — 2 года",
 
+        "pay_tariff": "🧾 *Тариф:* {title}",
+        "pay_price": "💰 *Цена:* {price} ₽ / мес",
+        "pay_period": "📆 *Срок:* {months} мес",
+        "pay_total": "👉 *К оплате:* **{total} ₽**",
+        "btn_pay": "💳 Оплатить",
 
         "promo_enter": "🎁 Введите ваш промокод для активации:",
 
@@ -266,8 +271,13 @@ TEXTS = {
         "tariff_1y": "59 ₽/mo — 1 year",
         "tariff_2y": "49 ₽/mo — 2 years",
 
-        "promo_enter": "🎁 Enter your promo code to activate it:",
+        "pay_tariff": "🧾 *Tariff:* {title}",
+        "pay_price": "💰 *Price:* {price} ₽ / mo",
+        "pay_period": "📆 *Period:* {months} months",
+        "pay_total": "👉 *Total:* **{total} ₽**",
+        "btn_pay": "💳 Pay",
 
+        "promo_enter": "🎁 Enter your promo code to activate it:",
         "promo_expired": "❌ This promo code has no remaining activations.",
         "promo_already_used": "⚠️ You have already used this promo code.",
 
@@ -398,8 +408,6 @@ TEXTS = {
             "🚀 立即连接，只使用我们的安全 VPN！"
         ),
 
-        "renew_unavailable": "❌ 套餐暂时不可用",
-
         # ===== Tariffs =====
         "tariff_1m": "99 ₽/月 — 1 个月",
         "tariff_3m": "89 ₽/月 — 3 个月",
@@ -407,12 +415,16 @@ TEXTS = {
         "tariff_1y": "59 ₽/月 — 1 年",
         "tariff_2y": "49 ₽/月 — 2 年",
 
+        "pay_tariff": "🧾 *套餐:* {title}",
+        "pay_price": "💰 *价格:* {price} ₽ / 月",
+        "pay_period": "📆 *期限:* {months} 个月",
+        "pay_total": "👉 *应付金额:* **{total} ₽**",
+        "btn_pay": "💳 支付",
 
         # ===== Renew =====
         "renew_unavailable": "❌ 套餐暂时不可用。",
 
         "promo_enter": "🎁 请输入您的优惠码进行激活：",
-
         "promo_expired": "❌ 此优惠码的使用次数已用完。",
         "promo_already_used": "⚠️ 您已经使用过此优惠码。",
 
@@ -422,4 +434,13 @@ TEXTS = {
             "💰 当前订阅折扣为 `{discount}%`"
         ),
     }
+}
+
+
+TARIFFS = {
+    "tariff_1m": {"price": 99, "months": 1},
+    "tariff_3m": {"price": 89, "months": 3},
+    "tariff_6m": {"price": 79, "months": 6},
+    "tariff_1y": {"price": 59, "months": 12},
+    "tariff_2y": {"price": 49, "months": 24},
 }

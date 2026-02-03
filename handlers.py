@@ -5,7 +5,9 @@ import json
 from database import now_local
 from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire
+from payment.platega_payment import create_platega_payment
 from datetime import datetime, timedelta
+
 from aiogram import Dispatcher, Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -14,8 +16,9 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, WebAppInfo
+
 from config import config
-from locales import TEXTS
+from locales import TEXTS, TARIFFS
 from database import (
     get_user, create_user, apply_promo_code, create_or_update_promo_code, 
     get_all_promocodes_list, delete_promocode,
@@ -739,6 +742,58 @@ async def renew_cb(callback: CallbackQuery):
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
+
+
+# ------------------------------
+# Ссылка для оплаты подписки
+# ------------------------------
+@router.callback_query(F.data.startswith("tariff_"))
+async def tariff_selected(callback: CallbackQuery):
+    user = await get_user(callback.from_user.id)
+    await callback.answer()
+
+    tariff_key = callback.data
+    tariff = TARIFFS.get(tariff_key)
+    if not tariff:
+        return
+
+    price = tariff["price"]
+    months = tariff["months"]
+    total_amount = price * months
+
+    # create_platega_payment — синхронная
+    pay_url = create_platega_payment(total_amount)
+
+    text = (
+        t(user, "pay_tariff").format(title=t(user, tariff_key)) + "\n" +
+        t(user, "pay_price").format(price=price) + "\n" +
+        t(user, "pay_period").format(months=months) + "\n\n" +
+        t(user, "pay_total").format(total=total_amount)
+    )
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text=t(user, "btn_pay"),
+                url=pay_url
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text=t(user, "back"),
+                callback_data="renew_sub"
+            )
+        ]
+    ])
+
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption=text,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
 
 # ------------------------------
 # Обработчик кнопки "Промокод"

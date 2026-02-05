@@ -166,11 +166,14 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
         )
         return
 
-    await callback.answer("✅ Подписка подтверждена")
-
     user = await get_user(callback.from_user.id)
-    if user:
-        await notify_admins_user_joined(bot, user)
+
+    if not user:
+        await start_cmd(
+            message=callback.message,
+            bot=bot
+        )
+        return
 
     try:
         await callback.message.delete()
@@ -181,9 +184,6 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
         bot=bot,
         chat_id=callback.from_user.id
     )
-
-
-
 
 
 
@@ -535,6 +535,7 @@ async def start_cmd(message: Message, bot: Bot):
             logger.info(f"🔄 Обновлены данные пользователя {telegram_id}")
 
 
+    await notify_admins_user_joined(bot, user)
     await show_menu(bot, telegram_id)
 
 

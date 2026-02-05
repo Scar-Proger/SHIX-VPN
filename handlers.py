@@ -159,13 +159,12 @@ async def notify_admins_user_joined(bot: Bot, user):
 @router.callback_query(F.data == "check_subscription")
 async def check_subscription(callback: CallbackQuery, bot: Bot):
     telegram_id = callback.from_user.id
+    full_name = callback.from_user.full_name
+    username = callback.from_user.username
 
     # Проверяем подписку
     if not await is_subscribed(bot, telegram_id):
-        await callback.answer(
-            "🚫 Вы ещё не подписались",
-            show_alert=True
-        )
+        await callback.answer("🚫 Вы ещё не подписались", show_alert=True)
         return
 
     # Удаляем сообщение с кнопкой
@@ -174,13 +173,20 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
     except Exception:
         pass
 
-    # 1️⃣ Создаём или получаем пользователя
-    user = await ensure_user(bot, telegram_id, message=None)  # message=None, т.к. это callback
+    # Получаем referrer_id, если есть (можно хранить в БД или передавать через callback)
+    referrer_id = None
 
-    # 2️⃣ Показываем меню пользователю
+    # Создаём или получаем пользователя с правильными данными
+    user = await ensure_user(
+        bot,
+        telegram_id,
+        full_name=full_name,
+        username=username,
+        referrer_id=referrer_id
+    )
+
+    # Показываем меню
     await show_menu(bot, chat_id=telegram_id)
-
-
 
 
 def split_text(text: str, max_length: int = MAX_MESSAGE_LENGTH) -> list:
@@ -265,37 +271,33 @@ def format_time_left(end_date: datetime, user) -> str:
 
 
 
-async def ensure_user(bot: Bot, telegram_id: int, message: Message | None = None) -> User:
+async def ensure_user(
+    bot: Bot,
+    telegram_id: int,
+    full_name: str = "",
+    username: str | None = None,
+    referrer_id: int | None = None
+) -> User:
     """
-    Проверяет, есть ли пользователь в БД.
-    Если нет — создаёт его и профиль, уведомляет админов.
+    Создаёт пользователя, если его нет, создаёт профиль, уведомляет админов и реферера.
     Возвращает объект пользователя.
     """
     user = await get_user(telegram_id)
     if user:
         return user
 
-    # Если есть Message — получаем данные для нового пользователя
-    from_user = message.from_user if message else type("DummyUser", (), {"full_name": "", "username": None})()
-    referrer_id = None
-    if message and message.text and " " in message.text:
-        arg = message.text.split(" ", 1)[1]
-        if arg.isdigit():
-            referrer_id = int(arg)
-
-    # Создаём пользователя
+    # 1️⃣ Создаём пользователя
     await create_user(
         telegram_id=telegram_id,
-        full_name=from_user.full_name,
-        username=from_user.username,
+        full_name=full_name,
+        username=username,
         is_admin=telegram_id in config.ADMINS,
         referrer_id=referrer_id,
         language="ru"
     )
-
     user = await get_user(telegram_id)
 
-    # Создаём профиль Remnawave
+    # 2️⃣ Создаём профиль Remnawave
     profile_data = await create_vless_profile(telegram_id)
     if profile_data:
         sub_url = profile_data.get("sub_url")
@@ -308,25 +310,23 @@ async def ensure_user(bot: Bot, telegram_id: int, message: Message | None = None
     else:
         logger.error(f"❌ Не удалось создать профиль для {telegram_id}")
 
-    # Уведомляем админов
+    # 3️⃣ Уведомляем админов
     await notify_admins_user_joined(bot, user)
 
-    # Уведомляем реферера
+    # 4️⃣ Уведомляем реферера
     if referrer_id:
         await bot.send_message(
             referrer_id,
             t(
                 user,
                 "referral_notify",
-                name=from_user.username or from_user.full_name,
+                name=username or full_name,
                 id=telegram_id
             ),
             parse_mode="Markdown"
         )
 
     return user
-
-
 
 
 # =========================================================
@@ -491,12 +491,16 @@ async def start_cmd(message: Message, bot: Bot):
         )
         wait_msg = await message.answer(TEXTS["ru"]["creating_profile"])
 
+        # Даем пользователю пару секунд увидеть стикер
+        await asyncio.sleep(2)
+
         # создаём пользователя и профиль
         user = await ensure_user(bot, telegram_id, message)
 
         # Убираем ожидание
         await wait_msg.delete()
         await wait_sticker.delete()
+
 
         # -------------------------------
         # Welcome

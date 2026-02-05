@@ -174,6 +174,9 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
             bot=bot
         )
         return
+    
+    # 🔔 ВОТ ЗДЕСЬ УВЕДОМЛЯЕМ АДМИНОВ
+    await notify_admins_user_joined(bot, user)
 
     try:
         await callback.message.delete()
@@ -184,9 +187,6 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
         bot=bot,
         chat_id=callback.from_user.id
     )
-
-
-
 
 
 
@@ -534,8 +534,6 @@ async def start_cmd(message: Message, bot: Bot):
             session.commit()
             logger.info(f"🔄 Обновлены данные пользователя {telegram_id}")
 
-
-    await notify_admins_user_joined(bot, user)
     await show_menu(bot, telegram_id)
 
 

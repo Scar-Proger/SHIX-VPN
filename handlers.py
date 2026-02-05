@@ -166,11 +166,6 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
         )
         return
 
-    user = await get_user(callback.from_user.id)
-    
-    # 🔔 ВОТ ЗДЕСЬ УВЕДОМЛЯЕМ АДМИНОВ
-    await notify_admins_user_joined(bot, user)
-
     try:
         await callback.message.delete()
     except Exception:
@@ -263,6 +258,8 @@ def format_time_left(end_date: datetime, user) -> str:
         return f"{minutes} {m} {seconds} {s}"
     else:
         return f"{seconds} {s}"
+
+
 
 
 # =========================================================
@@ -479,6 +476,11 @@ async def start_cmd(message: Message, bot: Bot):
             ),
             parse_mode="Markdown"
         )
+
+        user = await get_user(message.from_user.id)
+    
+        # 🔔 ВОТ ЗДЕСЬ УВЕДОМЛЯЕМ АДМИНОВ
+        await notify_admins_user_joined(bot, user)
 
         # -------------------------------
         # 6️⃣ Уведомляем реферера

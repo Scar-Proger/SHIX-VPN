@@ -1820,7 +1820,7 @@ async def user_list_paginated(callback: CallbackQuery):
     if page > 1:
         nav_buttons.append(
             InlineKeyboardButton(
-                text="⬅ Назад",
+                text="Назад",
                 callback_data=f"user_list:{list_type}:{page - 1}"
             )
         )
@@ -1828,7 +1828,7 @@ async def user_list_paginated(callback: CallbackQuery):
     if page < total_pages:
         nav_buttons.append(
             InlineKeyboardButton(
-                text="Далее ➡",
+                text="Далее",
                 callback_data=f"user_list:{list_type}:{page + 1}"
             )
         )
@@ -2015,13 +2015,14 @@ async def admin_send_message(message: Message, state: FSMContext, bot: Bot):
     await state.update_data(blocked_users=blocked_users)
 
     builder = InlineKeyboardBuilder()
-    builder.button(text="⚠️ Админ. меню", callback_data="admin_menu")
 
     if blocked_users:
         builder.button(
             text=f"🚫 Заблокировали бота ({len(blocked_users)})",
             callback_data="show_blocked_users:1"
         )
+        
+    builder.button(text="⚠️ Админ. меню", callback_data="admin_menu")
 
     builder.adjust(1)
 

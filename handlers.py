@@ -158,23 +158,27 @@ async def notify_admins_user_joined(bot: Bot, user):
 
 @router.callback_query(F.data == "check_subscription")
 async def check_subscription(callback: CallbackQuery, bot: Bot):
+    telegram_id = callback.from_user.id
 
-    if not await is_subscribed(bot, callback.from_user.id):
+    # Проверяем подписку
+    if not await is_subscribed(bot, telegram_id):
         await callback.answer(
             "🚫 Вы ещё не подписались",
             show_alert=True
         )
         return
 
+    # Удаляем сообщение с кнопкой
     try:
         await callback.message.delete()
     except Exception:
         pass
 
-    await start_cmd(
-        message=callback.message,
-        bot=bot
-    )
+    # 1️⃣ Создаём или получаем пользователя
+    user = await ensure_user(bot, telegram_id, message=None)  # message=None, т.к. это callback
+
+    # 2️⃣ Показываем меню пользователю
+    await show_menu(bot, chat_id=telegram_id)
 
 
 
@@ -258,6 +262,69 @@ def format_time_left(end_date: datetime, user) -> str:
         return f"{minutes} {m} {seconds} {s}"
     else:
         return f"{seconds} {s}"
+
+
+
+async def ensure_user(bot: Bot, telegram_id: int, message: Message | None = None) -> User:
+    """
+    Проверяет, есть ли пользователь в БД.
+    Если нет — создаёт его и профиль, уведомляет админов.
+    Возвращает объект пользователя.
+    """
+    user = await get_user(telegram_id)
+    if user:
+        return user
+
+    # Если есть Message — получаем данные для нового пользователя
+    from_user = message.from_user if message else type("DummyUser", (), {"full_name": "", "username": None})()
+    referrer_id = None
+    if message and message.text and " " in message.text:
+        arg = message.text.split(" ", 1)[1]
+        if arg.isdigit():
+            referrer_id = int(arg)
+
+    # Создаём пользователя
+    await create_user(
+        telegram_id=telegram_id,
+        full_name=from_user.full_name,
+        username=from_user.username,
+        is_admin=telegram_id in config.ADMINS,
+        referrer_id=referrer_id,
+        language="ru"
+    )
+
+    user = await get_user(telegram_id)
+
+    # Создаём профиль Remnawave
+    profile_data = await create_vless_profile(telegram_id)
+    if profile_data:
+        sub_url = profile_data.get("sub_url")
+        with Session() as session:
+            db_user = session.query(User).filter_by(id=user.id).first()
+            db_user.vless_profile_data = json.dumps(profile_data)
+            db_user.sub_id = sub_url
+            session.commit()
+        logger.info(f"✅ Профиль создан для {telegram_id}")
+    else:
+        logger.error(f"❌ Не удалось создать профиль для {telegram_id}")
+
+    # Уведомляем админов
+    await notify_admins_user_joined(bot, user)
+
+    # Уведомляем реферера
+    if referrer_id:
+        await bot.send_message(
+            referrer_id,
+            t(
+                user,
+                "referral_notify",
+                name=from_user.username or from_user.full_name,
+                id=telegram_id
+            ),
+            parse_mode="Markdown"
+        )
+
+    return user
 
 
 
@@ -395,17 +462,17 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
 # =========================================================
 @router.message(Command("start"))
 async def start_cmd(message: Message, bot: Bot):
+    telegram_id = message.from_user.id
 
-    # 🔒 ПРОВЕРКА ПОДПИСКИ
-    if not await is_subscribed(bot, message.from_user.id):
+    # 🔒 Проверка подписки
+    if not await is_subscribed(bot, telegram_id):
         await send_subscribe_required(bot, message.chat.id)
         return
-    
-    telegram_id = message.from_user.id
+
     logger.info(f"ℹ️   /start от {telegram_id}")
 
     # -------------------------------
-    # 1️⃣ Получаем реферера
+    # Получаем реферера (если есть)
     # -------------------------------
     referrer_id = None
     if message.text and " " in message.text:
@@ -413,77 +480,39 @@ async def start_cmd(message: Message, bot: Bot):
         if arg.isdigit():
             referrer_id = int(arg)
 
-    # -------------------------------
-    # 2️⃣ Проверяем пользователя
-    # -------------------------------
+    # ===============================
+    # Проверяем и создаём пользователя
+    # ===============================
     user = await get_user(telegram_id)
-
-    # =====================================================
-    # 🆕 НОВЫЙ ПОЛЬЗОВАТЕЛЬ
-    # =====================================================
     if not user:
         # UX: стикер + ожидание
         wait_sticker = await message.answer_sticker(
             "CAACAgEAAxkBAAFBQzppd5A_4Wk22T_jJFOGCrkkcV8ZLwACXA4AAoI0egEaqUfk_mnHQTgE"
         )
+        wait_msg = await message.answer(TEXTS["ru"]["creating_profile"])
 
-        wait_msg = await message.answer(
-            TEXTS["ru"]["creating_profile"]  # язык ещё не выбран
-        )
-
-        # 3️⃣ Создаём пользователя
-        await create_user(
-            telegram_id=telegram_id,
-            full_name=message.from_user.full_name,
-            username=message.from_user.username,
-            is_admin=telegram_id in config.ADMINS,
-            referrer_id=referrer_id,
-            language="ru"  # дефолт
-        )
-
-        user = await get_user(telegram_id)
-
-        # 4️⃣ Создаём профиль Remnawave
-        profile_data = await create_vless_profile(telegram_id)
-
-        if profile_data:
-            sub_url = profile_data.get("sub_url")
-
-            with Session() as session:
-                db_user = session.query(User).filter_by(id=user.id).first()
-                db_user.vless_profile_data = json.dumps(profile_data)
-                db_user.sub_id = sub_url
-                session.commit()
-
-            logger.info(f"✅  Профиль создан для {telegram_id}")
-        else:
-            logger.error(f"❌  Не удалось создать профиль для {telegram_id}")
+        # создаём пользователя и профиль
+        user = await ensure_user(bot, telegram_id, message)
 
         # Убираем ожидание
         await wait_msg.delete()
         await wait_sticker.delete()
 
         # -------------------------------
-        # 5️⃣ Welcome
+        # Welcome
         # -------------------------------
         msg = await bot.send_photo(
             chat_id=telegram_id,
             photo=FSInputFile("assets/vpn_banner.jpg"),
-            caption=t(
-                user,
-                "welcome",
-                bot_name=(await bot.get_me()).full_name
-            ),
+            caption=t(user, "welcome", bot_name=(await bot.get_me()).full_name),
             parse_mode="Markdown"
         )
 
-        user = await get_user(message.from_user.id)
-    
-        # 🔔 ВОТ ЗДЕСЬ УВЕДОМЛЯЕМ АДМИНОВ
+        # 🔔 уведомляем админов
         await notify_admins_user_joined(bot, user)
 
         # -------------------------------
-        # 6️⃣ Уведомляем реферера
+        # уведомляем реферера
         # -------------------------------
         if referrer_id:
             await bot.send_message(
@@ -497,38 +526,31 @@ async def start_cmd(message: Message, bot: Bot):
                 parse_mode="Markdown"
             )
 
-        # ⬇️ ВАЖНО: передаём message_id
-        await show_menu(
-            bot,
-            chat_id=telegram_id,
-            message_id=msg.message_id
-        )
+        # Показываем меню с переданным message_id
+        await show_menu(bot, chat_id=telegram_id, message_id=msg.message_id)
         return
 
     # =====================================================
-    # 👤 СУЩЕСТВУЮЩИЙ ПОЛЬЗОВАТЕЛЬ
+    # Существующий пользователь — обновляем данные
     # =====================================================
     with Session() as session:
         db_user = session.query(User).filter_by(telegram_id=telegram_id).first()
-
         if not db_user:
             logger.error(f"❌ Пользователь не найден: {telegram_id}")
             return
 
         updated = False
-
         if db_user.full_name != message.from_user.full_name:
             db_user.full_name = message.from_user.full_name
             updated = True
-
         if db_user.username != message.from_user.username:
             db_user.username = message.from_user.username
             updated = True
-
         if updated:
             session.commit()
             logger.info(f"🔄 Обновлены данные пользователя {telegram_id}")
 
+    # Показываем меню
     await show_menu(bot, telegram_id)
 
 

@@ -46,7 +46,6 @@ app.mount(
 bot: Bot | None = None
 dp: Dispatcher | None = None
 
-
 def t(user, key: str, **kwargs) -> str:
     lang = getattr(user, "language", "ru") or "ru"
     lang_dict = TEXTS.get(lang, TEXTS["ru"])

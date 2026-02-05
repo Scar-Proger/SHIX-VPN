@@ -167,13 +167,6 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
         return
 
     user = await get_user(callback.from_user.id)
-
-    if not user:
-        await start_cmd(
-            message=callback.message,
-            bot=bot
-        )
-        return
     
     # 🔔 ВОТ ЗДЕСЬ УВЕДОМЛЯЕМ АДМИНОВ
     await notify_admins_user_joined(bot, user)
@@ -183,9 +176,9 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
     except Exception:
         pass
 
-    await show_menu(
-        bot=bot,
-        chat_id=callback.from_user.id
+    await bot.send_message(
+        chat_id=callback.from_user.id,
+        text="/start"
     )
 
 

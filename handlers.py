@@ -1064,9 +1064,8 @@ async def admin_menu(callback: CallbackQuery, bot: Bot, state: FSMContext):
     offline_count = max(with_sub - online_count, 0)
 
     text = (
-        "🔒 **Панель администратора**\n"
-        "━━━━━━━━━━━━━━━━━━\n\n"
-
+        "🔒 **Панель администратора**\n\n"
+        
         "👥 **Пользователи**\n"
         f"├ Всего: `{total}`\n"
         f"├ С подпиской: `{with_sub}`\n"

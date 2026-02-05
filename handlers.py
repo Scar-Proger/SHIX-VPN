@@ -171,9 +171,9 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
     except Exception:
         pass
 
-    await bot.send_message(
-        chat_id=callback.from_user.id,
-        text="/start"
+    await start_cmd(
+        message=callback.message,
+        bot=bot
     )
 
 

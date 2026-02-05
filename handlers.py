@@ -188,6 +188,9 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
 
 
 
+
+
+
 def split_text(text: str, max_length: int = MAX_MESSAGE_LENGTH) -> list:
     """Разбивает текст на части указанной максимальной длины"""
     if len(text) <= max_length:

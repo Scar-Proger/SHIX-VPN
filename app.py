@@ -68,6 +68,19 @@ def admin_channel_left_text(user) -> str:
         f"  └ <code>{user.telegram_id}</code>"
     )
 
+
+def admin_bot_blocked_text(user) -> str:
+    username = f"@{user.username}" if user.username else "—"
+    full_name = user.full_name or "Без имени"
+
+    return (
+        "⛔ <b>Пользователь заблокировал бота</b>\n\n"
+        f"• <b>{full_name}</b>\n"
+        f"  ├ {username}\n"
+        f"  └ <code>{user.telegram_id}</code>"
+    )
+
+
 async def check_subscriptions():
     while True:
         try:
@@ -189,7 +202,7 @@ async def check_channel_membership():
                     logger.info(f"🚫 {user.telegram_id} заблокировал бота")
 
                     # 🔔 уведомляем админов
-                    await notify_admins_user_left(user)
+                    await notify_admins_bot_blocked(user)
 
                     # доступ отключаем МОЛЧА
                     with Session() as session:
@@ -213,6 +226,22 @@ async def check_channel_membership():
 
 async def notify_admins_user_left(user):
     text = admin_channel_left_text(user)
+
+    for admin_id in config.ADMINS:
+        try:
+            await bot.send_message(
+                admin_id,
+                text,
+                parse_mode="HTML"
+            )
+        except TelegramForbiddenError:
+            pass
+        except Exception as e:
+            logger.warning(f"Ошибка уведомления админа {admin_id}: {e}")
+
+
+async def notify_admins_bot_blocked(user):
+    text = admin_bot_blocked_text(user)
 
     for admin_id in config.ADMINS:
         try:

@@ -61,7 +61,7 @@ class AdminPromoStates(StatesGroup):
     waiting_for_discount = State()   
     waiting_for_max_uses = State()
 
-USERS_PER_PAGE = 10
+USERS_PER_PAGE = 5
 
 blocked_users = []
     
@@ -1065,7 +1065,7 @@ async def admin_menu(callback: CallbackQuery, bot: Bot, state: FSMContext):
 
     text = (
         "🔒 **Панель администратора**\n\n"
-        
+
         "👥 **Пользователи**\n"
         f"├ Всего: `{total}`\n"
         f"├ С подпиской: `{with_sub}`\n"
@@ -1766,7 +1766,7 @@ async def user_list_paginated(callback: CallbackQuery):
     current_users = users[start:end]
 
     text = (
-        f"{title}\n"
+        f"{title}\n\n"
         f"📄 Страница {page} из {total_pages}\n\n"
     )
 
@@ -1784,23 +1784,35 @@ async def user_list_paginated(callback: CallbackQuery):
 
     builder = InlineKeyboardBuilder()
 
-    # Назад
+    nav_buttons = []
+
     if page > 1:
-        builder.button(
-            text="Назад",
-            callback_data=f"user_list:{list_type}:{page - 1}"
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="⬅ Назад",
+                callback_data=f"user_list:{list_type}:{page - 1}"
+            )
         )
 
-    # Далее
     if page < total_pages:
-        builder.button(
-            text="Далее",
-            callback_data=f"user_list:{list_type}:{page + 1}"
+        nav_buttons.append(
+            InlineKeyboardButton(
+                text="Далее ➡",
+                callback_data=f"user_list:{list_type}:{page + 1}"
+            )
         )
 
-    builder.button(text="К фильтрам", callback_data="admin_user_list")
+    # Строка навигации (если есть кнопки)
+    if nav_buttons:
+        builder.row(*nav_buttons)
 
-    builder.adjust(2, 1)
+    # ВСЕГДА отдельная строка
+    builder.row(
+        InlineKeyboardButton(
+            text="🔙 К фильтрам",
+            callback_data="admin_user_list"
+        )
+    )
 
     await callback.message.edit_text(
         text,

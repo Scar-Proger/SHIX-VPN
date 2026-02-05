@@ -10,9 +10,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from fastapi.staticfiles import StaticFiles
 import os
-from functions import delete_client_by_id, get_online_users
-
-
+from functions import delete_client_by_id
 from config import config
 from handlers import setup_handlers
 from database import (
@@ -25,6 +23,7 @@ from database import (
 )
 
 from btn import subscription_action_keyboard
+from locales import TEXTS
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -48,6 +47,27 @@ bot: Bot | None = None
 dp: Dispatcher | None = None
 
 
+def t(user, key: str, **kwargs) -> str:
+    lang = getattr(user, "language", "ru") or "ru"
+    lang_dict = TEXTS.get(lang, TEXTS["ru"])
+
+    if key not in lang_dict:
+        return f"❗{key}"
+
+    return lang_dict[key].format(**kwargs)
+
+
+def admin_channel_left_text(user) -> str:
+    username = f"@{user.username}" if user.username else "—"
+    full_name = user.full_name or "Без имени"
+
+    return (
+        "🚫 <b>Пользователь вышел из канала</b>\n\n"
+        f"• <b>{full_name}</b>\n"
+        f"  ├ {username}\n"
+        f"  └ <code>{user.telegram_id}</code>"
+    )
+
 async def check_subscriptions():
     while True:
         try:
@@ -65,10 +85,7 @@ async def check_subscriptions():
                     try:
                         await bot.send_message(
                             user.telegram_id,
-                            "🎁 **Ваша тестовая подписка почти закончилась!**\n\n"
-                            "⏳ **Осталось всего 2 часа**\n\n"
-                            "🔒 Продлите на **30 дней всего за 99 ₽** и пользуйтесь VPN без ограничений.\n\n"
-                            "⚡️ Нажмите **«Оформить сейчас»** ⬇️",
+                            t(user, "sub_expire_soon"),
                             reply_markup=subscription_action_keyboard(is_active=True),
                             parse_mode="Markdown"
                         )
@@ -101,10 +118,7 @@ async def check_subscriptions():
 
                         await bot.send_message(
                             user.telegram_id,
-                            "❌ **Срок действия подписки истёк!**\n\n"
-                            "🔒 VPN временно отключён\n\n"
-                            "⛔️ Доступ к сервисам приостановлен\n\n"
-                            "👉 Чтобы восстановить подключение, продлите подписку ⬇️",
+                            t(user, "sub_expired"),
                             reply_markup=subscription_action_keyboard(is_active=False),
                             parse_mode="Markdown"
                         )
@@ -116,6 +130,7 @@ async def check_subscriptions():
             logger.warning(f"Критическая ошибка в задаче проверки подписок: {e}")
 
         await asyncio.sleep(600)
+
 
 async def check_channel_membership():
     while True:
@@ -131,6 +146,9 @@ async def check_channel_membership():
 
                     if member.status not in ("member", "administrator", "creator"):
                         logger.info(f"🚫 {user.telegram_id} вышел из канала")
+
+                        # 🔔 уведомляем админов
+                        await notify_admins_user_left(user)
 
                         # 1️⃣ удаляем в Remnawave
                         if user.vless_profile_data:
@@ -160,8 +178,9 @@ async def check_channel_membership():
                         try:
                             await bot.send_message(
                                 user.telegram_id,
-                                "🚫 Вы вышли из канала, доступ к VPN отключён"
+                                t(user, "channel_left")
                             )
+
                         except TelegramForbiddenError:
                             pass  # пользователь заблокировал бота
 
@@ -188,6 +207,21 @@ async def check_channel_membership():
 
         await asyncio.sleep(300)  # ✅ раз в 5 минут
 
+
+async def notify_admins_user_left(user):
+    text = admin_channel_left_text(user)
+
+    for admin_id in config.ADMINS:
+        try:
+            await bot.send_message(
+                admin_id,
+                text,
+                parse_mode="HTML"
+            )
+        except TelegramForbiddenError:
+            pass
+        except Exception as e:
+            logger.warning(f"Ошибка уведомления админа {admin_id}: {e}")
 
 
 # =================================================

@@ -25,7 +25,7 @@ from locales import TEXTS, TARIFFS
 from database import (
     get_user, create_user, apply_promo_code, create_or_update_promo_code, 
     get_all_promocodes_list, delete_promocode,
-    get_all_users, get_static_profiles, create_payment, process_payment_result,
+    get_all_users, create_payment, process_payment_result,
     User, PromoCode, Session, get_user_stats as db_user_stats
 )
 
@@ -90,6 +90,18 @@ def t(user, key: str, **kwargs) -> str:
     return lang_dict[key].format(**kwargs)
 
 
+def admin_channel_joined_text(user) -> str:
+    username = f"@{user.username}" if user.username else "—"
+    full_name = user.full_name or "Без имени"
+
+    return (
+        "✅ <b>Пользователь подписался на канал</b>\n\n"
+        f"• <b>{full_name}</b>\n"
+        f"  ├ {username}\n"
+        f"  └ <code>{user.telegram_id}</code>"
+    )
+
+
 async def is_subscribed(bot: Bot, user_id: int) -> bool:
     try:
         member = await bot.get_chat_member(
@@ -128,6 +140,22 @@ async def send_subscribe_required(bot: Bot, chat_id: int):
     )
 
 
+async def notify_admins_user_joined(bot: Bot, user):
+    text = admin_channel_joined_text(user)
+
+    for admin_id in config.ADMINS:
+        try:
+            await bot.send_message(
+                admin_id,
+                text,
+                parse_mode="HTML"
+            )
+        except TelegramForbiddenError:
+            pass
+        except Exception as e:
+            logger.warning(f"Ошибка уведомления админа {admin_id}: {e}")
+
+
 @router.callback_query(F.data == "check_subscription")
 async def check_subscription(callback: CallbackQuery, bot: Bot):
 
@@ -138,20 +166,23 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
         )
         return
 
-    # если подписан — закрываем "часики"
     await callback.answer("✅ Подписка подтверждена")
 
-    # удаляем сообщение с требованием подписки
+    user = await get_user(callback.from_user.id)
+    if user:
+        await notify_admins_user_joined(bot, user)
+
     try:
         await callback.message.delete()
     except Exception:
         pass
 
-    # показываем профиль
     await show_menu(
         bot=bot,
         chat_id=callback.from_user.id
     )
+
+
 
 
 

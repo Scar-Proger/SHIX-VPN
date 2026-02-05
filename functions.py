@@ -6,7 +6,6 @@ from typing import Optional, Dict
 from config import config
 from database import get_user
 
-
 logger = logging.getLogger(__name__)
 
 class RemnawaveWrapper:
@@ -184,32 +183,25 @@ class RemnawaveWrapper:
         return created
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # -------------------------
+    # DELETE пользователя
+    # -------------------------
     async def delete_user(self, user_id: str) -> bool:
         await self._ensure_session()
         async with self.session.delete(self._url(f"/users/{user_id}/")) as resp:
             return resp.status in (200, 204)
 
 
+    # -------------------------
+    # GET пользователя
+    # -------------------------
     async def get_user(self, user_id: str) -> Optional[Dict]:
         await self._ensure_session()
         async with self.session.get(self._url(f"/users/{user_id}/")) as resp:
             if resp.status != 200:
                 return None
             return await resp.json()
+
 
     # -------------------------
     # Статистика и онлайн
@@ -321,3 +313,5 @@ async def sync_remnawave_expire(telegram_id: int, new_end: datetime) -> bool:
 
     finally:
         await api.close()
+
+

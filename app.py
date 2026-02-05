@@ -186,7 +186,10 @@ async def check_channel_membership():
 
                 except TelegramForbiddenError:
                     # 🔥 пользователь заблокировал бота
-                    logger.info(f"⛔ {user.telegram_id} заблокировал бота")
+                    logger.info(f"🚫 {user.telegram_id} заблокировал бота")
+
+                    # 🔔 уведомляем админов
+                    await notify_admins_user_left(user)
 
                     # доступ отключаем МОЛЧА
                     with Session() as session:

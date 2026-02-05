@@ -1741,13 +1741,6 @@ async def admin_remove_time_amount(message: Message, state: FSMContext):
 
 
 
-
-
-
-
-
-
-
 # ------------------------------
 # Обработчики для вывода списка пользователей
 # ------------------------------
@@ -1840,7 +1833,7 @@ async def user_list_paginated(callback: CallbackQuery):
     # ВСЕГДА отдельная строка
     builder.row(
         InlineKeyboardButton(
-            text="🔙 К фильтрам",
+            text="К фильтрам",
             callback_data="admin_user_list"
         )
     )
@@ -2021,7 +2014,7 @@ async def admin_send_message(message: Message, state: FSMContext, bot: Bot):
             text=f"🚫 Заблокировали бота ({len(blocked_users)})",
             callback_data="show_blocked_users:1"
         )
-        
+
     builder.button(text="⚠️ Админ. меню", callback_data="admin_menu")
 
     builder.adjust(1)

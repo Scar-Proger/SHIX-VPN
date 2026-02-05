@@ -80,7 +80,6 @@ def admin_bot_blocked_text(user) -> str:
     )
 
 
-
 async def check_subscriptions():
     while True:
         try:

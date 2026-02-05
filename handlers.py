@@ -159,7 +159,7 @@ async def notify_admins_user_joined(bot: Bot, user):
 @router.callback_query(F.data == "check_subscription")
 async def check_subscription(callback: CallbackQuery, bot: Bot):
     telegram_id = callback.from_user.id
-    first_name = callback.from_user.first_name
+    full_name = callback.from_user.full_name
     username = callback.from_user.username
 
     # Проверяем подписку
@@ -180,7 +180,7 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
     user = await ensure_user(
         bot,
         telegram_id,
-        first_name=first_name,
+        full_name=full_name,
         username=username,
         referrer_id=referrer_id
     )
@@ -274,7 +274,7 @@ def format_time_left(end_date: datetime, user) -> str:
 async def ensure_user(
     bot: Bot,
     telegram_id: int,
-    first_name: str = "",  # ⚠️ только имя
+    full_name: str = "",
     username: str | None = None,
     referrer_id: int | None = None
 ) -> User:
@@ -289,7 +289,7 @@ async def ensure_user(
     # 1️⃣ Создаём пользователя
     await create_user(
         telegram_id=telegram_id,
-        first_name=first_name,
+        full_name=full_name,
         username=username,
         is_admin=telegram_id in config.ADMINS,
         referrer_id=referrer_id,
@@ -320,7 +320,7 @@ async def ensure_user(
             t(
                 user,
                 "referral_notify",
-                name=username or first_name,
+                name=username or full_name,
                 id=telegram_id
             ),
             parse_mode="Markdown"
@@ -463,8 +463,6 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
 @router.message(Command("start"))
 async def start_cmd(message: Message, bot: Bot):
     telegram_id = message.from_user.id
-    first_name = message.from_user.first_name or "Пользователь"
-    username = message.from_user.username
 
     # 🔒 Проверка подписки
     if not await is_subscribed(bot, telegram_id):
@@ -497,17 +495,12 @@ async def start_cmd(message: Message, bot: Bot):
         await asyncio.sleep(2)
 
         # создаём пользователя и профиль
-        user = await ensure_user(
-            bot,
-            telegram_id,
-            first_name=first_name,
-            username=username,
-            referrer_id=referrer_id
-        )
+        user = await ensure_user(bot, telegram_id, message)
 
         # Убираем ожидание
         await wait_msg.delete()
         await wait_sticker.delete()
+
 
         # -------------------------------
         # Welcome
@@ -531,7 +524,7 @@ async def start_cmd(message: Message, bot: Bot):
                 t(
                     user,
                     "referral_notify",
-                    name=first_name,  # ⚠️ только имя
+                    name=message.from_user.username or message.from_user.full_name,
                     id=telegram_id
                 ),
                 parse_mode="Markdown"
@@ -551,11 +544,11 @@ async def start_cmd(message: Message, bot: Bot):
             return
 
         updated = False
-        if db_user.full_name != first_name:  # ⚠️ только имя
-            db_user.full_name = first_name
+        if db_user.full_name != message.from_user.full_name:
+            db_user.full_name = message.from_user.full_name
             updated = True
-        if db_user.username != username:
-            db_user.username = username
+        if db_user.username != message.from_user.username:
+            db_user.username = message.from_user.username
             updated = True
         if updated:
             session.commit()

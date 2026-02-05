@@ -491,16 +491,15 @@ async def start_cmd(message: Message, bot: Bot):
         )
         wait_msg = await message.answer(TEXTS["ru"]["creating_profile"])
 
-        # Даем пользователю пару секунд увидеть стикер
+        # ✅ Даем пользователю 2 секунды увидеть стикер
         await asyncio.sleep(2)
-
-        # создаём пользователя и профиль
-        user = await ensure_user(bot, telegram_id, message)
 
         # Убираем ожидание
         await wait_msg.delete()
         await wait_sticker.delete()
 
+        # создаём пользователя и профиль
+        user = await ensure_user(bot, telegram_id, message)
 
         # -------------------------------
         # Welcome

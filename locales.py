@@ -91,7 +91,7 @@ TEXTS = {
         ),
 
         # ===== Connect =====
-        "connect_no_profile": "🛑 Ошибка профиля",
+        "connect_no_profile": "🚫 Ошибка профиля",
         "connect_sub_expired": "⚠️ Подписка истекла! Продлите подписку.",
         "connect_not_ready": "⚠️ Профиль ещё не создан. Попробуйте позже.",
 
@@ -118,9 +118,9 @@ TEXTS = {
             "🚀 Подключайся и пользуйся только нашим VPN!"
         ),
 
-        "renew_unavailable": "❌ Тарифы временно недоступны",
-
         # ===== Tariffs =====
+        "renew_unavailable": "🚫 Тарифы временно недоступны",
+
         "tariff_1m": "99 ₽/мес — 1 месяц",
         "tariff_3m": "89 ₽/мес — 3 месяца",
         "tariff_6m": "79 ₽/мес — 6 месяцев",
@@ -131,14 +131,31 @@ TEXTS = {
         "pay_price": "💰 *Цена:* {price} ₽ / мес",
         "pay_period": "📆 *Срок:* {months} мес",
         "pay_total": "👉 *К оплате:* **{total} ₽**",
-        "btn_pay": "💳 Оплатить",
 
+        "payment_success": "✅ **Оплата прошла успешно!**\n\nПодписка продлена 🎉",
+        "payment_pending": (
+            "⏳ **Платёж ещё не завершён**\n\n"
+            "Попробуйте проверить позже\n\n"
+            "🕒 Последняя проверка: {time}"
+        ),
+        "payment_canceled": "🚫 **Платёж отменён**",
+        "payment_not_found": "⚠️ **Платёж не найден**",
+        "payment_error": "🚫 **Ошибка обработки платежа**",
+        "payment_check_error": "🚫 Ошибка проверки платежа",
+        "payment_status_unknown": "⚠️ Не удалось определить статус платежа",
+
+
+        "btn_pay": "💳 Оплатить",
+        "btn_check_payment": "🔄 Проверить оплату",
+        "btn_check_again": "🔄 Проверить ещё раз",
+
+        # ===== Promo =====
         "promo_enter": "🎁 Введите ваш промокод для активации:",
 
-        "promo_expired": "❌ Активации этого промокода закончились.",
+        "promo_expired": "🚫 Активации этого промокода закончились.",
         "promo_already_used": "⚠️ Вы уже использовали этот промокод.",
 
-        "promo_invalid": "❌ Неверный промокод.\n\n🎁 Введите промокод ещё раз:",
+        "promo_invalid": "🚫 Неверный промокод.\n\n🎁 Введите промокод ещё раз:",
         "promo_applied": (
             "✅ **Промокод `{code}` применён!**\n"
             "💰 Теперь ваша скидка на подписку: `{discount}%`"
@@ -235,7 +252,7 @@ TEXTS = {
         ),
 
         # ===== Connect =====
-        "connect_no_profile": "🛑 Profile error",
+        "connect_no_profile": "🚫 Profile error",
         "connect_sub_expired": "⚠️ Subscription expired! Please renew your plan.",
         "connect_not_ready": "⚠️ Profile is not ready yet. Please try again later.",
 
@@ -262,9 +279,9 @@ TEXTS = {
             "🚀 Connect and use only our reliable VPN!"
         ),
 
-        "renew_unavailable": "❌ Tariffs are temporarily unavailable",
-
         # ===== Tariffs =====
+        "renew_unavailable": "🚫 Tariffs are temporarily unavailable",
+
         "tariff_1m": "99 ₽/mo — 1 month",
         "tariff_3m": "89 ₽/mo — 3 months",
         "tariff_6m": "79 ₽/mo — 6 months",
@@ -275,13 +292,29 @@ TEXTS = {
         "pay_price": "💰 *Price:* {price} ₽ / mo",
         "pay_period": "📆 *Period:* {months} months",
         "pay_total": "👉 *Total:* **{total} ₽**",
-        "btn_pay": "💳 Pay",
 
+        "payment_success": "✅ **Payment successful!**\n\nSubscription extended 🎉",
+        "payment_pending": (
+            "⏳ **Payment pending**\n\n"
+            "Please check again later\n\n"
+            "🕒 Last check: {time}"
+        ),
+        "payment_canceled": "🚫 **Payment canceled**",
+        "payment_not_found": "⚠️ **Payment not found**",
+        "payment_error": "🚫 **Payment processing error**",
+        "payment_check_error": "🚫 Payment check error",
+        "payment_status_unknown": "⚠️ Unable to determine payment status",
+
+        "btn_pay": "💳 Pay",
+        "btn_check_payment": "🔄 Check payment",
+        "btn_check_again": "🔄 Check again",
+
+        # ===== Promo =====
         "promo_enter": "🎁 Enter your promo code to activate it:",
-        "promo_expired": "❌ This promo code has no remaining activations.",
+        "promo_expired": "🚫 This promo code has no remaining activations.",
         "promo_already_used": "⚠️ You have already used this promo code.",
 
-        "promo_invalid": "❌ Invalid promo code.\n\n🎁 Please try again:",
+        "promo_invalid": "🚫 Invalid promo code.\n\n🎁 Please try again:",
         "promo_applied": (
             "✅ **Promo code `{code}` applied!**\n"
             "💰 Your subscription discount is now `{discount}%`"
@@ -381,7 +414,7 @@ TEXTS = {
         ),
 
         # ===== Connect =====
-        "connect_no_profile": "🛑 账户错误",
+        "connect_no_profile": "🚫 账户错误",
         "connect_sub_expired": "⚠️ 订阅已过期，请续费。",
         "connect_not_ready": "⚠️ 配置尚未完成，请稍后再试。",
 
@@ -409,6 +442,8 @@ TEXTS = {
         ),
 
         # ===== Tariffs =====
+        "renew_unavailable": "🚫 套餐暂时不可用。",
+
         "tariff_1m": "99 ₽/月 — 1 个月",
         "tariff_3m": "89 ₽/月 — 3 个月",
         "tariff_6m": "79 ₽/月 — 6 个月",
@@ -419,16 +454,29 @@ TEXTS = {
         "pay_price": "💰 *价格:* {price} ₽ / 月",
         "pay_period": "📆 *期限:* {months} 个月",
         "pay_total": "👉 *应付金额:* **{total} ₽**",
+
+        "payment_success": "✅ **支付成功！**\n\n订阅已延长 🎉",
+        "payment_pending": (
+            "⏳ **支付处理中**\n\n"
+            "请稍后再检查\n\n"
+            "🕒 最后检查时间：{time}"
+        ),
+        "payment_canceled": "❌ **支付已取消**",
+        "payment_not_found": "⚠️ **未找到支付记录**",
+        "payment_error": "❌ **支付处理错误**",
+        "payment_check_error": "❌ 支付检查失败",
+        "payment_status_unknown": "⚠️ 无法确定支付状态",
+
         "btn_pay": "💳 支付",
+        "btn_check_payment": "🔄 检查付款",
+        "btn_check_again": "🔄 再次检查",
 
-        # ===== Renew =====
-        "renew_unavailable": "❌ 套餐暂时不可用。",
-
+        # ===== Promo =====
         "promo_enter": "🎁 请输入您的优惠码进行激活：",
-        "promo_expired": "❌ 此优惠码的使用次数已用完。",
+        "promo_expired": "🚫 此优惠码的使用次数已用完。",
         "promo_already_used": "⚠️ 您已经使用过此优惠码。",
 
-        "promo_invalid": "❌ 无效的优惠码。\n\n🎁 请再试一次：",
+        "promo_invalid": "🚫 无效的优惠码。\n\n🎁 请再试一次：",
         "promo_applied": (
             "✅ **优惠码 `{code}` 已成功使用！**\n"
             "💰 当前订阅折扣为 `{discount}%`"

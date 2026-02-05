@@ -1,8 +1,13 @@
 import os
 import logging
 import json
-
+import asyncio
 from database import now_local
+from aiogram.exceptions import (
+    TelegramForbiddenError,
+    TelegramBadRequest,
+    TelegramRetryAfter,
+)
 from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire
 from payment.platega_payment import create_platega_payment, get_platega_payment_status
@@ -11,7 +16,6 @@ from aiogram import Dispatcher, Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.exceptions import TelegramBadRequest
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, WebAppInfo
@@ -56,6 +60,10 @@ class AdminPromoStates(StatesGroup):
     waiting_for_code = State()
     waiting_for_discount = State()   
     waiting_for_max_uses = State()
+
+USERS_PER_PAGE = 10
+
+blocked_users = []
     
 # ------------------------------
 # Получение промокода из БД
@@ -762,7 +770,10 @@ async def tariff_selected(callback: CallbackQuery):
 
     payment_data = await create_platega_payment(total_amount)
     if not payment_data:
-        await callback.answer("Ошибка создания платежа", show_alert=True)
+        await callback.answer(
+            t(user, "payment_create_error"),
+            show_alert=True
+        )
         return
 
     # 🔥 СОХРАНЯЕМ ПЛАТЁЖ В БД
@@ -791,7 +802,7 @@ async def tariff_selected(callback: CallbackQuery):
         ],
         [
             InlineKeyboardButton(
-                text="🔄 Проверить оплату",
+                text=t(user, "btn_check_payment"),
                 callback_data=f"check_payment:{payment_data['transaction_id']}"
             )
         ],
@@ -817,11 +828,16 @@ async def tariff_selected(callback: CallbackQuery):
 # ------------------------------
 @router.callback_query(F.data.startswith("check_payment:"))
 async def check_payment(callback: CallbackQuery):
+    user = await get_user(callback.from_user.id)
+    
     tx_id = callback.data.split(":", 1)[1]
 
     data = await get_platega_payment_status(tx_id)
     if not data:
-        await callback.answer("❌ Ошибка проверки платежа", show_alert=True)
+        await callback.answer(
+            t(user, "payment_check_error"),
+            show_alert=True
+        )
         return
 
     print("🔍 PLATEGA STATUS RESPONSE:", data)
@@ -833,7 +849,10 @@ async def check_payment(callback: CallbackQuery):
     )
 
     if not status:
-        await callback.answer("⚠️ Не удалось определить статус платежа", show_alert=True)
+        await callback.answer(
+            t(user, "payment_status_unknown"),
+            show_alert=True
+        )
         return
 
     result = await process_payment_result(
@@ -845,23 +864,23 @@ async def check_payment(callback: CallbackQuery):
     # ТЕКСТ
     # =========================================================
     if result == "CONFIRMED":
-        caption = "✅ **Оплата прошла успешно!**\n\nПодписка продлена 🎉"
+        caption = t(user, "payment_success")
 
     elif result == "PENDING":
-        caption = (
-            "⏳ **Платёж ещё не завершён**\n\n"
-            "Попробуйте проверить позже\n\n"
-            f"🕒 Последняя проверка: {now_local().strftime('%d.%m.%Y %H:%M:%S')}"
+        caption = t(
+            user,
+            "payment_pending",
+            time=now_local().strftime('%d.%m.%Y %H:%M:%S')
         )
 
     elif result == "CANCELED":
-        caption = "❌ **Платёж отменён**"
+        caption = t(user, "payment_canceled")
 
     elif result == "NOT_FOUND":
-        caption = "⚠️ **Платёж не найден**"
+        caption = t(user, "payment_not_found")
 
     else:
-        caption = "❌ **Ошибка обработки платежа**"
+        caption = t(user, "payment_error")
 
     # =========================================================
     # КНОПКИ 
@@ -872,15 +891,16 @@ async def check_payment(callback: CallbackQuery):
     if result == "PENDING":
         builder.row(
             InlineKeyboardButton(
-                text="🔄 Проверить ещё раз",
+                text=t(user, "btn_check_again"),
                 callback_data=f"check_payment:{tx_id}"
             )
+
         )
 
     # Назад — всегда
     builder.row(
         InlineKeyboardButton(
-            text="Назад",
+            text=t(user, "back"),
             callback_data="renew_sub"
         )
     )
@@ -901,6 +921,7 @@ async def check_payment(callback: CallbackQuery):
         pass
 
     await callback.answer()
+
 
 # ------------------------------
 # Обработчик кнопки "Промокод"
@@ -1019,7 +1040,9 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
 # Админ меню
 # ------------------------------
 @router.callback_query(F.data == "admin_menu")
-async def admin_menu(callback: CallbackQuery, bot: Bot):
+async def admin_menu(callback: CallbackQuery, bot: Bot, state: FSMContext):
+    await state.clear()
+
     user = await get_user(callback.from_user.id)
     if not user or not user.is_admin:
         await callback.answer("🛑 Доступ запрещён")
@@ -1041,12 +1064,19 @@ async def admin_menu(callback: CallbackQuery, bot: Bot):
     offline_count = max(with_sub - online_count, 0)
 
     text = (
-        "🛡️ **Административное меню** 🛡️\n\n"
-        f"👥 **Всего пользователей**: `{total}`\n"
-        f"💎 **С подпиской**: `{with_sub}`\n"
-        f"❌ **Без подписки**: `{without_sub}`\n"
-        f"🟢 **Онлайн**: `{online_count}`\n"
-        f"🔴 **Офлайн**: `{offline_count}`"
+        "🔒 **Панель администратора**\n"
+        "━━━━━━━━━━━━━━━━━━\n\n"
+
+        "👥 **Пользователи**\n"
+        f"├ Всего: `{total}`\n"
+        f"├ С подпиской: `{with_sub}`\n"
+        f"└ Без подписки: `{without_sub}`\n\n"
+
+        "📡 **Активность**\n"
+        f"├ 🟢 Онлайн: `{online_count}`\n"
+        f"└ 🔴 Офлайн: `{offline_count}`\n\n"
+
+        "_Выберите действие ниже 👇_"
     )
 
     builder = InlineKeyboardBuilder()
@@ -1055,7 +1085,7 @@ async def admin_menu(callback: CallbackQuery, bot: Bot):
     builder.button(text="- время", callback_data="admin_remove_time")
 
     builder.button(text="📋 Список пользователей", callback_data="admin_user_list")
-    builder.button(text="📊 Статистика сети", callback_data="admin_network_stats")
+    #builder.button(text="📊 Статистика сети", callback_data="admin_network_stats")
 
     builder.button(text="📢 Рассылка", callback_data="admin_send_message")
 
@@ -1070,7 +1100,7 @@ async def admin_menu(callback: CallbackQuery, bot: Bot):
         chat_id=callback.from_user.id,
         text=text,
         reply_markup=builder.as_markup(),
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
 
@@ -1369,14 +1399,20 @@ async def _edit_promocode_message(message, state: FSMContext):
     remaining_uses = promo.max_uses - promo.used_count
     is_active = remaining_uses > 0
 
+    status_text = (
+        "<b>🟢 Активен</b>: Да" if is_active
+        else "<b>🔴 Активен</b>: Нет"
+    )
+
     text = (
         f"🎁 Промокод #{index + 1}\n\n"
-        f"🔑 Код: `{promo.code}`\n"
-        f"💰 Скидка: `{promo.discount_percent}%`\n"
-        f"🔢 Максимум использований: `{promo.max_uses}`\n"
-        f"✅ Использован: `{promo.used_count}` раз\n"
-        f"🔹 Осталось: `{remaining_uses}`\n"
-        f"🟢 Активен: {'Да' if is_active else 'Нет'}"
+        f"ℹ️ Информация:\n"
+        f"├ 🔑 Код: `{promo.code}`\n"
+        f"├ 💰 Скидка: `{promo.discount_percent}%`\n"
+        f"├ 📊 Максимум использований: `{promo.max_uses}`\n"
+        f"├ ✅ Использован: `{promo.used_count}` раз\n"
+        f"├ 🔹 Осталось: `{remaining_uses}`\n"
+        f"└ {status_text}"
     )
 
     builder = InlineKeyboardBuilder()
@@ -1477,6 +1513,37 @@ async def promocode_prev(callback: CallbackQuery, state: FSMContext):
         await _edit_promocode_message(callback.message, state)
 
 
+# ------------------------------
+# Статистика сети
+# ------------------------------
+@router.callback_query(F.data == "stats")
+async def user_stats(callback: CallbackQuery):
+    user = await get_user(callback.from_user.id)
+    if not user or not user.vless_profile_data:
+        await callback.answer("⚠️ Профиль не создан")
+        return
+    await callback.message.edit_text("⚙️ Загружаем вашу статистику...")
+    profile_data = safe_json_loads(user.vless_profile_data, default={})
+    stats = await get_user_stats(profile_data["email"])
+
+    logger.debug(stats)
+    upload = f"{stats.get('upload', 0) / 1024 / 1024:.2f}"
+    upload_size = 'MB' if int(float(upload)) < 1024 else 'GB'
+    if upload_size == "GB":
+        upload = f"{int(float(upload) / 1024):.2f}"
+
+    download = f"{stats.get('download', 0) / 1024 / 1024:.2f}"
+    download_size = 'MB' if int(float(download)) < 1024 else 'GB'
+    if download_size == "GB":
+        download = f"{int(float(download) / 1024):.2f}"
+
+    await callback.message.delete()
+    text = (
+        "📊 **Ваша статистика:**\n\n"
+        f"🔼 Загружено: `{upload} {upload_size}`\n"
+        f"🔽 Скачано: `{download} {download_size}`\n"
+    )
+    await callback.message.answer(text, parse_mode='Markdown')
 
 
 
@@ -1510,7 +1577,9 @@ async def promocode_prev(callback: CallbackQuery, state: FSMContext):
 
 
 
+# ------------------------------
 # Обработчики для управления дабавления временем подписки
+# ------------------------------
 @router.callback_query(F.data == "admin_add_time")
 async def admin_add_time_start(callback: CallbackQuery, state: FSMContext):
     await callback.answer()  # Снимаем анимацию
@@ -1572,10 +1641,9 @@ async def admin_add_time_amount(message: Message, state: FSMContext):
     await state.clear()
 
 
-
-
-
+# ------------------------------
 # Обработчики для управления удаления временем подписки
+# ------------------------------
 @router.callback_query(F.data == "admin_remove_time")
 async def admin_remove_time_start(callback: CallbackQuery, state: FSMContext):
     await callback.answer()  # Снимаем анимацию
@@ -1650,66 +1718,106 @@ async def admin_remove_time_amount(message: Message, state: FSMContext):
 
 
 
-
+# ------------------------------
 # Обработчики для вывода списка пользователей
+# ------------------------------
 @router.callback_query(F.data == "admin_user_list")
 async def admin_user_list(callback: CallbackQuery):
+    await callback.answer()
+
     builder = InlineKeyboardBuilder()
-    builder.button(text="✅ С подпиской", callback_data="user_list_active")
-    builder.button(text="🛑 Без подписки", callback_data="user_list_inactive")
-    builder.button(text="⏱️ Статические профили", callback_data="static_profiles_menu")
+    builder.button(text="✅ С подпиской", callback_data="user_list:active:1")
+    builder.button(text="🛑 Без подписки", callback_data="user_list:inactive:1")
     builder.button(text="Назад", callback_data="admin_menu")
-    builder.adjust(1, 1, 1)
-    await callback.message.edit_text("**Выберите фильтр**", reply_markup=builder.as_markup(), parse_mode='Markdown')
+    builder.adjust(1)
 
-@router.callback_query(F.data == "user_list_active")
-async def handle_user_list_active(callback: CallbackQuery):
-    users = await get_all_users(with_subscription=True)
+    await callback.message.edit_text(
+        "<b>📋 Список пользователей</b>\n\nВыберите фильтр:",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML"
+    )
+
+@router.callback_query(F.data.startswith("user_list:"))
+async def user_list_paginated(callback: CallbackQuery):
     await callback.answer()
-    if not users:
-        await callback.answer("Нет пользователей с активной подпиской")
-        return
-    
-    text = "👤 <b>Пользователи с активной подпиской:</b>\n\n"
-    for user in users:
-        expire_date = user.subscription_end.strftime("%d.%m.%Y %H:%M")
-        username = f"@{user.username}" if user.username else "none"
-        user_line = f"• {user.full_name} ({username} | <code>{user.telegram_id}</code>) - до <code>{expire_date}</code>\n"
-        
-        # Если текст становится слишком длинным, отправляем текущую часть и начинаем новую
-        if len(text) + len(user_line) > MAX_MESSAGE_LENGTH:
-            await callback.message.answer(text, parse_mode="HTML")
-            text = "👤 <b>Пользователи с активной подпиской (продолжение):</b>\n\n"
-        
-        text += user_line
-    
-    # Отправляем оставшуюся часть текста
-    await callback.message.answer(text, parse_mode="HTML")
 
-@router.callback_query(F.data == "user_list_inactive")
-async def handle_user_list_inactive(callback: CallbackQuery):
-    await callback.answer()
-    users = await get_all_users(with_subscription=False)
-    if not users:
-        await callback.answer("Нет пользователей без подписки")
-        return
-    
-    text = "👤 <b>Пользователи без подписки:</b>\n\n"
-    for user in users:
-        username = f"@{user.username}" if user.username else "none"
-        user_line = f"• {user.full_name} ({username} | <code>{user.telegram_id}</code>)\n"
-        
-        # Если текст становится слишком длинным, отправляем текущую часть и начинаем новую
-        if len(text) + len(user_line) > MAX_MESSAGE_LENGTH:
-            await callback.message.answer(text, parse_mode="HTML")
-            text = "👤 <b>Пользователи без подписки (продолжение):</b>\n\n"
-        
-        text += user_line
-    
-    # Отправляем оставшуюся часть текста
-    await callback.message.answer(text, parse_mode="HTML")
+    _, list_type, page_str = callback.data.split(":")
+    page = int(page_str)
 
+    if list_type == "active":
+        users = await get_all_users(with_subscription=True)
+        title = "👑 <b>Пользователи с подпиской</b>"
+    else:
+        users = await get_all_users(with_subscription=False)
+        title = "👤 <b>Пользователи без подписки</b>"
+
+    if not users:
+        await callback.message.edit_text(
+            "❌ Пользователей нет",
+            parse_mode="HTML"
+        )
+        return
+
+    total = len(users)
+    total_pages = (total + USERS_PER_PAGE - 1) // USERS_PER_PAGE
+    page = max(1, min(page, total_pages))
+
+    start = (page - 1) * USERS_PER_PAGE
+    end = start + USERS_PER_PAGE
+    current_users = users[start:end]
+
+    text = (
+        f"{title}\n"
+        f"📄 Страница {page} из {total_pages}\n\n"
+    )
+
+    for user in current_users:
+        username = f"@{user.username}" if user.username else "—"
+        line = f"• <b>{user.full_name}</b>\n"
+        line += f"  ├ {username}\n"
+        line += f"  └ <code>{user.telegram_id}</code>\n"
+
+        if list_type == "active" and user.subscription_end:
+            expire = user.subscription_end.strftime("%d.%m.%Y %H:%M")
+            line += f"  ⏳ до <code>{expire}</code>\n"
+
+        text += line + "\n"
+
+    builder = InlineKeyboardBuilder()
+
+    # Назад
+    if page > 1:
+        builder.button(
+            text="Назад",
+            callback_data=f"user_list:{list_type}:{page - 1}"
+        )
+
+    # Далее
+    if page < total_pages:
+        builder.button(
+            text="Далее",
+            callback_data=f"user_list:{list_type}:{page + 1}"
+        )
+
+    builder.button(text="К фильтрам", callback_data="admin_user_list")
+
+    builder.adjust(2, 1)
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML"
+    )
+
+
+
+
+
+
+
+# ------------------------------
 # Обработчики для рассылки сообщений
+# ------------------------------
 @router.callback_query(F.data == "admin_send_message")
 async def admin_send_message_start(callback: CallbackQuery, state: FSMContext):
     builder = InlineKeyboardBuilder()
@@ -1724,115 +1832,210 @@ async def admin_send_message_start(callback: CallbackQuery, state: FSMContext):
         reply_markup=builder.as_markup()
     )
 
+@router.callback_query(F.data == "back_to_targets")
+async def back_to_targets(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await state.clear()   # ← ВАЖНО
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✅ С подпиской", callback_data="target_active")
+    builder.button(text="🛑 Без подписки", callback_data="target_inactive")
+    builder.button(text="👥 Всем пользователям", callback_data="target_all")
+    builder.button(text="⬅️ Назад", callback_data="admin_menu")
+    builder.adjust(1)
+
+    await callback.message.edit_text(
+        "Выберите целевую аудиторию для рассылки:",
+        reply_markup=builder.as_markup()
+    )
+
 @router.callback_query(F.data.startswith("target_"))
 async def admin_send_message_target(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()  # Снимаем анимацию
+    await callback.answer()
+
     target = callback.data.split("_")[1]
     await state.update_data(target=target)
-    await callback.message.answer("Введите сообщение для рассылки:")
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⬅️ Назад", callback_data="back_to_targets")
+    builder.adjust(1)
+
+    await callback.message.edit_text(
+        "✏️ Введите сообщение для рассылки:",
+        reply_markup=builder.as_markup()
+    )
+
     await state.set_state(AdminStates.SEND_MESSAGE)
+
+@router.callback_query(F.data.startswith("show_blocked_users:"))
+async def show_blocked_users(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+
+    page = int(callback.data.split(":")[1])
+    data = await state.get_data()
+    blocked_users = data.get("blocked_users", [])
+
+    if not blocked_users:
+        await callback.message.edit_text("🚫 Заблокированных пользователей нет.")
+        return
+
+    PER_PAGE = 10
+    total = len(blocked_users)
+    total_pages = (total + PER_PAGE - 1) // PER_PAGE
+
+    # защита от дурака
+    page = max(1, min(page, total_pages))
+
+    start = (page - 1) * PER_PAGE
+    end = start + PER_PAGE
+    current_users = blocked_users[start:end]
+
+    text = (
+        f"🚫 <b>Заблокировали бота:</b>\n"
+        f"Страница {page}/{total_pages}\n\n"
+    )
+
+    for uid in current_users:
+        text += f"• ID: <code>{uid}</code>\n"
+
+    builder = InlineKeyboardBuilder()
+
+    # ⬅️ Назад
+    if page > 1:
+        builder.button(
+            text="Назад",
+            callback_data=f"show_blocked_users:{page - 1}"
+        )
+
+    # ➡️ Далее
+    if page < total_pages:
+        builder.button(
+            text="Далее",
+            callback_data=f"show_blocked_users:{page + 1}"
+        )
+
+    builder.adjust(2)
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=builder.as_markup() if builder.buttons else None,
+        parse_mode="HTML"
+    )
 
 @router.message(AdminStates.SEND_MESSAGE)
 async def admin_send_message(message: Message, state: FSMContext, bot: Bot):
+    if not message.text:
+        await message.answer("❗ Пожалуйста, отправьте текстовое сообщение.")
+        return
+
     data = await state.get_data()
     target = data['target']
     text = message.text
-    
-    users = []
+
     if target == "active":
         users = await get_all_users(with_subscription=True)
     elif target == "inactive":
         users = await get_all_users(with_subscription=False)
-    else:  # all
+    else:
         users = await get_all_users()
-    
+
+    logger.info(f"📨 Рассылка начата. Цель: {target}, пользователей: {len(users)}")
+
     success = 0
     failed = 0
-    
+    blocked_users = []
+
     for user in users:
         try:
             await bot.send_message(user.telegram_id, text)
             success += 1
-        except Exception as e:
-            logger.error(f"🛑 Ошибка отправки сообщения {user.telegram_id}: {e}")
+
+        except TelegramForbiddenError:
+            logger.info(f"🚫 Пользователь {user.telegram_id} заблокировал бота")
+            blocked_users.append(user.telegram_id)
             failed += 1
-    
+
+        except TelegramBadRequest as e:
+            logger.warning(f"⚠️ Ошибка запроса для пользователя {user.telegram_id}: {e.message}")
+            failed += 1
+
+        except TelegramRetryAfter as e:
+            logger.warning(f"⏳ Превышен лимит Telegram, ожидание {e.retry_after} сек.")
+            await asyncio.sleep(e.retry_after)
+            await bot.send_message(user.telegram_id, text)
+            success += 1
+
+        except Exception as e:
+            logger.error(f"❌ Неизвестная ошибка для пользователя {user.telegram_id}: {e}")
+            failed += 1
+
+    # сохраняем список в FSM, чтобы потом листать
+    await state.update_data(blocked_users=blocked_users)
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⚠️ Админ. меню", callback_data="admin_menu")
+
+    if blocked_users:
+        builder.button(
+            text=f"🚫 Заблокировали бота ({len(blocked_users)})",
+            callback_data="show_blocked_users:1"
+        )
+
+    builder.adjust(1)
+
     await message.answer(
         f"📨 Результаты рассылки:\n\n"
         f"• Успешно: {success}\n"
         f"• Не удалось: {failed}\n"
-        f"• Всего: {len(users)}"
+        f"• Всего: {len(users)}",
+        reply_markup=builder.as_markup(),
+        parse_mode="Markdown"
     )
-    await state.clear()
 
-# Остальные обработчики остаются без изменений
-@router.callback_query(F.data == "static_profiles_menu")
-async def static_profiles_menu(callback: CallbackQuery):
-    builder = InlineKeyboardBuilder()
-    builder.button(text="🆕 Добавить статический профиль", callback_data="static_profile_add")
-    builder.button(text="📋 Вывести статические профили", callback_data="static_profile_list")
-    builder.button(text="Назад", callback_data="admin_user_list")
-    builder.adjust(1)
-    await callback.message.edit_text("**Выберите действие**", reply_markup=builder.as_markup(), parse_mode='Markdown')
+    # FSM НЕ чистим, он нужен для списка
 
-@router.callback_query(F.data == "static_profile_add")
-async def static_profile_add(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()  # Снимаем анимацию
-    await callback.message.answer("Введите имя для статического профиля:")
-    await state.set_state(AdminStates.CREATE_STATIC_PROFILE)
 
-@router.callback_query(F.data == "static_profile_list")
-async def static_profile_list(callback: CallbackQuery):
-    profiles = await get_static_profiles()
-    if not profiles:
-        await callback.answer("Нет статических профилей")
-        return
-    
-    for profile in profiles:
-        builder = InlineKeyboardBuilder()
-        builder.button(text="🗑️ Удалить", callback_data=f"delete_static_{profile.id}")
-        await callback.message.answer(
-            f"**{profile.name}**\n`{profile.vless_url}`", 
-            reply_markup=builder.as_markup(), parse_mode='Markdown'
-        )
 
-@router.callback_query(F.data.startswith("delete_static_"))
-async def handle_delete_static_profile(callback: CallbackQuery):
-    try:
-        await callback.answer("✅ Профиль удален!")
-        await callback.message.delete()
-    except Exception as e:
-        logger.error(f"🛑 Ошибка при удалении статического профиля: {e}")
-        await callback.answer("⚠️ Ошибка при удалении профиля")
 
-@router.callback_query(F.data == "stats")
-async def user_stats(callback: CallbackQuery):
-    user = await get_user(callback.from_user.id)
-    if not user or not user.vless_profile_data:
-        await callback.answer("⚠️ Профиль не создан")
-        return
-    await callback.message.edit_text("⚙️ Загружаем вашу статистику...")
-    profile_data = safe_json_loads(user.vless_profile_data, default={})
-    stats = await get_user_stats(profile_data["email"])
 
-    logger.debug(stats)
-    upload = f"{stats.get('upload', 0) / 1024 / 1024:.2f}"
-    upload_size = 'MB' if int(float(upload)) < 1024 else 'GB'
-    if upload_size == "GB":
-        upload = f"{int(float(upload) / 1024):.2f}"
 
-    download = f"{stats.get('download', 0) / 1024 / 1024:.2f}"
-    download_size = 'MB' if int(float(download)) < 1024 else 'GB'
-    if download_size == "GB":
-        download = f"{int(float(download) / 1024):.2f}"
 
-    await callback.message.delete()
-    text = (
-        "📊 **Ваша статистика:**\n\n"
-        f"🔼 Загружено: `{upload} {upload_size}`\n"
-        f"🔽 Скачано: `{download} {download_size}`\n"
-    )
-    await callback.message.answer(text, parse_mode='Markdown')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1854,7 +2057,7 @@ async def exit_admin(callback: CallbackQuery, bot: Bot, state: FSMContext):
     except Exception:
         pass
 
-    # 📩 ПРИСЫЛАЕМ ГЛАВНОЕ МЕНЮ НОВЫМ СООБЩЕНИЕМ
+    # ПРИСЫЛАЕМ ГЛАВНОЕ МЕНЮ НОВЫМ СООБЩЕНИЕМ
     await show_menu(
         bot=bot,
         chat_id=callback.from_user.id
@@ -1877,6 +2080,7 @@ async def back_to_menu(callback: CallbackQuery, bot: Bot, state: FSMContext):
 def setup_handlers(dp: Dispatcher):
     dp.include_router(router)
     logger.info("✅  Обработчики успешно настроены")
+
 
 def safe_json_loads(data, default=None):
     if not data:

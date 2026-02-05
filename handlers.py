@@ -1100,7 +1100,7 @@ async def admin_menu(callback: CallbackQuery, bot: Bot, state: FSMContext):
         chat_id=callback.from_user.id,
         text=text,
         reply_markup=builder.as_markup(),
-        parse_mode="HTML"
+        parse_mode="Markdown"
     )
 
 

@@ -285,6 +285,10 @@ async def ensure_user(
     user = await get_user(telegram_id)
     if user:
         return user
+    
+    if not isinstance(full_name, str):
+        logger.error(f"❌ full_name не строка: {type(full_name)} | {full_name}")
+        full_name = ""
 
     # 1️⃣ Создаём пользователя
     await create_user(
@@ -499,7 +503,13 @@ async def start_cmd(message: Message, bot: Bot):
         await wait_sticker.delete()
 
         # создаём пользователя и профиль
-        user = await ensure_user(bot, telegram_id, message)
+        user = await ensure_user(
+            bot,
+            telegram_id,
+            full_name=message.from_user.full_name,
+            username=message.from_user.username,
+            referrer_id=referrer_id
+        )
 
         # -------------------------------
         # Welcome
@@ -1138,6 +1148,7 @@ async def admin_menu(callback: CallbackQuery, bot: Bot, state: FSMContext):
 
     builder.button(text="📋 Список пользователей", callback_data="admin_user_list")
     #builder.button(text="📊 Статистика сети", callback_data="admin_network_stats")
+    builder.button(text="🔄 Обновить подписку", callback_data="admin_fix_subscription")
 
     builder.button(text="📢 Рассылка", callback_data="admin_send_message")
 
@@ -1146,7 +1157,7 @@ async def admin_menu(callback: CallbackQuery, bot: Bot, state: FSMContext):
 
     builder.button(text="Выйти", callback_data="exit_admin")
 
-    builder.adjust(2, 1, 1, 1, 1, 1, 1)
+    builder.adjust(2, 1, 1, 1, 1, 1, 1, 1)
 
     await bot.send_message(
         chat_id=callback.from_user.id,
@@ -1598,9 +1609,59 @@ async def user_stats(callback: CallbackQuery):
     await callback.message.answer(text, parse_mode='Markdown')
 
 
+# ------------------------------
+# Начало массового обновления подписки
+# ------------------------------
+@router.callback_query(F.data == "admin_fix_subscription_all")
+async def admin_fix_subscription_all(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await state.clear()
 
+    # Кнопки выбора срока подписки
+    builder = InlineKeyboardBuilder()
+    periods = [1, 2, 5, 10, 20, 50, 100]
+    for years in periods:
+        builder.button(text=f"{years} год(а)", callback_data=f"fix_sub_all_{years}")
+    builder.adjust(3)  # по 3 кнопки в ряд
 
+    await callback.message.edit_text(
+        "Выберите срок подписки для всех пользователей:",
+        reply_markup=builder.as_markup()
+    )
+    await state.set_state("FIX_SUB_ALL_PERIOD")
 
+# ------------------------------
+# Выбор периода для всех
+# ------------------------------
+@router.callback_query(F.data.startswith("fix_sub_all_"), F.state == "FIX_SUB_ALL_PERIOD")
+async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    years = int(callback.data.split("_")[-1])
+    new_end = now_local() + timedelta(days=years*365)  # фиксируем на X лет
+
+    with Session() as session:
+        users = session.query(User).all()
+        if not users:
+            await callback.message.edit_text("❌ Пользователи не найдены")
+            await state.clear()
+            return
+
+        updated_count = 0
+        for user in users:
+            # 🔁 SYNC с Remnawave
+            ok = await sync_remnawave_expire(user.telegram_id, new_end)
+            if ok:
+                user.subscription_end = new_end
+                updated_count += 1
+
+        session.commit()
+
+    await callback.message.edit_text(
+        f"✅ Подписка обновлена для {updated_count} пользователей до {new_end.strftime('%d-%m-%Y %H:%M')}",
+        parse_mode="Markdown"
+    )
+
+    await state.clear()
 
 
 

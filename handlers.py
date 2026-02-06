@@ -1657,10 +1657,10 @@ async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
             await state.clear()
             return
 
+        logger.info(f"Начинаем массовое обновление подписок на {years} лет, пользователей: {len(users)}")
+
         for user in users:
-            logger.info(f"Начинаем массовое обновление подписок на {years} лет, пользователей: {len(users)}")
-            for user in users:
-                logger.info(f"Пользователь {user.telegram_id}, старая подписка: {user.subscription_end}")
+            logger.info(f"Пользователь {user.telegram_id}, старая подписка: {user.subscription_end}")
 
             # Берём текущую подписку, если она ещё активна
             base_date = user.subscription_end if user.subscription_end and user.subscription_end > now else now

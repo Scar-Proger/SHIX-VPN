@@ -2230,15 +2230,30 @@ async def compose_text(message: Message, state: FSMContext):
 
     # Кнопки форматирования
     builder = InlineKeyboardBuilder()
+
+    # Первая строка: B I S
     builder.button(text="B", callback_data="format_bold")
     builder.button(text="I", callback_data="format_italic")
     builder.button(text="S", callback_data="format_strike")
+    builder.adjust(3)  # 3 кнопки в первой строке
+
+    # Вторая строка: U » `
     builder.button(text="U", callback_data="format_underline")
-    builder.button(text="» Цитата", callback_data="format_quote")
-    builder.button(text="`Моноширный`", callback_data="format_mono")
+    builder.button(text="»", callback_data="format_quote")
+    builder.button(text="`", callback_data="format_mono")
+    builder.adjust(3)  # 3 кнопки во второй строке
+
+    # Третья строка: Добавить текст
     builder.button(text="Добавить текст", callback_data="add_text")
+    builder.adjust(1)  # 1 кнопка в строке
+
+    # Четвёртая строка: Отправить
     builder.button(text="Отправить", callback_data="send_message_id")
-    builder.adjust(1)
+    builder.adjust(1)  # 1 кнопка в строке
+
+    # Пятая строка: Назад
+    builder.button(text="Назад", callback_data="admin_menu")
+    builder.adjust(1)  # 1 кнопка в строке
 
     await message.answer(
         f"📝 Текущий текст для рассылки:\n\n{text}",
@@ -2249,62 +2264,76 @@ async def compose_text(message: Message, state: FSMContext):
 
 
 # -------------------------
-# Обработка кнопок форматирования (моментальное визуальное)
+# Обработка кнопок форматирования (только один стиль)
 # -------------------------
 @router.callback_query(F.data.startswith("format_"))
 async def format_text_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     data = await state.get_data()
     text = data.get("composed_text", "")
+    current_style = data.get("current_style")  # текущий выбранный стиль
 
     action = callback.data.split("_")[1]
 
-    # Применяем HTML форматирование
+    # Сначала убираем предыдущий стиль, если он был
+    if current_style == "bold":
+        text = text.replace("<b>", "").replace("</b>", "")
+    elif current_style == "italic":
+        text = text.replace("<i>", "").replace("</i>", "")
+    elif current_style == "underline":
+        text = text.replace("<u>", "").replace("</u>", "")
+    elif current_style == "strike":
+        text = text.replace("<s>", "").replace("</s>", "")
+    elif current_style == "mono":
+        text = text.replace("<code>", "").replace("</code>", "")
+    elif current_style == "quote":
+        text = text.replace("<blockquote>", "").replace("</blockquote>", "")
+
+    # Применяем новый стиль
     if action == "bold":
-        if text.startswith("<b>") and text.endswith("</b>"):
-            text = text[3:-4]  # снимаем жирный
-        else:
-            text = f"<b>{text}</b>"
+        text = f"<b>{text}</b>"
     elif action == "italic":
-        if text.startswith("<i>") and text.endswith("</i>"):
-            text = text[3:-4]
-        else:
-            text = f"<i>{text}</i>"
+        text = f"<i>{text}</i>"
     elif action == "underline":
-        if text.startswith("<u>") and text.endswith("</u>"):
-            text = text[3:-4]
-        else:
-            text = f"<u>{text}</u>"
+        text = f"<u>{text}</u>"
     elif action == "strike":
-        if text.startswith("<s>") and text.endswith("</s>"):
-            text = text[3:-4]
-        else:
-            text = f"<s>{text}</s>"
+        text = f"<s>{text}</s>"
     elif action == "mono":
-        if text.startswith("<code>") and text.endswith("</code>"):
-            text = text[6:-7]
-        else:
-            text = f"<code>{text}</code>"
+        text = f"<code>{text}</code>"
     elif action == "quote":
-        if text.startswith("<blockquote>") and text.endswith("</blockquote>"):
-            text = text[12:-13]
-        else:
-            text = f"<blockquote>{text}</blockquote>"
+        text = f"<blockquote>{text}</blockquote>"
 
-    await state.update_data(composed_text=text)
+    # Сохраняем текст и текущий стиль
+    await state.update_data(composed_text=text, current_style=action)
 
-    # Кнопки
+    # Строим кнопки
     builder = InlineKeyboardBuilder()
+
+    # Первая строка: B I S
     builder.button(text="B", callback_data="format_bold")
     builder.button(text="I", callback_data="format_italic")
     builder.button(text="S", callback_data="format_strike")
-    builder.button(text="U", callback_data="format_underline")
-    builder.button(text="» Цитата", callback_data="format_quote")
-    builder.button(text="`Моноширный`", callback_data="format_mono")
-    builder.button(text="Отправить", callback_data="send_message_id")
-    builder.adjust(4)
+    builder.adjust(3)
 
-    # Обновляем текст в том же сообщении сразу с HTML
+    # Вторая строка: U » `
+    builder.button(text="U", callback_data="format_underline")
+    builder.button(text="»", callback_data="format_quote")
+    builder.button(text="`", callback_data="format_mono")
+    builder.adjust(3)
+
+    # Третья строка: Добавить текст
+    builder.button(text="Добавить текст", callback_data="add_text")
+    builder.adjust(1)
+
+    # Четвёртая строка: Отправить
+    builder.button(text="Отправить", callback_data="send_message_id")
+    builder.adjust(1)
+
+    # Пятая строка: Назад
+    builder.button(text="Назад", callback_data="admin_menu")
+    builder.adjust(1)  # 1 кнопка в строке
+
+    # Обновляем сообщение сразу с HTML
     await callback.message.edit_text(
         f"📝 Текущий текст для рассылки:\n\n{text}",
         reply_markup=builder.as_markup(),
@@ -2346,12 +2375,6 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
     )
 
     await state.clear()
-
-
-
-
-
-
 
 
 

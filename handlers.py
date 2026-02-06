@@ -1639,7 +1639,7 @@ async def admin_fix_subscription(callback: CallbackQuery, state: FSMContext):
 # ------------------------------
 # Выбор периода для всех
 # ------------------------------
-@router.callback_query(F.data.startswith("fix_sub_all_"), F.state == "FIX_SUB_ALL_PERIOD")
+@router.callback_query(F.data.startswith("fix_sub_all_"))
 async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     years = int(callback.data.split("_")[-1])
@@ -1658,6 +1658,10 @@ async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
             return
 
         for user in users:
+            logger.info(f"Начинаем массовое обновление подписок на {years} лет, пользователей: {len(users)}")
+            for user in users:
+                logger.info(f"Пользователь {user.telegram_id}, старая подписка: {user.subscription_end}")
+
             # Берём текущую подписку, если она ещё активна
             base_date = user.subscription_end if user.subscription_end and user.subscription_end > now else now
 

@@ -42,7 +42,6 @@ app.mount(
     name="assets"
 )
 
-
 # -------------------- AIROGRAM -------------------
 bot: Bot | None = None
 dp: Dispatcher | None = None

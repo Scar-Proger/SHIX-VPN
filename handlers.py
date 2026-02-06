@@ -2188,9 +2188,16 @@ async def admin_send_message(message: Message, state: FSMContext, bot: Bot):
 async def admin_send_message_by_id(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.clear()
-    await callback.message.edit_text(
-        "✏️ Введите ID пользователей через запятую (например: 12345,67890):"
+
+    msg = await callback.message.edit_text(
+        "✏️ Введите ID пользователей через запятую (например: 12345,67890):",
+        reply_markup=InlineKeyboardBuilder()
+        .button(text="Назад", callback_data="back_to_targets")
+        .adjust(1)
+        .as_markup()
     )
+
+    await state.update_data(main_message_id=callback.message.message_id)
     await state.set_state(AdminStates.SEND_TO_IDS)
 
 
@@ -2199,19 +2206,48 @@ async def admin_send_message_by_id(callback: CallbackQuery, state: FSMContext):
 # -------------------------
 @router.message(AdminStates.SEND_TO_IDS)
 async def enter_user_ids(message: Message, state: FSMContext):
-    ids_text = message.text
     try:
-        ids = [int(uid.strip()) for uid in ids_text.split(",") if uid.strip().isdigit()]
+        ids = [int(i.strip()) for i in message.text.split(",") if i.strip().isdigit()]
         if not ids:
             raise ValueError
     except:
-        await message.answer("❌ Ошибка! Введите корректные ID через запятую.")
+        await message.answer("❌ Введите корректные ID через запятую.")
         return
 
-    await state.update_data(user_ids=ids, composed_text="")
-    await message.answer(
-        "✏️ Введите текст рассылки (будет доступно форматирование после ввода):"
+    data = await state.get_data()
+    main_message_id = data["main_message_id"]
+
+    await state.update_data(user_ids=ids, composed_text="", current_style=None)
+
+    await message.bot.edit_message_text(
+        chat_id=message.chat.id,
+        message_id=main_message_id,
+        text="✏️ Введите текст рассылки (будет доступно форматирование после ввода):",
+        reply_markup=InlineKeyboardBuilder()
+        .button(text="Назад", callback_data="admin_send_message_id")
+        .adjust(1)
+        .as_markup()
     )
+
+    await message.delete()
+    await state.set_state(AdminStates.COMPOSE_TEXT)
+
+
+# -------------------------
+# Назад к вводу текста
+# -------------------------
+@router.callback_query(F.data == "back_to_text")
+async def back_to_text(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+
+    await callback.message.edit_text(
+        "✏️ Введите текст рассылки (будет доступно форматирование после ввода):",
+        reply_markup=InlineKeyboardBuilder()
+        .button(text="Назад", callback_data="admin_send_message_id")
+        .adjust(1)
+        .as_markup()
+    )
+
     await state.set_state(AdminStates.COMPOSE_TEXT)
 
 
@@ -2220,46 +2256,33 @@ async def enter_user_ids(message: Message, state: FSMContext):
 # -------------------------
 @router.message(AdminStates.COMPOSE_TEXT)
 async def compose_text(message: Message, state: FSMContext):
-    if not message.text:
-        await message.answer("❗ Пожалуйста, отправьте текстовое сообщение.")
-        return
-
     data = await state.get_data()
+    main_message_id = data["main_message_id"]
+
     text = message.text
     await state.update_data(composed_text=text)
 
-    # Кнопки форматирования
     builder = InlineKeyboardBuilder()
-
-    # Первая строка: B I S
     builder.button(text="B", callback_data="format_bold")
     builder.button(text="I", callback_data="format_italic")
     builder.button(text="S", callback_data="format_strike")
-    builder.adjust(3)  # 3 кнопки в первой строке
-
-    # Вторая строка: U » `
     builder.button(text="U", callback_data="format_underline")
     builder.button(text="»", callback_data="format_quote")
     builder.button(text="`", callback_data="format_mono")
-    builder.adjust(3)  # 3 кнопки во второй строке
-
-    # Третья строка: Добавить текст
     builder.button(text="Добавить текст", callback_data="add_text")
-    builder.adjust(1)  # 1 кнопка в строке
-
-    # Четвёртая строка: Отправить
     builder.button(text="Отправить", callback_data="send_message_id")
-    builder.adjust(1)  # 1 кнопка в строке
+    builder.button(text="Назад", callback_data="back_to_text")
+    builder.adjust(3, 3, 1, 1, 1)
 
-    # Пятая строка: Назад
-    builder.button(text="Назад", callback_data="admin_menu")
-    builder.adjust(1)  # 1 кнопка в строке
-
-    await message.answer(
-        f"📝 Текущий текст для рассылки:\n\n{text}",
-        reply_markup=builder.as_markup()
+    await message.bot.edit_message_text(
+        chat_id=message.chat.id,
+        message_id=main_message_id,
+        text=f"📝 Текущий текст для рассылки:\n\n{text}",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML"
     )
 
+    await message.delete()
     await state.set_state(AdminStates.FORMAT_TEXT)
 
 
@@ -2309,29 +2332,20 @@ async def format_text_callback(callback: CallbackQuery, state: FSMContext):
     # Строим кнопки
     builder = InlineKeyboardBuilder()
 
-    # Первая строка: B I S
     builder.button(text="B", callback_data="format_bold")
     builder.button(text="I", callback_data="format_italic")
     builder.button(text="S", callback_data="format_strike")
-    builder.adjust(3)
 
-    # Вторая строка: U » `
     builder.button(text="U", callback_data="format_underline")
     builder.button(text="»", callback_data="format_quote")
     builder.button(text="`", callback_data="format_mono")
-    builder.adjust(3)
 
-    # Третья строка: Добавить текст
     builder.button(text="Добавить текст", callback_data="add_text")
-    builder.adjust(1)
-
-    # Четвёртая строка: Отправить
     builder.button(text="Отправить", callback_data="send_message_id")
-    builder.adjust(1)
+    builder.button(text="Назад", callback_data="back_to_text")
 
-    # Пятая строка: Назад
-    builder.button(text="Назад", callback_data="admin_menu")
-    builder.adjust(1)  # 1 кнопка в строке
+    # ВАЖНО: один adjust со схемой
+    builder.adjust(3, 3, 1, 1, 1)
 
     # Обновляем сообщение сразу с HTML
     await callback.message.edit_text(
@@ -2367,11 +2381,17 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
             failed += 1
             blocked_users.append(uid)
 
+    # ⚠️ Кнопка админ-меню
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⚠️ Админ. меню", callback_data="admin_menu")
+    builder.adjust(1)
+
     await callback.message.answer(
         f"📨 Рассылка завершена!\n\n"
         f"• Успешно: {success}\n"
         f"• Не удалось: {failed}\n"
-        f"• Всего: {len(user_ids)}"
+        f"• Всего: {len(user_ids)}",
+        reply_markup=builder.as_markup()
     )
 
     await state.clear()

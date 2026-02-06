@@ -2006,6 +2006,7 @@ async def back_to_targets(callback: CallbackQuery, state: FSMContext):
     builder = InlineKeyboardBuilder()
     builder.button(text="✅ С подпиской", callback_data="target_active")
     builder.button(text="🛑 Без подписки", callback_data="target_inactive")
+    builder.button(text="👤 Пользователь", callback_data="admin_send_message_id")
     builder.button(text="👥 Всем пользователям", callback_data="target_all")
     builder.button(text="Назад", callback_data="admin_menu")
     builder.adjust(1)

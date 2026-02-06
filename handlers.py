@@ -1644,7 +1644,6 @@ async def admin_fix_subscription(callback: CallbackQuery, state: FSMContext):
 async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     years = int(callback.data.split("_")[-1])
-    new_end = now_local() + timedelta(days=years*365)  # фиксируем на X лет
 
     with Session() as session:
         users = session.query(User).all()
@@ -1654,7 +1653,12 @@ async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
             return
 
         updated_count = 0
+        now = now_local()
         for user in users:
+            # Фиксируем подписку: если активна, берем текущий конец
+            base_date = user.subscription_end if user.subscription_end and user.subscription_end > now else now
+            new_end = base_date.replace(microsecond=0) + timedelta(days=years*365)
+
             # 🔁 SYNC с Remnawave
             ok = await sync_remnawave_expire(user.telegram_id, new_end)
             if ok:

@@ -1612,8 +1612,8 @@ async def user_stats(callback: CallbackQuery):
 # ------------------------------
 # Начало массового обновления подписки
 # ------------------------------
-@router.callback_query(F.data == "admin_fix_subscription_all")
-async def admin_fix_subscription_all(callback: CallbackQuery, state: FSMContext):
+@router.callback_query(F.data == "admin_fix_subscription")
+async def admin_fix_subscription(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.clear()
 
@@ -1629,6 +1629,7 @@ async def admin_fix_subscription_all(callback: CallbackQuery, state: FSMContext)
         reply_markup=builder.as_markup()
     )
     await state.set_state("FIX_SUB_ALL_PERIOD")
+
 
 # ------------------------------
 # Выбор периода для всех

@@ -2189,6 +2189,22 @@ async def admin_send_message(message: Message, state: FSMContext, bot: Bot):
 
 
 
+
+
+
+def load_blocks(data_blocks) -> list[Block]:
+    """Конвертируем блоки из FSMContext в список объектов Block"""
+    blocks_list = []
+    for b in data_blocks:
+        if isinstance(b, dict):
+            blocks_list.append(Block(**b))
+        elif isinstance(b, Block):
+            blocks_list.append(b)
+        else:
+            # Если попало что-то странное — игнорируем
+            continue
+    return blocks_list
+
 # -------------------------
 # Старт рассылки по ID
 # -------------------------
@@ -2200,7 +2216,6 @@ async def admin_send_message_by_id(callback: CallbackQuery, state: FSMContext):
         "✏️ Введите ID пользователей через запятую (например: 12345,67890):"
     )
     await state.set_state(AdminStates.SEND_TO_IDS)
-
 
 # -------------------------
 # Ввод ID пользователей
@@ -2228,13 +2243,15 @@ async def add_block_text(message: Message, state: FSMContext):
         return await message.answer("❌ Текст пустой!")
 
     data = await state.get_data()
-    # Конвертируем словари в объекты Block
-    blocks: list[Block] = [Block(**b) if isinstance(b, dict) else b for b in data.get("blocks", [])]
+    blocks = load_blocks(data.get("blocks", []))
+
     # Добавляем новый блок
     blocks.append(Block(text=text))
+
     # Сохраняем в FSMContext как словари
     await state.update_data(blocks=[b.dict() for b in blocks])
 
+    # Обновляем превью
     await update_preview(message.chat.id, message.bot, state, message.message_id)
 
 # -------------------------
@@ -2242,8 +2259,7 @@ async def add_block_text(message: Message, state: FSMContext):
 # -------------------------
 async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=None):
     data = await state.get_data()
-    # Конвертируем словари обратно в объекты Block
-    blocks: list[Block] = [Block(**b) if isinstance(b, dict) else b for b in data.get("blocks", [])]
+    blocks = load_blocks(data.get("blocks", []))
 
     if not blocks:
         return
@@ -2262,7 +2278,7 @@ async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=N
         elif style == "underline":
             t = f"<u>{t}</u>"
         elif style == "quote":
-            t = f"❝ {t} ❞"  # цитата Telegram-safe
+            t = f"❝ {t} ❞"  # Telegram-safe цитата
         elif style == "mono":
             t = f"<code>{t}</code>"
         full_text += t + "\n"
@@ -2286,7 +2302,6 @@ async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=N
             InlineKeyboardButton(f"Удалить {idx+1}", callback_data=f"delete:{idx}")
         ])
 
-    # Добавить блок и отправить
     keyboard.append([InlineKeyboardButton("Добавить блок", callback_data="add_block"),
                      InlineKeyboardButton("Отправить", callback_data="send_blocks")])
 
@@ -2310,7 +2325,7 @@ async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=N
 async def blocks_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     data = await state.get_data()
-    blocks: list[Block] = [Block(**b) if isinstance(b, dict) else b for b in data.get("blocks", [])]
+    blocks = load_blocks(data.get("blocks", []))
 
     if not blocks:
         return
@@ -2387,7 +2402,6 @@ async def blocks_callback(callback: CallbackQuery, state: FSMContext):
     # обновляем данные и превью
     await state.update_data(blocks=[b.dict() for b in blocks])
     await update_preview(callback.message.chat.id, callback.bot, state, callback.message.message_id)
-
 
 
 

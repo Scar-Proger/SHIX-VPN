@@ -8,7 +8,6 @@ from aiogram.exceptions import (
     TelegramBadRequest,
     TelegramRetryAfter,
 )
-from pydantic import BaseModel
 from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire
 from payment.platega_payment import create_platega_payment, get_platega_payment_status
@@ -37,13 +36,6 @@ router = Router()
 MAX_MESSAGE_LENGTH = 4096
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# -------------------------
-# Pydantic модель блока
-# -------------------------
-class Block(BaseModel):
-    text: str
-    style: str | None = None
-
 class AdminStates(StatesGroup):
     ADD_TIME = State()
     REMOVE_TIME = State()
@@ -58,7 +50,6 @@ class AdminStates(StatesGroup):
     COMPOSE_TEXT = State()
     FORMAT_TEXT = State()
     CONFIRM_SEND = State()
-    COMPOSE_BLOCKS = State()
 
 # ------------------------------
 # Состояния для ввода промокода
@@ -2190,25 +2181,6 @@ async def admin_send_message(message: Message, state: FSMContext, bot: Bot):
 
 
 
-
-
-def load_blocks(data_blocks) -> list[Block]:
-    """Конвертируем блоки из FSMContext в список объектов Block"""
-    blocks_list = []
-    for b in data_blocks:
-        if isinstance(b, dict):
-            try:
-                blocks_list.append(Block(**b))
-            except Exception as e:
-                print("Ошибка при создании блока:", b, e)
-        elif isinstance(b, Block):
-            blocks_list.append(b)
-        else:
-            print("Пропущен неожиданный объект в блоках:", b)
-            continue
-    return blocks_list
-
-
 # -------------------------
 # Старт рассылки по ID
 # -------------------------
@@ -2221,191 +2193,160 @@ async def admin_send_message_by_id(callback: CallbackQuery, state: FSMContext):
     )
     await state.set_state(AdminStates.SEND_TO_IDS)
 
+
 # -------------------------
 # Ввод ID пользователей
 # -------------------------
 @router.message(AdminStates.SEND_TO_IDS)
 async def enter_user_ids(message: Message, state: FSMContext):
+    ids_text = message.text
     try:
-        ids = [int(uid.strip()) for uid in message.text.split(",") if uid.strip().isdigit()]
+        ids = [int(uid.strip()) for uid in ids_text.split(",") if uid.strip().isdigit()]
         if not ids:
             raise ValueError
     except:
-        return await message.answer("❌ Ошибка! Введите корректные ID через запятую.")
-
-    await state.update_data(user_ids=ids, blocks=[])
-    await message.answer("✏️ Введите первый блок текста:")
-    await state.set_state(AdminStates.COMPOSE_BLOCKS)
-
-# -------------------------
-# Ввод блока текста
-# -------------------------
-@router.message(AdminStates.COMPOSE_BLOCKS)
-async def add_block_text(message: Message, state: FSMContext):
-    text = message.text
-    if not text:
-        return await message.answer("❌ Текст пустой!")
-
-    data = await state.get_data()
-    blocks = load_blocks(data.get("blocks", []))
-
-    # Добавляем новый блок
-    blocks.append(Block(text=text))
-
-    # Сохраняем в FSMContext как словари
-    await state.update_data(blocks=[b.dict() for b in blocks])
-
-    # Обновляем превью
-    await update_preview(message.chat.id, message.bot, state, message.message_id)
-
-# -------------------------
-# Обновление превью
-# -------------------------
-async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=None):
-    data = await state.get_data()
-    blocks = load_blocks(data.get("blocks", []))
-
-    if not blocks:
+        await message.answer("❌ Ошибка! Введите корректные ID через запятую.")
         return
 
-    # Формируем текст с HTML
-    full_text = ""
-    for b in blocks:
-        t = b.text
-        style = b.style
-        if style == "bold":
-            t = f"<b>{t}</b>"
-        elif style == "italic":
-            t = f"<i>{t}</i>"
-        elif style == "strike":
-            t = f"<s>{t}</s>"
-        elif style == "underline":
-            t = f"<u>{t}</u>"
-        elif style == "quote":
-            t = f"❝ {t} ❞"  # Telegram-safe цитата
-        elif style == "mono":
-            t = f"<code>{t}</code>"
-        full_text += t + "\n"
+    await state.update_data(user_ids=ids, composed_text="")
+    await message.answer(
+        "✏️ Введите текст рассылки (будет доступно форматирование после ввода):"
+    )
+    await state.set_state(AdminStates.COMPOSE_TEXT)
 
-    # Кнопки для каждого блока
-    keyboard = []
-    for idx, _ in enumerate(blocks):
-        keyboard.append([
-            InlineKeyboardButton(f"Жирный {idx+1}", callback_data=f"style_bold:{idx}"),
-            InlineKeyboardButton(f"Курсив {idx+1}", callback_data=f"style_italic:{idx}"),
-            InlineKeyboardButton(f"Зачеркнутый {idx+1}", callback_data=f"style_strike:{idx}")
-        ])
-        keyboard.append([
-            InlineKeyboardButton(f"Подчеркнутый {idx+1}", callback_data=f"style_underline:{idx}"),
-            InlineKeyboardButton(f"Цитата {idx+1}", callback_data=f"style_quote:{idx}"),
-            InlineKeyboardButton(f"Моно {idx+1}", callback_data=f"style_mono:{idx}")
-        ])
-        keyboard.append([
-            InlineKeyboardButton(f"Вверх {idx+1}", callback_data=f"move_up:{idx}"),
-            InlineKeyboardButton(f"Вниз {idx+1}", callback_data=f"move_down:{idx}"),
-            InlineKeyboardButton(f"Удалить {idx+1}", callback_data=f"delete:{idx}")
-        ])
-
-    keyboard.append([InlineKeyboardButton("Добавить блок", callback_data="add_block"),
-                     InlineKeyboardButton("Отправить", callback_data="send_blocks")])
-
-    markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
-
-    if message_id:
-        await bot.edit_message_text(
-            text=full_text,
-            chat_id=chat_id,
-            message_id=message_id,
-            reply_markup=markup,
-            parse_mode="HTML"
-        )
-    else:
-        await bot.send_message(chat_id, full_text, reply_markup=markup, parse_mode="HTML")
 
 # -------------------------
-# Обработка кнопок стиля и перемещения
+# Ввод текста рассылки
 # -------------------------
-@router.callback_query(F.data.startswith(("style_", "move_", "delete", "add_block", "send_blocks")))
-async def blocks_callback(callback: CallbackQuery, state: FSMContext):
+@router.message(AdminStates.COMPOSE_TEXT)
+async def compose_text(message: Message, state: FSMContext):
+    if not message.text:
+        await message.answer("❗ Пожалуйста, отправьте текстовое сообщение.")
+        return
+
+    data = await state.get_data()
+    text = message.text
+    await state.update_data(composed_text=text)
+
+    # Кнопки форматирования
+    builder = InlineKeyboardBuilder()
+    builder.button(text="B", callback_data="format_bold")
+    builder.button(text="I", callback_data="format_italic")
+    builder.button(text="S", callback_data="format_strike")
+    builder.button(text="U", callback_data="format_underline")
+    builder.button(text="» Цитата", callback_data="format_quote")
+    builder.button(text="`Моноширный`", callback_data="format_mono")
+    builder.button(text="Добавить текст", callback_data="add_text")
+    builder.button(text="Отправить", callback_data="send_message_id")
+    builder.adjust(1)
+
+    await message.answer(
+        f"📝 Текущий текст для рассылки:\n\n{text}",
+        reply_markup=builder.as_markup()
+    )
+
+    await state.set_state(AdminStates.FORMAT_TEXT)
+
+
+# -------------------------
+# Обработка кнопок форматирования (моментальное визуальное)
+# -------------------------
+@router.callback_query(F.data.startswith("format_"))
+async def format_text_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     data = await state.get_data()
-    blocks = load_blocks(data.get("blocks", []))
+    text = data.get("composed_text", "")
 
-    if not blocks:
-        return
+    action = callback.data.split("_")[1]
 
-    if callback.data.startswith("style_"):
-        action, idx = callback.data.split(":")
-        idx = int(idx)
-        style = action.split("_")[1]
-        if idx < len(blocks):
-            blocks[idx].style = style
+    # Применяем HTML форматирование
+    if action == "bold":
+        if text.startswith("<b>") and text.endswith("</b>"):
+            text = text[3:-4]  # снимаем жирный
+        else:
+            text = f"<b>{text}</b>"
+    elif action == "italic":
+        if text.startswith("<i>") and text.endswith("</i>"):
+            text = text[3:-4]
+        else:
+            text = f"<i>{text}</i>"
+    elif action == "underline":
+        if text.startswith("<u>") and text.endswith("</u>"):
+            text = text[3:-4]
+        else:
+            text = f"<u>{text}</u>"
+    elif action == "strike":
+        if text.startswith("<s>") and text.endswith("</s>"):
+            text = text[3:-4]
+        else:
+            text = f"<s>{text}</s>"
+    elif action == "mono":
+        if text.startswith("<code>") and text.endswith("</code>"):
+            text = text[6:-7]
+        else:
+            text = f"<code>{text}</code>"
+    elif action == "quote":
+        if text.startswith("<blockquote>") and text.endswith("</blockquote>"):
+            text = text[12:-13]
+        else:
+            text = f"<blockquote>{text}</blockquote>"
 
-    elif callback.data.startswith("move_"):
-        action, idx = callback.data.split(":")
-        idx = int(idx)
-        if action == "move_up" and idx > 0:
-            blocks[idx], blocks[idx-1] = blocks[idx-1], blocks[idx]
-        elif action == "move_down" and idx < len(blocks)-1:
-            blocks[idx], blocks[idx+1] = blocks[idx+1], blocks[idx]
+    await state.update_data(composed_text=text)
 
-    elif callback.data.startswith("delete"):
-        _, idx = callback.data.split(":")
-        idx = int(idx)
-        if idx < len(blocks):
-            blocks.pop(idx)
+    # Кнопки
+    builder = InlineKeyboardBuilder()
+    builder.button(text="B", callback_data="format_bold")
+    builder.button(text="I", callback_data="format_italic")
+    builder.button(text="S", callback_data="format_strike")
+    builder.button(text="U", callback_data="format_underline")
+    builder.button(text="» Цитата", callback_data="format_quote")
+    builder.button(text="`Моноширный`", callback_data="format_mono")
+    builder.button(text="Отправить", callback_data="send_message_id")
+    builder.adjust(4)
 
-    elif callback.data == "add_block":
-        await callback.message.answer("✏️ Введите текст нового блока:")
-        await state.set_state(AdminStates.COMPOSE_BLOCKS)
-        await state.update_data(blocks=[b.dict() for b in blocks])
-        return
+    # Обновляем текст в том же сообщении сразу с HTML
+    await callback.message.edit_text(
+        f"📝 Текущий текст для рассылки:\n\n{text}",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML"
+    )
 
-    elif callback.data == "send_blocks":
-        user_ids = data.get("user_ids", [])
-        if not user_ids:
-            return await callback.message.answer("❌ Нет ID для отправки!")
 
-        full_text = ""
-        for b in blocks:
-            t = b.text
-            style = b.style
-            if style == "bold":
-                t = f"<b>{t}</b>"
-            elif style == "italic":
-                t = f"<i>{t}</i>"
-            elif style == "strike":
-                t = f"<s>{t}</s>"
-            elif style == "underline":
-                t = f"<u>{t}</u>"
-            elif style == "quote":
-                t = f"❝ {t} ❞"
-            elif style == "mono":
-                t = f"<code>{t}</code>"
-            full_text += t + "\n"
+# -------------------------
+# Отправка сообщения по ID
+# -------------------------
+@router.callback_query(F.data == "send_message_id")
+async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bot):
+    await callback.answer()
+    data = await state.get_data()
+    user_ids = data.get("user_ids", [])
+    text = data.get("composed_text", "")
 
-        success = 0
-        failed = 0
-        for uid in user_ids:
-            try:
-                await callback.bot.send_message(uid, full_text, parse_mode="HTML")
-                success += 1
-            except Exception as e:
-                print(f"Ошибка отправки пользователю {uid}: {e}")
-                failed += 1
+    if not user_ids or not text:
+        return await callback.message.answer("❌ Ошибка: нет ID или текста.")
 
-        await callback.message.answer(
-            f"📨 Рассылка завершена!\n\n"
-            f"• Успешно: {success}\n"
-            f"• Не удалось: {failed}\n"
-            f"• Всего: {len(user_ids)}"
-        )
-        await state.clear()
-        return
+    success = 0
+    failed = 0
+    blocked_users = []
 
-    # обновляем данные и превью
-    await state.update_data(blocks=[b.dict() for b in blocks])
-    await update_preview(callback.message.chat.id, callback.bot, state, callback.message.message_id)
+    for uid in user_ids:
+        try:
+            await bot.send_message(uid, text)
+            success += 1
+        except Exception as e:
+            logger.error(f"Ошибка отправки пользователю {uid}: {e}")
+            failed += 1
+            blocked_users.append(uid)
+
+    await callback.message.answer(
+        f"📨 Рассылка завершена!\n\n"
+        f"• Успешно: {success}\n"
+        f"• Не удалось: {failed}\n"
+        f"• Всего: {len(user_ids)}"
+    )
+
+    await state.clear()
+
 
 
 

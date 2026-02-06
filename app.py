@@ -43,6 +43,8 @@ app.mount(
 )
 
 
+
+
 # -------------------- AIROGRAM -------------------
 bot: Bot | None = None
 dp: Dispatcher | None = None

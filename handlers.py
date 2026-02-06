@@ -1617,9 +1617,8 @@ async def admin_fix_subscription(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.clear()
 
-    # Кнопки выбора срока подписки
     builder = InlineKeyboardBuilder()
-    periods = [1, 2, 5, 10, 20, 50]
+    periods = [1, 2, 5, 10, 20, 50]  # допустимые годы
     for years in periods:
         builder.button(text=f"{years} год(а)", callback_data=f"fix_sub_all_{years}")
     
@@ -1646,7 +1645,7 @@ async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
     years = int(callback.data.split("_")[-1])
     now = now_local()
 
-    # Ограничим максимум 50 лет для RW
+    # Максимум для RW (чтобы Remnawave не отказывался)
     rw_years = min(years, 50)
 
     with Session() as session:
@@ -1660,16 +1659,17 @@ async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
         failed_count = 0
 
         for user in users:
+            # Фиксируем подписку: если активна — от текущей даты подписки, иначе от now
             base_date = user.subscription_end if user.subscription_end and user.subscription_end > now else now
             new_end = base_date.replace(microsecond=0) + timedelta(days=years*365)
             rw_end = base_date.replace(microsecond=0) + timedelta(days=rw_years*365)
 
-            # 🔁 SYNC с Remnawave (максимум 50 лет)
+            # 🔁 SYNC с Remnawave
             ok = await sync_remnawave_expire(user.telegram_id, rw_end)
             if not ok:
                 failed_count += 1
 
-            # Обновляем БД всегда
+            # Обновляем базу всегда
             user.subscription_end = new_end
             updated_count += 1
 
@@ -1682,7 +1682,6 @@ async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
     )
 
     await state.clear()
-
 
 
 

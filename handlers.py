@@ -2197,13 +2197,17 @@ def load_blocks(data_blocks) -> list[Block]:
     blocks_list = []
     for b in data_blocks:
         if isinstance(b, dict):
-            blocks_list.append(Block(**b))
+            try:
+                blocks_list.append(Block(**b))
+            except Exception as e:
+                print("Ошибка при создании блока:", b, e)
         elif isinstance(b, Block):
             blocks_list.append(b)
         else:
-            # Если попало что-то странное — игнорируем
+            print("Пропущен неожиданный объект в блоках:", b)
             continue
     return blocks_list
+
 
 # -------------------------
 # Старт рассылки по ID

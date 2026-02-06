@@ -1645,8 +1645,10 @@ async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
     years = int(callback.data.split("_")[-1])
     now = now_local()
 
-    # Максимум для RW (чтобы Remnawave не отказывался)
-    rw_years = min(years, 50)
+    rw_years = min(years, 50)  # максимум для Remnawave
+
+    updated_count = 0
+    failed_count = 0
 
     with Session() as session:
         users = session.query(User).all()
@@ -1655,34 +1657,35 @@ async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
             await state.clear()
             return
 
-        updated_count = 0
-        failed_count = 0
-
         for user in users:
-            # Фиксируем подписку: если активна — от текущей даты подписки, иначе от now
+            # Берём текущую подписку, если она ещё активна
             base_date = user.subscription_end if user.subscription_end and user.subscription_end > now else now
-            new_end = base_date.replace(microsecond=0) + timedelta(days=years*365)
-            rw_end = base_date.replace(microsecond=0) + timedelta(days=rw_years*365)
 
-            # 🔁 SYNC с Remnawave
-            ok = await sync_remnawave_expire(user.telegram_id, rw_end)
-            if not ok:
+            new_end = base_date + timedelta(days=years*365)
+            rw_end = base_date + timedelta(days=rw_years*365)
+
+            # Синхронизация с Remnawave
+            try:
+                ok = await sync_remnawave_expire(user.telegram_id, rw_end)
+                if not ok:
+                    failed_count += 1
+            except Exception as e:
                 failed_count += 1
+                logger.error(f"Ошибка синхронизации RW для {user.telegram_id}: {e}")
 
-            # Обновляем базу всегда
+            # Обновляем БД
             user.subscription_end = new_end
             updated_count += 1
 
-        session.commit()
+        session.commit()  # 🔥 ВАЖНО! коммит после всех изменений
 
     await callback.message.edit_text(
-        f"✅ Подписка обновлена для {updated_count} пользователей до {new_end.strftime('%d-%m-%Y %H:%M')}\n"
-        f"⚠️ Не удалось синхронизировать с Remnawave для {failed_count} пользователей",
+        f"✅ Подписка обновлена для {updated_count} пользователей.\n"
+        f"⚠️ Не удалось синхронизировать с Remnawave для {failed_count} пользователей.",
         parse_mode="Markdown"
     )
 
     await state.clear()
-
 
 
 

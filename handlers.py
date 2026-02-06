@@ -1637,7 +1637,7 @@ async def admin_fix_subscription(callback: CallbackQuery, state: FSMContext):
 
 
 # ------------------------------
-# Выбор периода для всех
+# Выбор периода для всех (перезапись + UX)
 # ------------------------------
 @router.callback_query(F.data.startswith("fix_sub_all_"))
 async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
@@ -1650,24 +1650,36 @@ async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
     updated_count = 0
     failed_count = 0
 
+    # Новый конец подписки — именно через N лет от текущего момента
+    new_end = now + timedelta(days=years*365)
+    rw_end = now + timedelta(days=rw_years*365)
+
+    # ----------------------------
+    # UX: Стикер + ожидание
+    # ----------------------------
+    wait_message = await callback.message.answer_sticker(
+        "CAACAgEAAxkBAAFBQzppd5A_4Wk22T_jJFOGCrkkcV8ZLwACXA4AAoI0egEaqUfk_mnHQTgE"
+    )
+    wait_text = await callback.message.answer("⏳ Обработка подписок…")
+
+    # Скрываем исходное сообщение с кнопками
+    try:
+        await callback.message.delete()
+    except:
+        pass
+
+    # ----------------------------
+    # Обновление подписок
+    # ----------------------------
     with Session() as session:
         users = session.query(User).all()
         if not users:
-            await callback.message.edit_text("❌ Пользователи не найдены")
+            await wait_message.delete()
+            await wait_text.delete()
             await state.clear()
-            return
-
-        logger.info(f"Начинаем массовое обновление подписок на {years} лет, пользователей: {len(users)}")
+            return await callback.message.answer("❌ Пользователи не найдены")
 
         for user in users:
-            logger.info(f"Пользователь {user.telegram_id}, старая подписка: {user.subscription_end}")
-
-            # Берём текущую подписку, если она ещё активна
-            base_date = user.subscription_end if user.subscription_end and user.subscription_end > now else now
-
-            new_end = base_date + timedelta(days=years*365)
-            rw_end = base_date + timedelta(days=rw_years*365)
-
             # Синхронизация с Remnawave
             try:
                 ok = await sync_remnawave_expire(user.telegram_id, rw_end)
@@ -1677,21 +1689,26 @@ async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
                 failed_count += 1
                 logger.error(f"Ошибка синхронизации RW для {user.telegram_id}: {e}")
 
-            # Обновляем БД
+            # Перезаписываем БД новой датой
             user.subscription_end = new_end
             updated_count += 1
 
-        session.commit()  # 🔥 ВАЖНО! коммит после всех изменений
+        session.commit()  # коммит после всех изменений
 
-    await callback.message.edit_text(
+    # ----------------------------
+    # Завершаем UX: удаляем стикер и текст
+    # ----------------------------
+    await wait_message.delete()
+    await wait_text.delete()
+
+    # Показываем итоговое сообщение
+    await callback.message.answer(
         f"✅ Подписка обновлена для {updated_count} пользователей.\n"
         f"⚠️ Не удалось синхронизировать с Remnawave для {failed_count} пользователей.",
         parse_mode="Markdown"
     )
 
     await state.clear()
-
-
 
 
 

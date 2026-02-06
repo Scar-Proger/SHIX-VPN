@@ -230,20 +230,6 @@ async def get_all_users(with_subscription: bool = None):
         return query.all()
 
 # ==================================================
-# Статические профили
-# ==================================================
-async def create_static_profile(name: str, vless_url: str):
-    with Session() as session:
-        profile = StaticProfile(name=name, vless_url=vless_url)
-        session.add(profile)
-        session.commit()
-        return profile
-
-async def get_static_profiles():
-    with Session() as session:
-        return session.query(StaticProfile).all()
-
-# ==================================================
 # Статистика
 # ==================================================
 async def get_user_stats():

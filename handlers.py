@@ -1619,7 +1619,7 @@ async def admin_fix_subscription(callback: CallbackQuery, state: FSMContext):
 
     # Кнопки выбора срока подписки
     builder = InlineKeyboardBuilder()
-    periods = [1, 2, 5, 10, 20, 50, 100]
+    periods = [1, 2, 5, 10, 20, 50]
     for years in periods:
         builder.button(text=f"{years} год(а)", callback_data=f"fix_sub_all_{years}")
     
@@ -1644,6 +1644,10 @@ async def admin_fix_subscription(callback: CallbackQuery, state: FSMContext):
 async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     years = int(callback.data.split("_")[-1])
+    now = now_local()
+
+    # Ограничим максимум 50 лет для RW
+    rw_years = min(years, 50)
 
     with Session() as session:
         users = session.query(User).all()
@@ -1653,22 +1657,27 @@ async def fix_sub_all_period(callback: CallbackQuery, state: FSMContext):
             return
 
         updated_count = 0
-        now = now_local()
+        failed_count = 0
+
         for user in users:
-            # Фиксируем подписку: если активна, берем текущий конец
             base_date = user.subscription_end if user.subscription_end and user.subscription_end > now else now
             new_end = base_date.replace(microsecond=0) + timedelta(days=years*365)
+            rw_end = base_date.replace(microsecond=0) + timedelta(days=rw_years*365)
 
-            # 🔁 SYNC с Remnawave
-            ok = await sync_remnawave_expire(user.telegram_id, new_end)
-            if ok:
-                user.subscription_end = new_end
-                updated_count += 1
+            # 🔁 SYNC с Remnawave (максимум 50 лет)
+            ok = await sync_remnawave_expire(user.telegram_id, rw_end)
+            if not ok:
+                failed_count += 1
+
+            # Обновляем БД всегда
+            user.subscription_end = new_end
+            updated_count += 1
 
         session.commit()
 
     await callback.message.edit_text(
-        f"✅ Подписка обновлена для {updated_count} пользователей до {new_end.strftime('%d-%m-%Y %H:%M')}",
+        f"✅ Подписка обновлена для {updated_count} пользователей до {new_end.strftime('%d-%m-%Y %H:%M')}\n"
+        f"⚠️ Не удалось синхронизировать с Remnawave для {failed_count} пользователей",
         parse_mode="Markdown"
     )
 

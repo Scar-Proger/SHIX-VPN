@@ -8,6 +8,7 @@ from aiogram.exceptions import (
     TelegramBadRequest,
     TelegramRetryAfter,
 )
+from pydantic import BaseModel
 from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire
 from payment.platega_payment import create_platega_payment, get_platega_payment_status
@@ -35,6 +36,13 @@ router = Router()
 
 MAX_MESSAGE_LENGTH = 4096
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# -------------------------
+# Pydantic модель блока
+# -------------------------
+class Block(BaseModel):
+    text: str
+    style: str | None = None
 
 class AdminStates(StatesGroup):
     ADD_TIME = State()
@@ -2181,7 +2189,6 @@ async def admin_send_message(message: Message, state: FSMContext, bot: Bot):
 
 
 
-
 # -------------------------
 # Старт рассылки по ID
 # -------------------------
@@ -2222,8 +2229,9 @@ async def add_block_text(message: Message, state: FSMContext):
         return await message.answer("❌ Текст пустой!")
 
     data = await state.get_data()
-    blocks = data.get("blocks", [])
-    blocks.append({"text": text, "style": None})
+    blocks: list[Block] = data.get("blocks", [])
+    # Создаем объект Block вместо словаря
+    blocks.append(Block(text=text))
     await state.update_data(blocks=blocks)
 
     await update_preview(message.chat.id, message.bot, state, message.message_id)
@@ -2234,7 +2242,7 @@ async def add_block_text(message: Message, state: FSMContext):
 # -------------------------
 async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=None):
     data = await state.get_data()
-    blocks = data.get("blocks", [])
+    blocks: list[Block] = data.get("blocks", [])
 
     if not blocks:
         return
@@ -2242,8 +2250,8 @@ async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=N
     # Формируем текст с HTML
     full_text = ""
     for b in blocks:
-        t = b["text"]
-        style = b.get("style")
+        t = b.text
+        style = b.style
         if style == "bold":
             t = f"<b>{t}</b>"
         elif style == "italic":
@@ -2258,7 +2266,7 @@ async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=N
             t = f"<code>{t}</code>"
         full_text += t + "\n"
 
-    # Кнопки для каждого блока (1 под 1)
+    # Кнопки для каждого блока
     keyboard = []
     for idx, _ in enumerate(blocks):
         keyboard.append([InlineKeyboardButton(f"Жирный {idx+1}", callback_data=f"style_bold:{idx}")])
@@ -2271,7 +2279,6 @@ async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=N
         keyboard.append([InlineKeyboardButton(f"Вниз {idx+1}", callback_data=f"move_down:{idx}")])
         keyboard.append([InlineKeyboardButton(f"Удалить {idx+1}", callback_data=f"delete:{idx}")])
 
-    # Добавить блок и отправить
     keyboard.append([InlineKeyboardButton("Добавить блок", callback_data="add_block")])
     keyboard.append([InlineKeyboardButton("Отправить", callback_data="send_blocks")])
 
@@ -2296,7 +2303,7 @@ async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=N
 async def blocks_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     data = await state.get_data()
-    blocks = data.get("blocks", [])
+    blocks: list[Block] = data.get("blocks", [])
 
     if not blocks:
         return
@@ -2306,7 +2313,7 @@ async def blocks_callback(callback: CallbackQuery, state: FSMContext):
         idx = int(idx)
         style = action.split("_")[1]
         if idx < len(blocks):
-            blocks[idx]["style"] = style
+            blocks[idx].style = style  # обновляем стиль через объект
 
     elif callback.data.startswith("move_"):
         action, idx = callback.data.split(":")
@@ -2335,8 +2342,8 @@ async def blocks_callback(callback: CallbackQuery, state: FSMContext):
 
         full_text = ""
         for b in blocks:
-            t = b["text"]
-            style = b.get("style")
+            t = b.text
+            style = b.style
             if style == "bold":
                 t = f"<b>{t}</b>"
             elif style == "italic":
@@ -2358,7 +2365,7 @@ async def blocks_callback(callback: CallbackQuery, state: FSMContext):
                 await callback.bot.send_message(uid, full_text, parse_mode="HTML")
                 success += 1
             except Exception as e:
-                logger.error(f"Ошибка отправки пользователю {uid}: {e}")
+                print(f"Ошибка отправки пользователю {uid}: {e}")
                 failed += 1
 
         await callback.message.answer(
@@ -2373,7 +2380,6 @@ async def blocks_callback(callback: CallbackQuery, state: FSMContext):
     # обновляем данные и превью
     await state.update_data(blocks=blocks)
     await update_preview(callback.message.chat.id, callback.bot, state, callback.message.message_id)
-
 
 
 

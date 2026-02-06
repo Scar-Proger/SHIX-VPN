@@ -2218,7 +2218,6 @@ async def enter_user_ids(message: Message, state: FSMContext):
     await message.answer("✏️ Введите первый блок текста:")
     await state.set_state(AdminStates.COMPOSE_BLOCKS)
 
-
 # -------------------------
 # Ввод блока текста
 # -------------------------
@@ -2229,20 +2228,22 @@ async def add_block_text(message: Message, state: FSMContext):
         return await message.answer("❌ Текст пустой!")
 
     data = await state.get_data()
-    blocks: list[Block] = data.get("blocks", [])
-    # Создаем объект Block вместо словаря
+    # Конвертируем словари в объекты Block
+    blocks: list[Block] = [Block(**b) if isinstance(b, dict) else b for b in data.get("blocks", [])]
+    # Добавляем новый блок
     blocks.append(Block(text=text))
-    await state.update_data(blocks=blocks)
+    # Сохраняем в FSMContext как словари
+    await state.update_data(blocks=[b.dict() for b in blocks])
 
     await update_preview(message.chat.id, message.bot, state, message.message_id)
-
 
 # -------------------------
 # Обновление превью
 # -------------------------
 async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=None):
     data = await state.get_data()
-    blocks: list[Block] = data.get("blocks", [])
+    # Конвертируем словари обратно в объекты Block
+    blocks: list[Block] = [Block(**b) if isinstance(b, dict) else b for b in data.get("blocks", [])]
 
     if not blocks:
         return
@@ -2261,7 +2262,7 @@ async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=N
         elif style == "underline":
             t = f"<u>{t}</u>"
         elif style == "quote":
-            t = f"<blockquote>{t}</blockquote>"
+            t = f"❝ {t} ❞"  # цитата Telegram-safe
         elif style == "mono":
             t = f"<code>{t}</code>"
         full_text += t + "\n"
@@ -2269,18 +2270,25 @@ async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=N
     # Кнопки для каждого блока
     keyboard = []
     for idx, _ in enumerate(blocks):
-        keyboard.append([InlineKeyboardButton(f"Жирный {idx+1}", callback_data=f"style_bold:{idx}")])
-        keyboard.append([InlineKeyboardButton(f"Курсив {idx+1}", callback_data=f"style_italic:{idx}")])
-        keyboard.append([InlineKeyboardButton(f"Зачеркнутый {idx+1}", callback_data=f"style_strike:{idx}")])
-        keyboard.append([InlineKeyboardButton(f"Подчеркнутый {idx+1}", callback_data=f"style_underline:{idx}")])
-        keyboard.append([InlineKeyboardButton(f"Цитата {idx+1}", callback_data=f"style_quote:{idx}")])
-        keyboard.append([InlineKeyboardButton(f"Моноширный {idx+1}", callback_data=f"style_mono:{idx}")])
-        keyboard.append([InlineKeyboardButton(f"Вверх {idx+1}", callback_data=f"move_up:{idx}")])
-        keyboard.append([InlineKeyboardButton(f"Вниз {idx+1}", callback_data=f"move_down:{idx}")])
-        keyboard.append([InlineKeyboardButton(f"Удалить {idx+1}", callback_data=f"delete:{idx}")])
+        keyboard.append([
+            InlineKeyboardButton(f"Жирный {idx+1}", callback_data=f"style_bold:{idx}"),
+            InlineKeyboardButton(f"Курсив {idx+1}", callback_data=f"style_italic:{idx}"),
+            InlineKeyboardButton(f"Зачеркнутый {idx+1}", callback_data=f"style_strike:{idx}")
+        ])
+        keyboard.append([
+            InlineKeyboardButton(f"Подчеркнутый {idx+1}", callback_data=f"style_underline:{idx}"),
+            InlineKeyboardButton(f"Цитата {idx+1}", callback_data=f"style_quote:{idx}"),
+            InlineKeyboardButton(f"Моно {idx+1}", callback_data=f"style_mono:{idx}")
+        ])
+        keyboard.append([
+            InlineKeyboardButton(f"Вверх {idx+1}", callback_data=f"move_up:{idx}"),
+            InlineKeyboardButton(f"Вниз {idx+1}", callback_data=f"move_down:{idx}"),
+            InlineKeyboardButton(f"Удалить {idx+1}", callback_data=f"delete:{idx}")
+        ])
 
-    keyboard.append([InlineKeyboardButton("Добавить блок", callback_data="add_block")])
-    keyboard.append([InlineKeyboardButton("Отправить", callback_data="send_blocks")])
+    # Добавить блок и отправить
+    keyboard.append([InlineKeyboardButton("Добавить блок", callback_data="add_block"),
+                     InlineKeyboardButton("Отправить", callback_data="send_blocks")])
 
     markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
 
@@ -2295,7 +2303,6 @@ async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=N
     else:
         await bot.send_message(chat_id, full_text, reply_markup=markup, parse_mode="HTML")
 
-
 # -------------------------
 # Обработка кнопок стиля и перемещения
 # -------------------------
@@ -2303,7 +2310,7 @@ async def update_preview(chat_id: int, bot: Bot, state: FSMContext, message_id=N
 async def blocks_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     data = await state.get_data()
-    blocks: list[Block] = data.get("blocks", [])
+    blocks: list[Block] = [Block(**b) if isinstance(b, dict) else b for b in data.get("blocks", [])]
 
     if not blocks:
         return
@@ -2313,7 +2320,7 @@ async def blocks_callback(callback: CallbackQuery, state: FSMContext):
         idx = int(idx)
         style = action.split("_")[1]
         if idx < len(blocks):
-            blocks[idx].style = style  # обновляем стиль через объект
+            blocks[idx].style = style
 
     elif callback.data.startswith("move_"):
         action, idx = callback.data.split(":")
@@ -2332,7 +2339,7 @@ async def blocks_callback(callback: CallbackQuery, state: FSMContext):
     elif callback.data == "add_block":
         await callback.message.answer("✏️ Введите текст нового блока:")
         await state.set_state(AdminStates.COMPOSE_BLOCKS)
-        await state.update_data(blocks=blocks)
+        await state.update_data(blocks=[b.dict() for b in blocks])
         return
 
     elif callback.data == "send_blocks":
@@ -2353,7 +2360,7 @@ async def blocks_callback(callback: CallbackQuery, state: FSMContext):
             elif style == "underline":
                 t = f"<u>{t}</u>"
             elif style == "quote":
-                t = f"<blockquote>{t}</blockquote>"
+                t = f"❝ {t} ❞"
             elif style == "mono":
                 t = f"<code>{t}</code>"
             full_text += t + "\n"
@@ -2378,7 +2385,7 @@ async def blocks_callback(callback: CallbackQuery, state: FSMContext):
         return
 
     # обновляем данные и превью
-    await state.update_data(blocks=blocks)
+    await state.update_data(blocks=[b.dict() for b in blocks])
     await update_preview(callback.message.chat.id, callback.bot, state, callback.message.message_id)
 
 

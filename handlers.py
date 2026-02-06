@@ -1622,7 +1622,13 @@ async def admin_fix_subscription(callback: CallbackQuery, state: FSMContext):
     periods = [1, 2, 5, 10, 20, 50, 100]
     for years in periods:
         builder.button(text=f"{years} год(а)", callback_data=f"fix_sub_all_{years}")
-    builder.adjust(3)  # по 3 кнопки в ряд
+    
+    builder.adjust(3)  # по 3 кнопки в ряд для годов
+
+    # Кнопка назад — отдельный ряд
+    builder.row(
+        InlineKeyboardButton(text="Назад", callback_data="admin_menu")
+    )
 
     await callback.message.edit_text(
         "Выберите срок подписки для всех пользователей:",

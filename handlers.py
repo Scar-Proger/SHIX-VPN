@@ -2310,13 +2310,24 @@ async def edit_menu(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "find_text")
 async def find_text(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
+    data = await state.get_data()
+
+    preview = data["composed_text"]
+
+    text = (
+        "📝 Текущий текст для рассылки:\n\n"
+        f"{preview}\n\n"
+        "✏️ <b>Введите текст, который нужно отредактировать:</b>"
+    )
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Назад", callback_data="edit_menu")
+    kb.adjust(1)
 
     await callback.message.edit_text(
-        "✏️ Введите текст, который нужно отредактировать:",
-        reply_markup=InlineKeyboardBuilder()
-        .button(text="Назад", callback_data="edit_menu")
-        .adjust(1)
-        .as_markup()
+        text,
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
     )
 
     await state.set_state(AdminStates.FIND_TEXT)
@@ -2364,6 +2375,9 @@ async def process_find_text(message: Message, state: FSMContext):
     await state.set_state(AdminStates.EDIT_FRAGMENT)
 
 
+# -------------------------
+# Формат сообщения
+# -------------------------
 @router.callback_query(F.data.startswith("format_"))
 async def format_fragment(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -2403,7 +2417,7 @@ async def format_fragment(callback: CallbackQuery, state: FSMContext):
 
 
 # -------------------------
-# Сохранили текст
+# Сохранили сообщение
 # -------------------------
 @router.callback_query(F.data == "save_fragment")
 async def save_fragment(callback: CallbackQuery, state: FSMContext):
@@ -2415,11 +2429,17 @@ async def save_fragment(callback: CallbackQuery, state: FSMContext):
     new = data["edit_fragment_edited"]
 
     full = full.replace(old, new, 1)
-    await state.update_data(composed_text=full)
+
+    await state.update_data(
+        composed_text=full,
+        edit_fragment=None,
+        edit_fragment_edited=None,
+        current_style=None
+    )
 
     kb = InlineKeyboardBuilder()
-    kb.button(text="✏️ Редактировать", callback_data="edit_menu")
-    kb.button(text="Назад", callback_data="back_to_text")
+    kb.button(text="🔍 Найти ещё текст", callback_data="find_text")
+    kb.button(text="Назад к предпросмотру", callback_data="back_to_preview")
     kb.adjust(1, 1)
 
     await callback.message.edit_text(
@@ -2428,7 +2448,30 @@ async def save_fragment(callback: CallbackQuery, state: FSMContext):
         parse_mode="HTML"
     )
 
+    await state.set_state(AdminStates.EDIT_MENU)
+
+
+
+@router.callback_query(F.data == "back_to_preview")
+async def back_to_preview(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✏️ Редактировать", callback_data="edit_menu")
+    kb.button(text="Назад", callback_data="back_to_text")
+    kb.adjust(1, 1)
+
+    await callback.message.edit_text(
+        f"📝 Текущий текст для рассылки:\n\n{data['composed_text']}",
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
+    )
+
     await state.set_state(AdminStates.PREVIEW)
+
+
+
 
 
 

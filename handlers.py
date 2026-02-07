@@ -2175,17 +2175,6 @@ async def admin_send_message(message: Message, state: FSMContext, bot: Bot):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 # -------------------------
 # Старт рассылки по ID
 # -------------------------
@@ -2291,7 +2280,7 @@ async def edit_menu(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
     kb = InlineKeyboardBuilder()
-    kb.button(text="🔍 Найти текст", callback_data="find_text")
+    kb.button(text="🔍 Изменить текст", callback_data="find_text")
     kb.button(text="Назад", callback_data="back_to_preview")
     kb.adjust(1, 1)
 
@@ -2316,9 +2305,9 @@ async def find_text(callback: CallbackQuery, state: FSMContext):
 
     text = (
         "📝 Текущий текст для рассылки:\n\n"
-        f"---------------------------------------------------------\n\n"
+        f"=================================\n\n"
         f"{preview}\n\n"
-        f"---------------------------------------------------------\n\n"
+        f"=================================\n\n"
         "✏️ <b>Введите текст, который нужно отредактировать:</b>"
     )
 

@@ -51,6 +51,11 @@ class AdminStates(StatesGroup):
     FORMAT_TEXT = State()
     CONFIRM_SEND = State()
 
+    PREVIEW = State()              # 📝 просмотр
+    EDIT_MENU = State()            # кнопка "Редактировать"
+    FIND_TEXT = State()            # ввод текста для поиска
+    EDIT_FRAGMENT = State()        # форматирование фрагмента
+
 # ------------------------------
 # Состояния для ввода промокода
 # ------------------------------
@@ -2259,100 +2264,174 @@ async def compose_text(message: Message, state: FSMContext):
     data = await state.get_data()
     main_message_id = data["main_message_id"]
 
-    text = message.text
-    await state.update_data(composed_text=text)
+    await state.update_data(composed_text=message.text)
 
-    builder = InlineKeyboardBuilder()
-    builder.button(text="B", callback_data="format_bold")
-    builder.button(text="I", callback_data="format_italic")
-    builder.button(text="S", callback_data="format_strike")
-    builder.button(text="U", callback_data="format_underline")
-    builder.button(text="»", callback_data="format_quote")
-    builder.button(text="`", callback_data="format_mono")
-    builder.button(text="Добавить текст", callback_data="add_text")
-    builder.button(text="Отправить", callback_data="send_message_id")
-    builder.button(text="Назад", callback_data="back_to_text")
-    builder.adjust(3, 3, 1, 1, 1)
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✏️ Редактировать", callback_data="edit_menu")
+    kb.button(text="Назад", callback_data="back_to_text")
+    kb.adjust(1, 1)
 
     await message.bot.edit_message_text(
         chat_id=message.chat.id,
         message_id=main_message_id,
-        text=f"📝 Текущий текст для рассылки:\n\n{text}",
-        reply_markup=builder.as_markup(),
+        text=f"📝 Текущий текст для рассылки:\n\n{message.text}",
+        reply_markup=kb.as_markup(),
         parse_mode="HTML"
     )
 
     await message.delete()
-    await state.set_state(AdminStates.FORMAT_TEXT)
+    await state.set_state(AdminStates.PREVIEW)
 
 
 # -------------------------
-# Обработка кнопок форматирования (только один стиль)
+# Редактировать сообщение
 # -------------------------
-@router.callback_query(F.data.startswith("format_"))
-async def format_text_callback(callback: CallbackQuery, state: FSMContext):
+@router.callback_query(F.data == "edit_menu")
+async def edit_menu(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    data = await state.get_data()
-    text = data.get("composed_text", "")
-    current_style = data.get("current_style")  # текущий выбранный стиль
 
-    action = callback.data.split("_")[1]
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔍 Найти текст", callback_data="find_text")
+    kb.button(text="Назад", callback_data="back_to_preview")
+    kb.adjust(1, 1)
 
-    # Сначала убираем предыдущий стиль, если он был
-    if current_style == "bold":
-        text = text.replace("<b>", "").replace("</b>", "")
-    elif current_style == "italic":
-        text = text.replace("<i>", "").replace("</i>", "")
-    elif current_style == "underline":
-        text = text.replace("<u>", "").replace("</u>", "")
-    elif current_style == "strike":
-        text = text.replace("<s>", "").replace("</s>", "")
-    elif current_style == "mono":
-        text = text.replace("<code>", "").replace("</code>", "")
-    elif current_style == "quote":
-        text = text.replace("<blockquote>", "").replace("</blockquote>", "")
-
-    # Применяем новый стиль
-    if action == "bold":
-        text = f"<b>{text}</b>"
-    elif action == "italic":
-        text = f"<i>{text}</i>"
-    elif action == "underline":
-        text = f"<u>{text}</u>"
-    elif action == "strike":
-        text = f"<s>{text}</s>"
-    elif action == "mono":
-        text = f"<code>{text}</code>"
-    elif action == "quote":
-        text = f"<blockquote>{text}</blockquote>"
-
-    # Сохраняем текст и текущий стиль
-    await state.update_data(composed_text=text, current_style=action)
-
-    # Строим кнопки
-    builder = InlineKeyboardBuilder()
-
-    builder.button(text="B", callback_data="format_bold")
-    builder.button(text="I", callback_data="format_italic")
-    builder.button(text="S", callback_data="format_strike")
-
-    builder.button(text="U", callback_data="format_underline")
-    builder.button(text="»", callback_data="format_quote")
-    builder.button(text="`", callback_data="format_mono")
-
-    builder.button(text="Добавить текст", callback_data="add_text")
-    builder.button(text="Отправить", callback_data="send_message_id")
-    builder.button(text="Назад", callback_data="back_to_text")
-
-    # ВАЖНО: один adjust со схемой
-    builder.adjust(3, 3, 1, 1, 1)
-
-    # Обновляем сообщение сразу с HTML
     await callback.message.edit_text(
-        f"📝 Текущий текст для рассылки:\n\n{text}",
-        reply_markup=builder.as_markup(),
+        callback.message.text,
+        reply_markup=kb.as_markup(),
         parse_mode="HTML"
     )
+
+    await state.set_state(AdminStates.EDIT_MENU)
+
+
+# -------------------------
+# Найти сообщение
+# -------------------------
+@router.callback_query(F.data == "find_text")
+async def find_text(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+
+    await callback.message.edit_text(
+        "✏️ Введите текст, который нужно отредактировать:",
+        reply_markup=InlineKeyboardBuilder()
+        .button(text="Назад", callback_data="edit_menu")
+        .adjust(1)
+        .as_markup()
+    )
+
+    await state.set_state(AdminStates.FIND_TEXT)
+
+
+# -------------------------
+# Нашли сообщение
+# -------------------------
+@router.message(AdminStates.FIND_TEXT)
+async def process_find_text(message: Message, state: FSMContext):
+    data = await state.get_data()
+    full_text = data["composed_text"]
+    fragment = message.text
+
+    if fragment not in full_text:
+        await message.answer("❌ Такой текст не найден.")
+        return
+
+    await state.update_data(
+        edit_fragment=fragment,
+        edit_fragment_edited=fragment,
+        current_style=None
+    )
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="B", callback_data="format_bold")
+    kb.button(text="I", callback_data="format_italic")
+    kb.button(text="S", callback_data="format_strike")
+    kb.button(text="U", callback_data="format_underline")
+    kb.button(text="»", callback_data="format_quote")
+    kb.button(text="`", callback_data="format_mono")
+    kb.button(text="Сохранить", callback_data="save_fragment")
+    kb.button(text="Назад", callback_data="edit_menu")
+    kb.adjust(3, 3, 1, 1)
+
+    await message.bot.edit_message_text(
+        chat_id=message.chat.id,
+        message_id=data["main_message_id"],
+        text=f"✏️ Редактируем фрагмент:\n\n{fragment}",
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
+    )
+
+    await message.delete()
+    await state.set_state(AdminStates.EDIT_FRAGMENT)
+
+
+@router.callback_query(F.data.startswith("format_"))
+async def format_fragment(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+
+    data = await state.get_data()
+    fragment = data["edit_fragment_edited"]
+    current_style = data.get("current_style")
+    action = callback.data.split("_")[1]
+
+    # убираем старый стиль
+    tags = {
+        "bold": ("<b>", "</b>"),
+        "italic": ("<i>", "</i>"),
+        "underline": ("<u>", "</u>"),
+        "strike": ("<s>", "</s>"),
+        "mono": ("<code>", "</code>"),
+        "quote": ("<blockquote>", "</blockquote>"),
+    }
+
+    if current_style:
+        start, end = tags[current_style]
+        fragment = fragment.replace(start, "").replace(end, "")
+
+    start, end = tags[action]
+    fragment = f"{start}{fragment}{end}"
+
+    await state.update_data(
+        edit_fragment_edited=fragment,
+        current_style=action
+    )
+
+    await callback.message.edit_text(
+        f"✏️ Редактируем фрагмент:\n\n{fragment}",
+        reply_markup=callback.message.reply_markup,
+        parse_mode="HTML"
+    )
+
+
+# -------------------------
+# Сохранили текст
+# -------------------------
+@router.callback_query(F.data == "save_fragment")
+async def save_fragment(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+
+    data = await state.get_data()
+    full = data["composed_text"]
+    old = data["edit_fragment"]
+    new = data["edit_fragment_edited"]
+
+    full = full.replace(old, new, 1)
+    await state.update_data(composed_text=full)
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✏️ Редактировать", callback_data="edit_menu")
+    kb.button(text="Назад", callback_data="back_to_text")
+    kb.adjust(1, 1)
+
+    await callback.message.edit_text(
+        f"📝 Текущий текст для рассылки:\n\n{full}",
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
+    )
+
+    await state.set_state(AdminStates.PREVIEW)
+
+
+
 
 
 # -------------------------

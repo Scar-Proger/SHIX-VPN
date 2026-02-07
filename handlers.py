@@ -2316,7 +2316,9 @@ async def find_text(callback: CallbackQuery, state: FSMContext):
 
     text = (
         "📝 Текущий текст для рассылки:\n\n"
+        f"-------------------\n\n"
         f"{preview}\n\n"
+        f"-------------------\n\n"
         "✏️ <b>Введите текст, который нужно отредактировать:</b>"
     )
 
@@ -2484,12 +2486,15 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
 
     user_ids = data.get("user_ids", [])
     text = data.get("composed_text", "")
+    admin_id = callback.from_user.id  # Кто отправляет рассылку
+    admin_name = callback.from_user.full_name
 
     if not user_ids or not text:
         return await callback.message.answer("❌ Ошибка: нет ID или текста.")
 
     success = 0
     failed = 0
+    blocked_users = []
 
     for uid in user_ids:
         try:
@@ -2503,26 +2508,34 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
         except Exception as e:
             logger.error(f"Ошибка отправки пользователю {uid}: {e}")
             failed += 1
+            blocked_users.append(uid)
 
-    # кнопка админ-меню
+    # Создаём отчет для админа
+    report_text = (
+        f"<b>📨 Рассылка завершена!</b>\n\n"
+        f"👤 <b>Отправил:</b> {admin_name} (ID: {admin_id})\n"
+        f"• ✅ Успешно: {success}\n"
+        f"• ❌ Не удалось: {failed}\n"
+        f"• 👥 Всего ID: {len(user_ids)}\n"
+    )
+
+    if blocked_users:
+        report_text += f"• 🚫 Не доставлено пользователям: {', '.join(map(str, blocked_users))}"
+
+    # Кнопка для возврата в админ-меню
     kb = InlineKeyboardBuilder()
     kb.button(text="⚠️ Админ. меню", callback_data="admin_menu")
     kb.adjust(1)
 
-    await callback.message.answer(
-        f"<b>Рассылка завершена!</b>\n\n"
-        f"• Успешно: {success}\n"
-        f"• Не удалось: {failed}\n"
-        f"• Всего: {len(user_ids)}",
+    # ⚠️ Удаляем прежний предпросмотр (edit_message_text с новым текстом)
+    await callback.message.edit_text(
+        report_text,
         reply_markup=kb.as_markup(),
         parse_mode="HTML"
     )
 
+    # Очищаем state
     await state.clear()
-
-
-
-
 
 
 

@@ -2451,7 +2451,9 @@ async def save_fragment(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminStates.EDIT_MENU)
 
 
-
+# -------------------------
+# Предпросмотр отправки сообщения
+# -------------------------
 @router.callback_query(F.data == "back_to_preview")
 async def back_to_preview(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -2459,8 +2461,9 @@ async def back_to_preview(callback: CallbackQuery, state: FSMContext):
 
     kb = InlineKeyboardBuilder()
     kb.button(text="✏️ Редактировать", callback_data="edit_menu")
+    kb.button(text="Отправить", callback_data="send_message_id")
     kb.button(text="Назад", callback_data="back_to_text")
-    kb.adjust(1, 1)
+    kb.adjust(1, 1, 1)
 
     await callback.message.edit_text(
         f"📝 Текущий текст для рассылки:\n\n{data['composed_text']}",
@@ -2471,12 +2474,6 @@ async def back_to_preview(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminStates.PREVIEW)
 
 
-
-
-
-
-
-
 # -------------------------
 # Отправка сообщения по ID
 # -------------------------
@@ -2484,6 +2481,7 @@ async def back_to_preview(callback: CallbackQuery, state: FSMContext):
 async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bot):
     await callback.answer()
     data = await state.get_data()
+
     user_ids = data.get("user_ids", [])
     text = data.get("composed_text", "")
 
@@ -2492,31 +2490,41 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
 
     success = 0
     failed = 0
-    blocked_users = []
 
     for uid in user_ids:
         try:
-            await bot.send_message(uid, text)
+            await bot.send_message(
+                uid,
+                text,
+                parse_mode="HTML",
+                disable_web_page_preview=True
+            )
             success += 1
         except Exception as e:
             logger.error(f"Ошибка отправки пользователю {uid}: {e}")
             failed += 1
-            blocked_users.append(uid)
 
-    # ⚠️ Кнопка админ-меню
-    builder = InlineKeyboardBuilder()
-    builder.button(text="⚠️ Админ. меню", callback_data="admin_menu")
-    builder.adjust(1)
+    # кнопка админ-меню
+    kb = InlineKeyboardBuilder()
+    kb.button(text="⚠️ Админ. меню", callback_data="admin_menu")
+    kb.adjust(1)
 
     await callback.message.answer(
-        f"📨 Рассылка завершена!\n\n"
+        f"<b>Рассылка завершена!</b>\n\n"
         f"• Успешно: {success}\n"
         f"• Не удалось: {failed}\n"
         f"• Всего: {len(user_ids)}",
-        reply_markup=builder.as_markup()
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
     )
 
     await state.clear()
+
+
+
+
+
+
 
 
 

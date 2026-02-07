@@ -2183,7 +2183,7 @@ async def admin_send_message_by_id(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.clear()
 
-    msg = await callback.message.edit_text(
+    await callback.message.edit_text(
         "✏️ Введите ID пользователей через запятую (например: 12345,67890):",
         reply_markup=InlineKeyboardBuilder()
         .button(text="Назад", callback_data="back_to_targets")
@@ -2211,12 +2211,12 @@ async def enter_user_ids(message: Message, state: FSMContext):
     data = await state.get_data()
     main_message_id = data["main_message_id"]
 
-    await state.update_data(user_ids=ids, composed_text="", current_style=None)
+    await state.update_data(user_ids=ids, composed_text="")
 
     await message.bot.edit_message_text(
         chat_id=message.chat.id,
         message_id=main_message_id,
-        text="✏️ Введите текст рассылки (будет доступно форматирование после ввода):",
+        text="✏️ Введите текст рассылки (можно сразу с HTML-тегами):",
         reply_markup=InlineKeyboardBuilder()
         .button(text="Назад", callback_data="admin_send_message_id")
         .adjust(1)
@@ -2253,13 +2253,16 @@ async def compose_text(message: Message, state: FSMContext):
     data = await state.get_data()
     main_message_id = data["main_message_id"]
 
+    # Сохраняем введенный текст (можно с HTML)
     await state.update_data(composed_text=message.text)
 
     kb = InlineKeyboardBuilder()
     kb.button(text="✏️ Редактировать", callback_data="edit_menu")
+    kb.button(text="Отправить", callback_data="send_message_id")
     kb.button(text="Назад", callback_data="back_to_text")
-    kb.adjust(1, 1)
+    kb.adjust(1, 1, 1)
 
+    # Предпросмотр с HTML
     await message.bot.edit_message_text(
         chat_id=message.chat.id,
         message_id=main_message_id,
@@ -2280,12 +2283,13 @@ async def edit_menu(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
     kb = InlineKeyboardBuilder()
-    kb.button(text="🔍 Изменить текст", callback_data="find_text")
+    kb.button(text="🔍 Найти текст", callback_data="find_text")
     kb.button(text="Назад", callback_data="back_to_preview")
     kb.adjust(1, 1)
 
+    data = await state.get_data()
     await callback.message.edit_text(
-        callback.message.text,
+        f"📝 Текущий текст для рассылки:\n\n{data['composed_text']}",
         reply_markup=kb.as_markup(),
         parse_mode="HTML"
     )
@@ -2299,25 +2303,15 @@ async def edit_menu(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "find_text")
 async def find_text(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
+
     data = await state.get_data()
-
-    preview = data["composed_text"]
-
-    text = (
-        "📝 Текущий текст для рассылки:\n\n"
-        f"=================================\n\n"
-        f"{preview}\n\n"
-        f"=================================\n\n"
-        "✏️ <b>Введите текст, который нужно отредактировать:</b>"
-    )
-
-    kb = InlineKeyboardBuilder()
-    kb.button(text="Назад", callback_data="edit_menu")
-    kb.adjust(1)
-
     await callback.message.edit_text(
-        text,
-        reply_markup=kb.as_markup(),
+        f"📝 Текущий текст для рассылки:\n\n{data['composed_text']}\n\n"
+        "✏️ Введите текст, который нужно заменить:",
+        reply_markup=InlineKeyboardBuilder()
+        .button(text="Назад", callback_data="edit_menu")
+        .adjust(1)
+        .as_markup(),
         parse_mode="HTML"
     )
 
@@ -2339,31 +2333,38 @@ async def process_find_text(message: Message, state: FSMContext):
 
     await state.update_data(
         edit_fragment=fragment,
-        edit_fragment_edited=fragment,
-        current_style=None
+        edit_fragment_edited=fragment
     )
 
-    kb = InlineKeyboardBuilder()
-    kb.button(text="B", callback_data="format_bold")
-    kb.button(text="I", callback_data="format_italic")
-    kb.button(text="S", callback_data="format_strike")
-    kb.button(text="U", callback_data="format_underline")
-    kb.button(text="»", callback_data="format_quote")
-    kb.button(text="`", callback_data="format_mono")
-    kb.button(text="Сохранить", callback_data="save_fragment")
-    kb.button(text="Назад", callback_data="edit_menu")
-    kb.adjust(3, 3, 1, 1)
+    await message.answer(
+        f"✏️ Введите новый текст (можно с HTML), который заменит:\n\n{fragment}"
+    )
+    await state.set_state(AdminStates.EDIT_FRAGMENT)
 
-    await message.bot.edit_message_text(
-        chat_id=message.chat.id,
-        message_id=data["main_message_id"],
-        text=f"✏️ Редактируем фрагмент:\n\n{fragment}",
+
+@router.message(AdminStates.EDIT_FRAGMENT)
+async def save_edited_fragment(message: Message, state: FSMContext):
+    data = await state.get_data()
+    full = data["composed_text"]
+    old = data["edit_fragment"]
+    new = message.text
+
+    full = full.replace(old, new, 1)
+    await state.update_data(composed_text=full, edit_fragment=None, edit_fragment_edited=None)
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔍 Найти ещё текст", callback_data="find_text")
+    kb.button(text="Назад к предпросмотру", callback_data="back_to_preview")
+    kb.adjust(1, 1)
+
+    await message.answer(
+        f"📝 Текущий текст для рассылки:\n\n{full}",
         reply_markup=kb.as_markup(),
         parse_mode="HTML"
     )
 
-    await message.delete()
-    await state.set_state(AdminStates.EDIT_FRAGMENT)
+    await state.set_state(AdminStates.EDIT_MENU)
+
 
 
 # -------------------------
@@ -2479,26 +2480,19 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
     if not user_ids or not text:
         return await callback.message.answer("❌ Ошибка: нет ID или текста.")
 
-    success = 0
-    failed = 0
-    blocked_users = []
+    success, failed, blocked_users = 0, 0, []
 
     for uid in user_ids:
         try:
-            await bot.send_message(
-                uid,
-                text,
-                parse_mode="HTML",
-                disable_web_page_preview=True
-            )
+            await bot.send_message(uid, text, parse_mode="HTML", disable_web_page_preview=True)
             success += 1
         except Exception as e:
             logger.error(f"Ошибка отправки пользователю {uid}: {e}")
             failed += 1
             blocked_users.append(uid)
 
-    # Создаём отчет для админа
-    report_text = (
+    # Отчёт админу
+    report = (
         f"<b>📨 Рассылка завершена!</b>\n\n"
         f"• Успешно: {success}\n"
         f"• Не удалось: {failed}\n"
@@ -2506,27 +2500,21 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
     )
 
     if blocked_users:
-        report_text += f"• 🚫 Не доставлено пользователям: {', '.join(map(str, blocked_users))}"
+        report += f"• 🚫 Не доставлено пользователям: {', '.join(map(str, blocked_users))}"
 
-    # Кнопка для возврата в админ-меню
     kb = InlineKeyboardBuilder()
     kb.button(text="⚠️ Админ. меню", callback_data="admin_menu")
     kb.adjust(1)
 
-    # ⚠️ Удаляем прежний предпросмотр (edit_message_text с новым текстом)
-    await callback.message.edit_text(
-        report_text,
-        reply_markup=kb.as_markup(),
-        parse_mode="HTML"
-    )
+    # Удаляем предпросмотр
+    main_message_id = data["main_message_id"]
+    try:
+        await callback.message.bot.delete_message(callback.message.chat.id, main_message_id)
+    except:  # на всякий случай
+        pass
 
-    # Очищаем state
+    await callback.message.answer(report, reply_markup=kb.as_markup(), parse_mode="HTML")
     await state.clear()
-
-
-
-
-
 
 
 

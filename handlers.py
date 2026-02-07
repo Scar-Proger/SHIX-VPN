@@ -2316,9 +2316,9 @@ async def find_text(callback: CallbackQuery, state: FSMContext):
 
     text = (
         "📝 Текущий текст для рассылки:\n\n"
-        f"-------------------\n\n"
+        f"---------------------------------------------------------\n\n"
         f"{preview}\n\n"
-        f"-------------------\n\n"
+        f"---------------------------------------------------------\n\n"
         "✏️ <b>Введите текст, который нужно отредактировать:</b>"
     )
 
@@ -2486,8 +2486,6 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
 
     user_ids = data.get("user_ids", [])
     text = data.get("composed_text", "")
-    admin_id = callback.from_user.id  # Кто отправляет рассылку
-    admin_name = callback.from_user.full_name
 
     if not user_ids or not text:
         return await callback.message.answer("❌ Ошибка: нет ID или текста.")
@@ -2513,10 +2511,9 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
     # Создаём отчет для админа
     report_text = (
         f"<b>📨 Рассылка завершена!</b>\n\n"
-        f"👤 <b>Отправил:</b> {admin_name} (ID: {admin_id})\n"
-        f"• ✅ Успешно: {success}\n"
-        f"• ❌ Не удалось: {failed}\n"
-        f"• 👥 Всего ID: {len(user_ids)}\n"
+        f"• Успешно: {success}\n"
+        f"• Не удалось: {failed}\n"
+        f"• Всего ID: {len(user_ids)}\n"
     )
 
     if blocked_users:
@@ -2536,16 +2533,6 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
 
     # Очищаем state
     await state.clear()
-
-
-
-
-
-
-
-
-
-
 
 
 

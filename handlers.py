@@ -427,7 +427,15 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         )
     )
 
-    # 3 ряд — только btn_referral
+    # 3 ряд — только btn_topup
+    builder.row(
+        InlineKeyboardButton(
+            text=t(user, "btn_topup"),
+            callback_data="topup_balance"
+        )
+    )
+
+    # 4 ряд — только btn_referral
     builder.row(
         InlineKeyboardButton(
             text=t(user, "btn_referral"),
@@ -435,7 +443,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         )
     )
 
-    # 4 ряд — btn_help и btn_settings
+    # 5 ряд — btn_help и btn_settings
     builder.row(
         InlineKeyboardButton(
             text=t(user, "btn_help"),
@@ -447,7 +455,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         )
     )
 
-    # 5 ряд — админ панель (если админ)
+    # 6 ряд — админ панель (если админ)
     if user.is_admin:
         builder.row(
             InlineKeyboardButton(
@@ -456,7 +464,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
             )
         )
 
-    # 6 ряд — btn_support (ссылка)
+    # 7 ряд — btn_support (ссылка)
     builder.row(
         InlineKeyboardButton(
             text=t(user, "btn_support"),
@@ -1097,15 +1105,6 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
-
-
-
-
-
-
-
-
-
 
 
 

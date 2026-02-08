@@ -16,7 +16,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup, LabeledPrice, Message
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, WebAppInfo
 
 from config import config
@@ -25,7 +25,7 @@ from database import (
     get_user, create_user, apply_promo_code, create_or_update_promo_code, 
     get_all_promocodes_list, delete_promocode,
     get_all_users, get_or_create_payment, process_payment_result,
-    User, PromoCode, Payment, UserBalance, Session, get_user_stats as db_user_stats
+    User, PromoCode, Payment, UserBalance, UserBalanceHistory, Session, get_user_stats as db_user_stats
 )
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,9 @@ class AdminPromoStates(StatesGroup):
 USERS_PER_PAGE = 5
 
 blocked_users = []
+
+STARS_PACK_AMOUNT = 100   # сколько персиков даём
+STARS_PRICE = 50          # цена в звёздах
 
 async def get_payment_by_tx(transaction_id: str) -> Payment | None:
     with Session() as session:
@@ -1012,6 +1015,118 @@ async def check_payment(callback: CallbackQuery):
 
 
 # ------------------------------
+# Пополнение баланса 
+# ------------------------------
+@router.callback_query(F.data == "topup_balance")
+async def topup_balance_handler(call: CallbackQuery):
+    user = await get_user(call.from_user.id)
+    if not user:
+        return
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="⭐ Оплатить звёздами",
+                    callback_data="topup_stars"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="💳 Оплатить картой",
+                    callback_data="topup_card"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=t(user, "back"),
+                    callback_data="back_to_menu"
+                )
+            ]
+        ]
+    )
+
+    text = (
+        "💰 *Пополнение баланса*\n\n"
+        "Вы можете пополнить баланс одним из способов ниже.\n"
+        "Средства зачисляются мгновенно 👇"
+    )
+
+    await call.message.edit_caption(
+        caption=text,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+
+# ------------------------------
+# Пополнение звездами 
+# ------------------------------
+@router.callback_query(F.data == "topup_stars")
+async def topup_stars_handler(call: CallbackQuery):
+    user = await get_user(call.from_user.id)
+    if not user:
+        return
+
+    await call.bot.send_invoice(
+        chat_id=call.from_user.id,
+        title="Пополнение баланса",
+        description=f"Пополнение на {STARS_PACK_AMOUNT} 🍑",
+        payload=f"topup_stars:{user.id}:{STARS_PACK_AMOUNT}",
+        provider_token="",  # 🔥 ДЛЯ STARS ДОЛЖЕН БЫТЬ ПУСТЫМ
+        currency="XTR",      # ⭐ Telegram Stars
+        prices=[
+            LabeledPrice(
+                label=f"{STARS_PACK_AMOUNT} 🍑",
+                amount=STARS_PRICE
+            )
+        ]
+    )
+
+
+@router.message(F.successful_payment)
+async def successful_stars_payment(message: Message):
+    payment = message.successful_payment
+    payload = payment.invoice_payload
+    user = await get_user(message.from_user.id)
+
+    if not user:
+        return
+
+    if not payload.startswith("topup_stars"):
+        return
+
+    _, user_id, amount = payload.split(":")
+    amount = int(amount)
+
+    # 🔥 начисляем баланс
+    with Session() as session:
+        balance = session.query(UserBalance).filter_by(user_id=user.id).first()
+        if balance:
+            balance.amount += amount
+
+            session.add(
+                UserBalanceHistory(
+                    user_id=user.id,
+                    change=amount,
+                    stars_change=0,
+                    reason="Пополнение через Telegram Stars"
+                )
+            )
+
+            session.commit()
+
+    await message.answer(
+        f"✅ Баланс пополнен на *{amount} 🍑*",
+        parse_mode="Markdown"
+    )
+
+
+@router.callback_query(F.data == "topup_card")
+async def topup_card_handler(call: CallbackQuery):
+    await call.answer("💳 Оплата картой временно недоступна", show_alert=True)
+
+# ------------------------------
 # Обработчик кнопки "Промокод"
 # ------------------------------
 @router.callback_query(F.data == "promo_code")
@@ -1100,11 +1215,6 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
-
-
-
-
-
 
 
 

@@ -814,7 +814,6 @@ async def renew_cb(callback: CallbackQuery):
     await callback.answer()
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=t(user, "tariff_1d"), callback_data="tariff_1d")],
         [InlineKeyboardButton(text=t(user, "tariff_1m"), callback_data="tariff_1m")],
         [InlineKeyboardButton(text=t(user, "tariff_3m"), callback_data="tariff_3m")],
         [InlineKeyboardButton(text=t(user, "tariff_6m"), callback_data="tariff_6m")],
@@ -1121,6 +1120,11 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
 
 
 

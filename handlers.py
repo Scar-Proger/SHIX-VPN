@@ -407,19 +407,23 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         else t(user, "btn_buy")
     )
 
-    # 1 ряд — btn_connect
+    # 1 ряд — btn_connect и renew_sub
     builder.row(
         InlineKeyboardButton(
             text=t(user, "btn_connect"),
             callback_data="connect"
-        )
-    )
-
-    # 2 ряд — renew_sub и btn_promo
-    builder.row(
+        ),
         InlineKeyboardButton(
             text=renew_text,
             callback_data="renew_sub"
+        ),
+    )
+
+    # 2 ряд — btn_topup и btn_promo
+    builder.row(
+        InlineKeyboardButton(
+            text=t(user, "btn_topup"),
+            callback_data="topup_balance"
         ),
         InlineKeyboardButton(
             text=t(user, "btn_promo"),
@@ -427,15 +431,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         )
     )
 
-    # 3 ряд — только btn_topup
-    builder.row(
-        InlineKeyboardButton(
-            text=t(user, "btn_topup"),
-            callback_data="topup_balance"
-        )
-    )
-
-    # 4 ряд — только btn_referral
+    # 3 ряд — только btn_referral
     builder.row(
         InlineKeyboardButton(
             text=t(user, "btn_referral"),
@@ -443,7 +439,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         )
     )
 
-    # 5 ряд — btn_help и btn_settings
+    # 4 ряд — btn_help и btn_settings
     builder.row(
         InlineKeyboardButton(
             text=t(user, "btn_help"),
@@ -455,7 +451,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         )
     )
 
-    # 6 ряд — админ панель (если админ)
+    # 5 ряд — админ панель (если админ)
     if user.is_admin:
         builder.row(
             InlineKeyboardButton(
@@ -464,14 +460,13 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
             )
         )
 
-    # 7 ряд — btn_support (ссылка)
+    # 6 ряд — btn_support (ссылка)
     builder.row(
         InlineKeyboardButton(
             text=t(user, "btn_support"),
             url="https://t.me/shix_vpn"
         )
     )
-
 
     if message_id:
         try:
@@ -1105,6 +1100,11 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
 
 
 

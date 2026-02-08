@@ -226,17 +226,18 @@ async def create_user(
         session.refresh(user)  # 🔥 ВАЖНО
 
         # ---------------------------
-        # Создаём баланс пользователя
+        # Создаём баланс пользователя (персики + звёзды)
         # ---------------------------
         balance = UserBalance(
             user_id=user.id,
-            amount=0  # начальный баланс
+            amount=0,   # начальный баланс персиков
+            stars=0     # начальный баланс звёзд
         )
         session.add(balance)
         session.commit()
         session.refresh(balance)
 
-        logger.info(f"✅ Новый пользователь создан: {telegram_id} с балансом 0")
+        logger.info(f"✅ Новый пользователь создан: {telegram_id} с балансом 0 и звёздами 0")
         return user
 
 async def delete_user_profile(telegram_id: int):
@@ -521,4 +522,7 @@ async def get_or_create_payment(user_id: int, amount: int, months: int) -> Payme
         session.refresh(new_payment)
         return new_payment
   
+
+
+
 

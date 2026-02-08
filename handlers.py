@@ -388,7 +388,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
 
     text = (
         t(user, "profile", name=user.full_name) + "\n\n" +
-        t(user, "telegram_id", id=user.telegram_id) + "\n" +
+        t(user, "telegram_id", id=user.telegram_id) + "\n\n" +
         t(user, "balance", amount=balance) + "\n\n" +
         sub_text +
         t(user, "subscription_status", status=status) + "\n\n" +
@@ -1085,6 +1085,11 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
 
 
 

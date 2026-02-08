@@ -905,18 +905,14 @@ async def check_payment(callback: CallbackQuery):
     user = await get_user(callback.from_user.id)
     tx_id = callback.data.split(":", 1)[1]
 
-    # Берём платежку из БД по transaction_id
     payment = await get_payment_by_tx(tx_id)
     if not payment:
-        await callback.answer(
-            t(user, "payment_not_found"),
-            show_alert=True
-        )
+        await callback.answer(t(user, "payment_not_found"), show_alert=True)
         return
 
     now = now_local()
 
-    # 🔹 Локальная проверка просроченной ссылки (30 минут)
+    # Если PENDING и прошло >30 мин — считаем отменённым
     if payment.status == "PENDING" and payment.pay_url_created_at + timedelta(minutes=30) < now:
         with Session() as session:
             db_payment = session.query(Payment).filter_by(id=payment.id).first()
@@ -924,34 +920,14 @@ async def check_payment(callback: CallbackQuery):
             session.commit()
         payment.status = "CANCELED"
 
-    # 🔹 Проверяем статус через Platega только если PENDING и ссылка ещё действительна
+    # Если PENDING и ссылка ещё действительна — проверяем через Platega
+    result = payment.status
     if payment.status == "PENDING":
         data = await get_platega_payment_status(tx_id)
-        if not data:
-            await callback.answer(
-                t(user, "payment_check_error"),
-                show_alert=True
-            )
-            return
-
-        print("🔍 PLATEGA STATUS RESPONSE:", data)
-
-        status = data.get("status") or data.get("state") or data.get("paymentStatus")
-        if not status:
-            await callback.answer(
-                t(user, "payment_status_unknown"),
-                show_alert=True
-            )
-            return
-
-        # Обновляем результат
-        result = await process_payment_result(
-            transaction_id=tx_id,
-            payment_status=status
-        )
-    else:
-        # Для CANCELED / CONFIRMED / NOT_FOUND берём статус из БД
-        result = payment.status if payment.status in ["CONFIRMED", "CANCELED"] else "NOT_FOUND"
+        if data:
+            status = data.get("status") or data.get("state") or data.get("paymentStatus")
+            if status:
+                result = await process_payment_result(tx_id, status)
 
     # =========================================================
     # ТЕКСТ ДЛЯ ПОЛЬЗОВАТЕЛЯ
@@ -972,34 +948,21 @@ async def check_payment(callback: CallbackQuery):
     # =========================================================
     builder = InlineKeyboardBuilder()
 
-    # 🔹 Кнопка "Оплатить снова" если платеж PENDING или CANCELED
-    if result in ["PENDING", "CANCELED", "ERROR", "NOT_FOUND"]:
-        # Если ссылка истекла (>30 мин) → создаём новую
-        if not payment.pay_url or payment.pay_url_created_at + timedelta(minutes=30) < now:
-            new_payment = await get_or_create_payment(
-                user.id,
-                payment.amount,
-                payment.months
-            )
-            pay_url = new_payment.pay_url
-            tx_for_button = new_payment.transaction_id
-        else:
-            pay_url = payment.pay_url
-            tx_for_button = payment.transaction_id
-
+    # Показать кнопку "Оплатить" только если PENDING и ссылка <30 мин
+    if result == "PENDING" and payment.pay_url and payment.pay_url_created_at + timedelta(minutes=30) > now:
         builder.row(
             InlineKeyboardButton(
-                text=t(user, "btn_pay_again"),
-                web_app=WebAppInfo(url=pay_url)
+                text=t(user, "btn_pay"),
+                web_app=WebAppInfo(url=payment.pay_url)
             )
         )
 
-    # 🔄 Проверить ещё раз — ТОЛЬКО если PENDING
+    # Кнопка "Проверить ещё раз" — только для PENDING
     if result == "PENDING":
         builder.row(
             InlineKeyboardButton(
                 text=t(user, "btn_check_again"),
-                callback_data=f"check_payment:{tx_for_button}"
+                callback_data=f"check_payment:{payment.transaction_id}"
             )
         )
 
@@ -1011,9 +974,6 @@ async def check_payment(callback: CallbackQuery):
         )
     )
 
-    # =========================================================
-    # РЕДАКТИРУЕМ СООБЩЕНИЕ
-    # =========================================================
     try:
         await callback.bot.edit_message_caption(
             chat_id=callback.from_user.id,
@@ -1023,7 +983,6 @@ async def check_payment(callback: CallbackQuery):
             parse_mode="Markdown"
         )
     except TelegramBadRequest:
-        # если Telegram сказал "message is not modified"
         pass
 
     await callback.answer()
@@ -1118,6 +1077,13 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
+
+
 
 
 

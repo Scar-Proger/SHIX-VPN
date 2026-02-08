@@ -383,69 +383,68 @@ async def create_payment(
 async def process_payment_result(
     transaction_id: str,
     payment_status: str
-) -> PaymentResult:
+) -> str:
     """
-    Обновляет платёж, подписку пользователя
-    И синхронизирует Remnawave по точному количеству месяцев тарифа
+    Обновляет статус платежа и подписку пользователя.
+    Возвращает статус: CONFIRMED, PENDING, CANCELED, ERROR, NOT_FOUND
     """
-    # 🔹 Локальный импорт, чтобы избежать circular import
     from functions import sync_remnawave_expire  
 
     with Session() as session:
-        payment = session.query(Payment).filter_by(
-            transaction_id=transaction_id
-        ).first()
+        payment = session.query(Payment).filter_by(transaction_id=transaction_id).first()
 
         if not payment:
             return "NOT_FOUND"
 
-        if payment_status == "CONFIRMED":
-            if payment.status != "CONFIRMED":
-                user = session.query(User).get(payment.user_id)
-                if not user:
-                    return "ERROR"
+        # ------------------------
+        # Платёж подтверждён
+        # ------------------------
+        if payment_status == "CONFIRMED" and payment.status != "CONFIRMED":
+            user = session.query(User).get(payment.user_id)
+            if not user:
+                return "ERROR"
 
-                now = now_local()
-                base_date = max(user.subscription_end or now, now)
+            now = now_local()
+            base_date = max(user.subscription_end or now, now)
 
-                # ---------- LOCAL DB ----------
-                new_end = base_date + timedelta(days=30 * payment.months)
-                user.subscription_end = new_end
+            new_end = base_date + timedelta(days=30 * payment.months)
+            user.subscription_end = new_end
 
-                payment.status = "CONFIRMED"
-                payment.confirmed_at = now
-                session.commit()
+            payment.status = "CONFIRMED"
+            payment.confirmed_at = now
+            session.commit()
 
-                # ---------- REMNAWAVE ----------
-                success = await sync_remnawave_expire(
-                    telegram_id=user.telegram_id,
-                    new_end=new_end
-                )
-
-                if not success:
-                    logger.error(
-                        f"❌ Remnawave sync failed for tg={user.telegram_id}"
-                    )
+            # Синхронизация с Remnawave
+            success = await sync_remnawave_expire(
+                telegram_id=user.telegram_id,
+                new_end=new_end
+            )
+            if not success:
+                logger.error(f"❌ Remnawave sync failed for tg={user.telegram_id}")
 
             return "CONFIRMED"
 
+        # ------------------------
+        # Платёж отменён
+        # ------------------------
+        if payment_status == "CANCELED" and payment.status != "CANCELED":
+            payment.status = "CANCELED"
+            session.commit()
+            return "CANCELED"
+
+        # ------------------------
+        # PENDING оставляем
+        # ------------------------
         if payment_status == "PENDING":
             return "PENDING"
-
-        if payment_status == "CANCELED":
-            if payment.status != "CANCELED":
-                payment.status = "CANCELED"
-                session.commit()
-            return "CANCELED"
 
         return "ERROR"
 
 
 async def get_or_create_payment(user_id: int, amount: int, months: int) -> Payment:
     """
-    Возвращает актуальный Payment с действующей ссылкой на оплату.
-    Если есть старая ссылка < 30 минут, возвращает её.
-    Иначе создаёт новый платёж.
+    Возвращает действующий PENDING платеж с ссылкой <30 мин
+    или создаёт новый, если старый просрочен.
     """
     from payment.platega_payment import create_platega_payment
 
@@ -458,16 +457,11 @@ async def get_or_create_payment(user_id: int, amount: int, months: int) -> Payme
             .order_by(Payment.pay_url_created_at.desc())\
             .first()
 
-        if payment:
+        if payment and payment.pay_url and payment.pay_url_created_at + timedelta(minutes=30) > now:
             # Ссылка ещё действительна
-            if payment.pay_url and payment.pay_url_created_at + timedelta(minutes=30) > now:
-                return payment
-            else:
-                # Старая ссылка уже просрочена
-                payment.pay_url = None
-                session.commit()
+            return payment
 
-        # Создаём новую ссылку через Platega
+        # Иначе создаём новый платеж (не перезаписываем старый)
         payment_data = await create_platega_payment(amount)
         if not payment_data:
             raise RuntimeError("Ошибка создания платежа")
@@ -485,5 +479,5 @@ async def get_or_create_payment(user_id: int, amount: int, months: int) -> Payme
         session.commit()
         session.refresh(new_payment)
         return new_payment
-    
+  
 

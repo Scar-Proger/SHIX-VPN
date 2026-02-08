@@ -100,6 +100,27 @@ class User(Base):
 
     language = Column(String(10), default="ru")
 
+class UserBalance(Base):
+    __tablename__ = "user_balances"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    amount = Column(Integer, default=0)  # Текущий баланс
+    created_at = Column(DateTime, default=now_local)
+    updated_at = Column(DateTime, default=now_local, onupdate=now_local)
+
+
+class UserBalanceHistory(Base):
+    __tablename__ = "user_balance_history"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, index=True, nullable=False)
+    change = Column(Integer)  # +100, -50
+    reason = Column(String(255))  # "Пополнение", "Списание за подписку"
+    payment_id = Column(Integer, index=True, nullable=True)  # Если связано с Payment
+    created_at = Column(DateTime, default=now_local)
+
+
 # ==================================================
 # Таблица промокодов
 # ==================================================
@@ -115,6 +136,7 @@ class PromoCode(Base):
     used_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=now_local)
 
+
 # ==================================================
 # История использования промокодов
 # ==================================================
@@ -126,6 +148,7 @@ class UserPromoCode(Base):
     promo_id = Column(Integer, index=True, nullable=False)
     used_at = Column(DateTime, default=now_local)
 
+
 # ==================================================
 # Статические профили
 # ==================================================
@@ -136,6 +159,7 @@ class StaticProfile(Base):
     name = Column(String(255))
     vless_url = Column(String(2048))
     created_at = Column(DateTime, default=now_local)
+
 
 class Payment(Base):
     __tablename__ = "payments"
@@ -181,6 +205,9 @@ async def create_user(
     language: str = "ru"
 ):
     with Session() as session:
+        # ---------------------------
+        # Создаём пользователя
+        # ---------------------------
         user = User(
             telegram_id=telegram_id,
             full_name=full_name,
@@ -195,7 +222,19 @@ async def create_user(
         session.add(user)
         session.commit()
         session.refresh(user)  # 🔥 ВАЖНО
-        logger.info(f"✅ Новый пользователь создан: {telegram_id}")
+
+        # ---------------------------
+        # Создаём баланс пользователя
+        # ---------------------------
+        balance = UserBalance(
+            user_id=user.id,
+            amount=0  # начальный баланс
+        )
+        session.add(balance)
+        session.commit()
+        session.refresh(balance)
+
+        logger.info(f"✅ Новый пользователь создан: {telegram_id} с балансом 0")
         return user
 
 async def delete_user_profile(telegram_id: int):

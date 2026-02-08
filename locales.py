@@ -53,6 +53,7 @@ TEXTS = {
         # ===== Menu =====
         "profile": "👤 **Профиль:** `{name}`",
         "telegram_id": "🆔 **ID Telegram:** `{id}`",
+        "balance": "💰 Баланс: {amount} ₽",
 
         "sub_link": "🔗 **Ваша ссылка для подключения:** `{link}`\n\n",
 
@@ -215,6 +216,7 @@ TEXTS = {
 
         "profile": "👤 **Profile:** `{name}`",
         "telegram_id": "🆔 **Telegram ID:** `{id}`",
+        "balance": "💰 Balance: {amount} ₽",
 
         "sub_link": "🔗 **Your connection link:** `{link}`\n\n",
 
@@ -375,6 +377,7 @@ TEXTS = {
         # ===== Menu =====
         "profile": "👤 **个人资料：** `{name}`",
         "telegram_id": "🆔 **Telegram 用户 ID：** `{id}`",
+        "balance": "💰 余额: {amount} ₽",
 
         "sub_link": "🔗 **您的连接链接：** `{link}`\n\n",
 

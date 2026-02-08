@@ -56,6 +56,10 @@ class AdminStates(StatesGroup):
     FIND_TEXT = State()            # ввод текста для поиска
     EDIT_FRAGMENT = State()        # форматирование фрагмента
 
+    CHOOSE_TARGET = State()
+    ENTER_IDS = State()
+    ENTER_TEXT = State()
+
 # ------------------------------
 # Состояния для ввода промокода
 # ------------------------------
@@ -2025,161 +2029,36 @@ async def back_to_targets(callback: CallbackQuery, state: FSMContext):
 async def admin_send_message_target(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
-    target = callback.data.split("_")[1]
-    await state.update_data(target=target)
+    target = callback.data.replace("target_", "")
 
-    builder = InlineKeyboardBuilder()
-    builder.button(text="Назад", callback_data="back_to_targets")
-    builder.adjust(1)
-
-    await callback.message.edit_text(
-        "✏️ Введите сообщение для рассылки:",
-        reply_markup=builder.as_markup()
-    )
-
-    await state.set_state(AdminStates.SEND_MESSAGE)
-
-@router.callback_query(F.data.startswith("show_blocked_users:"))
-async def show_blocked_users(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
-
-    page = int(callback.data.split(":")[1])
-    data = await state.get_data()
-    blocked_users = data.get("blocked_users", [])
-
-    if not blocked_users:
-        await callback.message.edit_text("🚫 Заблокированных пользователей нет.")
-        return
-
-    PER_PAGE = 10
-    total = len(blocked_users)
-    total_pages = (total + PER_PAGE - 1) // PER_PAGE
-
-    # защита от дурака
-    page = max(1, min(page, total_pages))
-
-    start = (page - 1) * PER_PAGE
-    end = start + PER_PAGE
-    current_users = blocked_users[start:end]
-
-    text = (
-        f"🚫 <b>Заблокировали бота:</b>\n"
-        f"Страница {page}/{total_pages}\n\n"
-    )
-
-    for uid in current_users:
-        text += f"• ID: <code>{uid}</code>\n"
-
-    builder = InlineKeyboardBuilder()
-
-    # ⬅️ Назад
-    if page > 1:
-        builder.button(
-            text="Назад",
-            callback_data=f"show_blocked_users:{page - 1}"
-        )
-
-    # ➡️ Далее
-    if page < total_pages:
-        builder.button(
-            text="Далее",
-            callback_data=f"show_blocked_users:{page + 1}"
-        )
-
-    builder.adjust(2)
-
-    await callback.message.edit_text(
-        text,
-        reply_markup=builder.as_markup() if builder.buttons else None,
-        parse_mode="HTML"
-    )
-
-@router.message(AdminStates.SEND_MESSAGE)
-async def admin_send_message(message: Message, state: FSMContext, bot: Bot):
-    if not message.text:
-        await message.answer("❗ Пожалуйста, отправьте текстовое сообщение.")
-        return
-
-    data = await state.get_data()
-    target = data['target']
-    text = message.text
-
+    # --- формируем user_ids ---
     if target == "active":
         users = await get_all_users(with_subscription=True)
     elif target == "inactive":
         users = await get_all_users(with_subscription=False)
-    else:
+    elif target == "all":
         users = await get_all_users()
+    else:
+        return
 
-    logger.info(f"📨 Рассылка начата. Цель: {target}, пользователей: {len(users)}")
+    user_ids = [u.telegram_id for u in users]
 
-    success = 0
-    failed = 0
-    blocked_users = []
-
-    for user in users:
-        try:
-            await bot.send_message(user.telegram_id, text)
-            success += 1
-
-        except TelegramForbiddenError:
-            logger.info(f"🚫 Пользователь {user.telegram_id} заблокировал бота")
-            blocked_users.append(user.telegram_id)
-            failed += 1
-
-        except TelegramBadRequest as e:
-            logger.warning(f"⚠️ Ошибка запроса для пользователя {user.telegram_id}: {e.message}")
-            failed += 1
-
-        except TelegramRetryAfter as e:
-            logger.warning(f"⏳ Превышен лимит Telegram, ожидание {e.retry_after} сек.")
-            await asyncio.sleep(e.retry_after)
-            await bot.send_message(user.telegram_id, text)
-            success += 1
-
-        except Exception as e:
-            logger.error(f"❌ Неизвестная ошибка для пользователя {user.telegram_id}: {e}")
-            failed += 1
-
-    # сохраняем список в FSM, чтобы потом листать
-    await state.update_data(blocked_users=blocked_users)
-
-    builder = InlineKeyboardBuilder()
-
-    if blocked_users:
-        builder.button(
-            text=f"🚫 Заблокировали бота ({len(blocked_users)})",
-            callback_data="show_blocked_users:1"
-        )
-
-    builder.button(text="⚠️ Админ. меню", callback_data="admin_menu")
-
-    builder.adjust(1)
-
-    await message.answer(
-        f"📨 Результаты рассылки:\n\n"
-        f"• Успешно: {success}\n"
-        f"• Не удалось: {failed}\n"
-        f"• Всего: {len(users)}",
-        reply_markup=builder.as_markup(),
-        parse_mode="Markdown"
+    await state.clear()
+    await state.update_data(
+        user_ids=user_ids,
+        composed_text="",
+        current_style=None
     )
 
-    # FSM НЕ чистим, он нужен для списка
+    await callback.message.edit_text(
+        "✏️ Введите текст рассылки (будет доступно форматирование после ввода):",
+        reply_markup=InlineKeyboardBuilder()
+        .button(text="Назад", callback_data="back_to_targets")
+        .adjust(1)
+        .as_markup()
+    )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+    await state.set_state(AdminStates.COMPOSE_TEXT)
 
 
 # -------------------------
@@ -2459,7 +2338,7 @@ async def back_to_preview(callback: CallbackQuery, state: FSMContext):
 
     kb = InlineKeyboardBuilder()
     kb.button(text="✏️ Редактировать", callback_data="edit_menu")
-    kb.button(text="Отправить", callback_data="send_message_id")
+    kb.button(text="Отправить", callback_data="send_message_final")
     kb.button(text="Назад", callback_data="back_to_text")
     kb.adjust(1, 1, 1)
 
@@ -2472,11 +2351,9 @@ async def back_to_preview(callback: CallbackQuery, state: FSMContext):
     await state.set_state(AdminStates.PREVIEW)
 
 
-# -------------------------
-# Отправка сообщения по ID
-# -------------------------
-@router.callback_query(F.data == "send_message_id")
-async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bot):
+
+@router.callback_query(F.data == "send_message_final")
+async def send_message_final(callback: CallbackQuery, state: FSMContext, bot: Bot):
     await callback.answer()
     data = await state.get_data()
 
@@ -2484,10 +2361,9 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
     text = data.get("composed_text", "")
 
     if not user_ids or not text:
-        return await callback.message.answer("❌ Ошибка: нет ID или текста.")
+        return await callback.message.answer("❌ Ошибка: нет данных для отправки.")
 
-    success = 0
-    failed = 0
+    success = failed = 0
     blocked_users = []
 
     for uid in user_ids:
@@ -2499,36 +2375,87 @@ async def send_message_by_id(callback: CallbackQuery, state: FSMContext, bot: Bo
                 disable_web_page_preview=True
             )
             success += 1
-        except Exception as e:
-            logger.error(f"Ошибка отправки пользователю {uid}: {e}")
+        except:
             failed += 1
             blocked_users.append(uid)
 
-    # Создаём отчет для админа
-    report_text = (
+    report = (
         f"<b>📨 Рассылка завершена!</b>\n\n"
         f"• Успешно: {success}\n"
         f"• Не удалось: {failed}\n"
-        f"• Всего ID: {len(user_ids)}\n"
+        f"• Всего: {len(user_ids)}"
     )
 
     if blocked_users:
-        report_text += f"• 🚫 Не доставлено пользователям: {', '.join(map(str, blocked_users))}"
+        report += f"\n• 🚫 Заблокировали: {', '.join(map(str, blocked_users))}"
 
-    # Кнопка для возврата в админ-меню
     kb = InlineKeyboardBuilder()
     kb.button(text="⚠️ Админ. меню", callback_data="admin_menu")
     kb.adjust(1)
 
-    # ⚠️ Удаляем прежний предпросмотр (edit_message_text с новым текстом)
+    await callback.message.edit_text(report, reply_markup=kb.as_markup(), parse_mode="HTML")
+    await state.clear()
+
+
+@router.callback_query(F.data.startswith("show_blocked_users:"))
+async def show_blocked_users(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+
+    page = int(callback.data.split(":")[1])
+    data = await state.get_data()
+    blocked_users = data.get("blocked_users", [])
+
+    if not blocked_users:
+        await callback.message.edit_text("🚫 Заблокированных пользователей нет.")
+        return
+
+    PER_PAGE = 10
+    total = len(blocked_users)
+    total_pages = (total + PER_PAGE - 1) // PER_PAGE
+
+    # защита от дурака
+    page = max(1, min(page, total_pages))
+
+    start = (page - 1) * PER_PAGE
+    end = start + PER_PAGE
+    current_users = blocked_users[start:end]
+
+    text = (
+        f"🚫 <b>Заблокировали бота:</b>\n"
+        f"Страница {page}/{total_pages}\n\n"
+    )
+
+    for uid in current_users:
+        text += f"• ID: <code>{uid}</code>\n"
+
+    builder = InlineKeyboardBuilder()
+
+    # ⬅️ Назад
+    if page > 1:
+        builder.button(
+            text="Назад",
+            callback_data=f"show_blocked_users:{page - 1}"
+        )
+
+    # ➡️ Далее
+    if page < total_pages:
+        builder.button(
+            text="Далее",
+            callback_data=f"show_blocked_users:{page + 1}"
+        )
+
+    builder.adjust(2)
+
     await callback.message.edit_text(
-        report_text,
-        reply_markup=kb.as_markup(),
+        text,
+        reply_markup=builder.as_markup() if builder.buttons else None,
         parse_mode="HTML"
     )
 
-    # Очищаем state
-    await state.clear()
+
+
+
+
 
 
 

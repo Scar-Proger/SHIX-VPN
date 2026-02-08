@@ -15,7 +15,6 @@ import logging
 import secrets
 import os
 from urllib.parse import quote_plus
-from functions import sync_remnawave_expire
 
 
 logger = logging.getLogger(__name__)
@@ -383,6 +382,9 @@ async def process_payment_result(
     Обновляет платёж, подписку пользователя
     И синхронизирует Remnawave по точному количеству месяцев тарифа
     """
+    # 🔹 Локальный импорт, чтобы избежать circular import
+    from functions import sync_remnawave_expire  
+
     with Session() as session:
         payment = session.query(Payment).filter_by(
             transaction_id=transaction_id
@@ -401,7 +403,6 @@ async def process_payment_result(
                 base_date = max(user.subscription_end or now, now)
 
                 # ---------- LOCAL DB ----------
-                # Продление строго по месяцам тарифа
                 new_end = base_date + timedelta(days=30 * payment.months)
                 user.subscription_end = new_end
 

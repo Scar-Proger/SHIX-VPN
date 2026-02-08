@@ -6,7 +6,6 @@ from database import now_local
 from aiogram.exceptions import (
     TelegramForbiddenError,
     TelegramBadRequest,
-    TelegramRetryAfter,
 )
 from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire

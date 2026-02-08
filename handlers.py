@@ -992,7 +992,7 @@ async def check_payment(callback: CallbackQuery):
 
         builder.row(
             InlineKeyboardButton(
-                text=t(user, "btn_pay_again"),
+                text=t(user, "btn_pay"),
                 web_app=WebAppInfo(url=pay_url)
             )
         )
@@ -1121,6 +1121,12 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
+
 
 
 

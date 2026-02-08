@@ -9,7 +9,7 @@ from aiogram.exceptions import (
 )
 from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire
-from payment.platega_payment import create_platega_payment, get_platega_payment_status
+from payment.platega_payment import get_platega_payment_status
 from datetime import datetime, timedelta
 from aiogram import Dispatcher, Router, F, Bot
 from aiogram.filters import Command
@@ -21,11 +21,11 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, WebAppIn
 
 from config import config
 from locales import TEXTS, TARIFFS
-from database import (
+from database import ( 
     get_user, create_user, apply_promo_code, create_or_update_promo_code, 
     get_all_promocodes_list, delete_promocode,
-    get_all_users, create_payment, process_payment_result,
-    User, PromoCode, Session, get_user_stats as db_user_stats
+    get_all_users, get_or_create_payment, process_payment_result,
+    User, PromoCode, Payment, Session, get_user_stats as db_user_stats
 )
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,11 @@ class AdminPromoStates(StatesGroup):
 USERS_PER_PAGE = 5
 
 blocked_users = []
+
+async def get_payment_by_tx(transaction_id: str) -> Payment | None:
+    with Session() as session:
+        return session.query(Payment).filter_by(transaction_id=transaction_id).first()
+
     
 # ------------------------------
 # Получение промокода из БД
@@ -844,21 +849,15 @@ async def tariff_selected(callback: CallbackQuery):
     months = tariff["months"]
     total_amount = price * months
 
-    payment_data = await create_platega_payment(total_amount)
-    if not payment_data:
+    try:
+        # 🔥 Используем функцию get_or_create_payment
+        payment = await get_or_create_payment(user.id, total_amount, months)
+    except Exception:
         await callback.answer(
             t(user, "payment_create_error"),
             show_alert=True
         )
         return
-
-    # 🔥 СОХРАНЯЕМ ПЛАТЁЖ В БД
-    await create_payment(
-        user_id=user.id,
-        transaction_id=payment_data["transaction_id"],
-        amount=total_amount,
-        months=months
-    )
 
     title = t(user, tariff_key)
 
@@ -873,13 +872,13 @@ async def tariff_selected(callback: CallbackQuery):
         [
             InlineKeyboardButton(
                 text=t(user, "btn_pay"),
-                web_app=WebAppInfo(url=payment_data["pay_url"])
+                web_app=WebAppInfo(url=payment.pay_url)
             )
         ],
         [
             InlineKeyboardButton(
                 text=t(user, "btn_check_payment"),
-                callback_data=f"check_payment:{payment_data['transaction_id']}"
+                callback_data=f"check_payment:{payment.transaction_id}"
             )
         ],
         [
@@ -908,6 +907,16 @@ async def check_payment(callback: CallbackQuery):
     
     tx_id = callback.data.split(":", 1)[1]
 
+    # Берём платежку из БД по transaction_id
+    payment = await get_payment_by_tx(tx_id)
+    if not payment:
+        await callback.answer(
+            t(user, "payment_not_found"),
+            show_alert=True
+        )
+        return
+
+    # Проверяем статус через Platega
     data = await get_platega_payment_status(tx_id)
     if not data:
         await callback.answer(
@@ -963,14 +972,38 @@ async def check_payment(callback: CallbackQuery):
     # =========================================================
     builder = InlineKeyboardBuilder()
 
+    # 🔥 Кнопка "Оплатить снова"
+    # Если платеж PENDING, ERROR, NOT_FOUND, CANCELED — даём ссылку
+    if payment and result in ["PENDING", "ERROR", "NOT_FOUND", "CANCELED"]:
+        # Проверяем время ссылки: ≤30 минут
+        from datetime import timedelta
+        if payment.pay_url and payment.pay_url_created_at + timedelta(minutes=30) > now_local():
+            pay_url = payment.pay_url
+            tx_for_button = payment.transaction_id
+        else:
+            # ссылка устарела → создаём новую через get_or_create_payment
+            new_payment = await get_or_create_payment(
+                user.id,
+                payment.amount,
+                payment.months
+            )
+            pay_url = new_payment.pay_url
+            tx_for_button = new_payment.transaction_id
+
+        builder.row(
+            InlineKeyboardButton(
+                text=t(user, "btn_pay_again"),
+                web_app=WebAppInfo(url=pay_url)
+            )
+        )
+
     # 🔄 Проверить ещё раз — ТОЛЬКО если PENDING
     if result == "PENDING":
         builder.row(
             InlineKeyboardButton(
                 text=t(user, "btn_check_again"),
-                callback_data=f"check_payment:{tx_id}"
+                callback_data=f"check_payment:{tx_for_button}"
             )
-
         )
 
     # Назад — всегда
@@ -1088,12 +1121,6 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
-
-
-
-
-
-
 
 
 

@@ -153,6 +153,10 @@ class Payment(Base):
     created_at = Column(DateTime, default=now_local)
     confirmed_at = Column(DateTime, nullable=True)
 
+    # 🔥 Сохраняем ссылку на оплату
+    pay_url = Column(String(2048), nullable=True)
+    pay_url_created_at = Column(DateTime, default=now_local)
+
 
 # ==================================================
 # Инициализация базы
@@ -358,7 +362,8 @@ async def create_payment(
     user_id: int,
     transaction_id: str,
     amount: int,
-    months: int
+    months: int,
+    pay_url: str  # добавили сюда
 ) -> Payment:
     with Session() as session:
         payment = Payment(
@@ -366,7 +371,8 @@ async def create_payment(
             transaction_id=transaction_id,
             amount=amount,
             months=months,
-            status="PENDING"
+            status="PENDING",
+            pay_url=pay_url
         )
         session.add(payment)
         session.commit()
@@ -433,3 +439,50 @@ async def process_payment_result(
             return "CANCELED"
 
         return "ERROR"
+
+
+
+async def get_or_create_payment(user_id: int, amount: int, months: int) -> Payment:
+    """
+    Возвращает актуальный Payment с действующей ссылкой на оплату.
+    Если есть старая ссылка < 30 минут, возвращает её.
+    Иначе создаёт новый платёж.
+    """
+    from payment.platega_payment import create_platega_payment
+    
+    with Session() as session:
+        now = now_local()
+
+        # Берём последнюю PENDING платежку пользователя с нужной суммой и месяцами
+        payment = session.query(Payment)\
+            .filter_by(user_id=user_id, amount=amount, months=months, status="PENDING")\
+            .order_by(Payment.pay_url_created_at.desc())\
+            .first()
+
+        if payment:
+            # Ссылка ещё действительна
+            if payment.pay_url and payment.pay_url_created_at + timedelta(minutes=30) > now:
+                return payment
+            else:
+                # Старая ссылка уже просрочена
+                payment.pay_url = None
+                session.commit()
+
+        # Создаём новую ссылку через Platega
+        payment_data = await create_platega_payment(amount)
+        if not payment_data:
+            raise RuntimeError("Ошибка создания платежа")
+
+        new_payment = Payment(
+            user_id=user_id,
+            transaction_id=payment_data["transaction_id"],
+            amount=amount,
+            months=months,
+            status="PENDING",
+            pay_url=payment_data["pay_url"],
+            pay_url_created_at=now
+        )
+        session.add(new_payment)
+        session.commit()
+        session.refresh(new_payment)
+        return new_payment

@@ -106,6 +106,7 @@ class UserBalance(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, index=True, nullable=False)
     amount = Column(Integer, default=0)  # Текущий баланс
+    stars = Column(Integer, default=0)   # Новый баланс звезд
     created_at = Column(DateTime, default=now_local)
     updated_at = Column(DateTime, default=now_local, onupdate=now_local)
 
@@ -115,9 +116,10 @@ class UserBalanceHistory(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, index=True, nullable=False)
-    change = Column(Integer)  # +100, -50
-    reason = Column(String(255))  # "Пополнение", "Списание за подписку"
-    payment_id = Column(Integer, index=True, nullable=True)  # Если связано с Payment
+    change = Column(Integer)        # +100, -50 персиков
+    stars_change = Column(Integer, default=0)  # +5, -2 звезд
+    reason = Column(String(255))   # "Пополнение", "Списание за подписку"
+    payment_id = Column(Integer, index=True, nullable=True)
     created_at = Column(DateTime, default=now_local)
 
 

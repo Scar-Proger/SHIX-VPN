@@ -81,10 +81,12 @@ async def get_payment_by_tx(transaction_id: str) -> Payment | None:
     with Session() as session:
         return session.query(Payment).filter_by(transaction_id=transaction_id).first()
     
-async def get_user_balance(user_id: int) -> int:
+async def get_user_balance(user_id: int):
     with Session() as session:
         balance = session.query(UserBalance).filter_by(user_id=user_id).first()
-        return balance.amount if balance else 0
+        if not balance:
+            return 0, 0
+        return balance.amount, balance.stars
 
     
 # ------------------------------
@@ -384,12 +386,12 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
             if user.sub_id else ""
         )
 
-    balance = await get_user_balance(user.id)
+    amount, stars = await get_user_balance(user.id)
 
     text = (
         t(user, "profile", name=user.full_name) + "\n\n" +
         t(user, "telegram_id", id=user.telegram_id) + "\n\n" +
-        t(user, "balance", amount=balance) + "\n\n" +
+        t(user, "balance", amount=amount, stars=stars) + "\n\n" +
         sub_text +
         t(user, "subscription_status", status=status) + "\n\n" +
         time_left_text + "\n\n" +
@@ -1085,6 +1087,13 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
+
+
 
 
 

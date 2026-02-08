@@ -54,7 +54,7 @@ TEXTS = {
         "profile": "👤 **Профиль:** `{name}`",
         "telegram_id": "🆔 **ID Telegram:** `{id}`",
 
-        "balance": "💰 Баланс: `{amount} персиков`",
+        "balance": "💰 Баланс: `{amount} персиков`, ⭐ `{stars}`",
 
         "sub_link": "🔗 **Ваша ссылка для подключения:** `{link}`\n\n",
 
@@ -218,7 +218,7 @@ TEXTS = {
         "profile": "👤 **Profile:** `{name}`",
         "telegram_id": "🆔 **Telegram ID:** `{id}`",
 
-        "balance": "💰 Balance: `{amount} peaches`",
+        "balance": "💰 Balance: `{amount} peaches`, ⭐ `{stars}`",
 
         "sub_link": "🔗 **Your connection link:** `{link}`\n\n",
 
@@ -380,7 +380,7 @@ TEXTS = {
         "profile": "👤 **个人资料：** `{name}`",
         "telegram_id": "🆔 **Telegram 用户 ID：** `{id}`",
 
-        "balance": "💰 余额: `{amount} 个桃子`",
+        "balance": "💰 余额: `{amount} 个桃子`, ⭐ `{stars}`",
 
         "sub_link": "🔗 **您的连接链接：** `{link}`\n\n",
 

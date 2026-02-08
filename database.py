@@ -441,7 +441,6 @@ async def process_payment_result(
         return "ERROR"
 
 
-
 async def get_or_create_payment(user_id: int, amount: int, months: int) -> Payment:
     """
     Возвращает актуальный Payment с действующей ссылкой на оплату.
@@ -449,7 +448,7 @@ async def get_or_create_payment(user_id: int, amount: int, months: int) -> Payme
     Иначе создаёт новый платёж.
     """
     from payment.platega_payment import create_platega_payment
-    
+
     with Session() as session:
         now = now_local()
 
@@ -486,3 +485,5 @@ async def get_or_create_payment(user_id: int, amount: int, months: int) -> Payme
         session.commit()
         session.refresh(new_payment)
         return new_payment
+    
+

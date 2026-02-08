@@ -903,7 +903,6 @@ async def tariff_selected(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("check_payment:"))
 async def check_payment(callback: CallbackQuery):
     user = await get_user(callback.from_user.id)
-    
     tx_id = callback.data.split(":", 1)[1]
 
     # Берём платежку из БД по transaction_id
@@ -915,72 +914,68 @@ async def check_payment(callback: CallbackQuery):
         )
         return
 
-    # Проверяем статус через Platega
-    data = await get_platega_payment_status(tx_id)
-    if not data:
-        await callback.answer(
-            t(user, "payment_check_error"),
-            show_alert=True
+    now = now_local()
+
+    # 🔹 Локальная проверка просроченной ссылки (30 минут)
+    if payment.status == "PENDING" and payment.pay_url_created_at + timedelta(minutes=30) < now:
+        with Session() as session:
+            db_payment = session.query(Payment).filter_by(id=payment.id).first()
+            db_payment.status = "CANCELED"
+            session.commit()
+        payment.status = "CANCELED"
+
+    # 🔹 Проверяем статус через Platega только если PENDING и ссылка ещё действительна
+    if payment.status == "PENDING":
+        data = await get_platega_payment_status(tx_id)
+        if not data:
+            await callback.answer(
+                t(user, "payment_check_error"),
+                show_alert=True
+            )
+            return
+
+        print("🔍 PLATEGA STATUS RESPONSE:", data)
+
+        status = data.get("status") or data.get("state") or data.get("paymentStatus")
+        if not status:
+            await callback.answer(
+                t(user, "payment_status_unknown"),
+                show_alert=True
+            )
+            return
+
+        # Обновляем результат
+        result = await process_payment_result(
+            transaction_id=tx_id,
+            payment_status=status
         )
-        return
-
-    print("🔍 PLATEGA STATUS RESPONSE:", data)
-
-    status = (
-        data.get("status")
-        or data.get("state")
-        or data.get("paymentStatus")
-    )
-
-    if not status:
-        await callback.answer(
-            t(user, "payment_status_unknown"),
-            show_alert=True
-        )
-        return
-
-    result = await process_payment_result(
-        transaction_id=tx_id,
-        payment_status=status
-    )
+    else:
+        # Для CANCELED / CONFIRMED / NOT_FOUND берём статус из БД
+        result = payment.status if payment.status in ["CONFIRMED", "CANCELED"] else "NOT_FOUND"
 
     # =========================================================
-    # ТЕКСТ
+    # ТЕКСТ ДЛЯ ПОЛЬЗОВАТЕЛЯ
     # =========================================================
     if result == "CONFIRMED":
         caption = t(user, "payment_success")
-
     elif result == "PENDING":
-        caption = t(
-            user,
-            "payment_pending",
-            time=now_local().strftime('%d.%m.%Y %H:%M:%S')
-        )
-
+        caption = t(user, "payment_pending", time=now.strftime('%d.%m.%Y %H:%M:%S'))
     elif result == "CANCELED":
         caption = t(user, "payment_canceled")
-
     elif result == "NOT_FOUND":
         caption = t(user, "payment_not_found")
-
     else:
         caption = t(user, "payment_error")
 
     # =========================================================
-    # КНОПКИ 
+    # КНОПКИ
     # =========================================================
     builder = InlineKeyboardBuilder()
 
-    # 🔥 Кнопка "Оплатить снова"
-    # Если платеж PENDING, ERROR, NOT_FOUND, CANCELED — даём ссылку
-    if payment and result in ["PENDING", "ERROR", "NOT_FOUND", "CANCELED"]:
-        # Проверяем время ссылки: ≤30 минут
-        from datetime import timedelta
-        if payment.pay_url and payment.pay_url_created_at + timedelta(minutes=30) > now_local():
-            pay_url = payment.pay_url
-            tx_for_button = payment.transaction_id
-        else:
-            # ссылка устарела → создаём новую через get_or_create_payment
+    # 🔹 Кнопка "Оплатить снова" если платеж PENDING или CANCELED
+    if result in ["PENDING", "CANCELED", "ERROR", "NOT_FOUND"]:
+        # Если ссылка истекла (>30 мин) → создаём новую
+        if not payment.pay_url or payment.pay_url_created_at + timedelta(minutes=30) < now:
             new_payment = await get_or_create_payment(
                 user.id,
                 payment.amount,
@@ -988,10 +983,13 @@ async def check_payment(callback: CallbackQuery):
             )
             pay_url = new_payment.pay_url
             tx_for_button = new_payment.transaction_id
+        else:
+            pay_url = payment.pay_url
+            tx_for_button = payment.transaction_id
 
         builder.row(
             InlineKeyboardButton(
-                text=t(user, "btn_pay"),
+                text=t(user, "btn_pay_again"),
                 web_app=WebAppInfo(url=pay_url)
             )
         )
@@ -1120,6 +1118,11 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
 
 
 

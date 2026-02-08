@@ -141,6 +141,7 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 Тарифы временно недоступны",
 
+        "tariff_1d": "50 ₽/мес — 1 месяц",
         "tariff_1m": "99 ₽/мес — 1 месяц",
         "tariff_3m": "89 ₽/мес — 3 месяца",
         "tariff_6m": "79 ₽/мес — 6 месяцев",
@@ -506,6 +507,7 @@ TEXTS = {
 
 
 TARIFFS = {
+    "tariff_1d": {"price": 50, "months": 1},
     "tariff_1m": {"price": 99, "months": 1},
     "tariff_3m": {"price": 89, "months": 3},
     "tariff_6m": {"price": 79, "months": 6},

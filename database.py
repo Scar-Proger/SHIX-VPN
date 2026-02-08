@@ -15,6 +15,8 @@ import logging
 import secrets
 import os
 from urllib.parse import quote_plus
+from functions import sync_remnawave_expire
+
 
 logger = logging.getLogger(__name__)
 
@@ -378,7 +380,8 @@ async def process_payment_result(
     payment_status: str
 ) -> PaymentResult:
     """
-    Обновляет платёж и подписку пользователя по статусу платежа
+    Обновляет платёж, подписку пользователя
+    И синхронизирует Remnawave по точному количеству месяцев тарифа
     """
     with Session() as session:
         payment = session.query(Payment).filter_by(
@@ -396,12 +399,26 @@ async def process_payment_result(
 
                 now = now_local()
                 base_date = max(user.subscription_end or now, now)
-                user.subscription_end = base_date + timedelta(days=30 * payment.months)
+
+                # ---------- LOCAL DB ----------
+                # Продление строго по месяцам тарифа
+                new_end = base_date + timedelta(days=30 * payment.months)
+                user.subscription_end = new_end
 
                 payment.status = "CONFIRMED"
                 payment.confirmed_at = now
-
                 session.commit()
+
+                # ---------- REMNAWAVE ----------
+                success = await sync_remnawave_expire(
+                    telegram_id=user.telegram_id,
+                    new_end=new_end
+                )
+
+                if not success:
+                    logger.error(
+                        f"❌ Remnawave sync failed for tg={user.telegram_id}"
+                    )
 
             return "CONFIRMED"
 
@@ -409,9 +426,9 @@ async def process_payment_result(
             return "PENDING"
 
         if payment_status == "CANCELED":
-            payment.status = "CANCELED"
-            session.commit()
+            if payment.status != "CANCELED":
+                payment.status = "CANCELED"
+                session.commit()
             return "CANCELED"
 
         return "ERROR"
-

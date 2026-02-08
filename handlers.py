@@ -810,6 +810,7 @@ async def renew_cb(callback: CallbackQuery):
     await callback.answer()
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(user, "tariff_1d"), callback_data="tariff_1d")],
         [InlineKeyboardButton(text=t(user, "tariff_1m"), callback_data="tariff_1m")],
         [InlineKeyboardButton(text=t(user, "tariff_3m"), callback_data="tariff_3m")],
         [InlineKeyboardButton(text=t(user, "tariff_6m"), callback_data="tariff_6m")],
@@ -1982,6 +1983,15 @@ async def user_list_paginated(callback: CallbackQuery):
         reply_markup=builder.as_markup(),
         parse_mode="HTML"
     )
+
+
+
+
+
+
+
+
+
 
 
 

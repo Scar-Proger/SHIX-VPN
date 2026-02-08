@@ -815,6 +815,10 @@ async def connect_profile(callback: CallbackQuery):
     )
 
 
+
+
+
+
 # ------------------------------
 # Продление подписки
 # ------------------------------
@@ -829,6 +833,16 @@ async def renew_cb(callback: CallbackQuery):
         [InlineKeyboardButton(text=t(user, "tariff_6m"), callback_data="tariff_6m")],
         [InlineKeyboardButton(text=t(user, "tariff_1y"), callback_data="tariff_1y")],
         [InlineKeyboardButton(text=t(user, "tariff_2y"), callback_data="tariff_2y")],
+
+        # 🔹 новые кнопки оплаты
+        [
+            InlineKeyboardButton(text="💎 Оплата через звёзды", callback_data="pay_with_stars"),
+        ],
+
+        [
+            InlineKeyboardButton(text="💳 Оплата картой", callback_data="pay_with_card")
+        ],
+
         [InlineKeyboardButton(text=t(user, "back"), callback_data="back_to_menu")]
     ])
 

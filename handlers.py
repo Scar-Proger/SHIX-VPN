@@ -16,8 +16,7 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup, LabeledPrice, Message
-from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, WebAppInfo
+from aiogram.types import InlineKeyboardMarkup, LabeledPrice, Message, PreCheckoutQuery, CallbackQuery, InlineKeyboardButton, WebAppInfo
 
 from config import config
 from locales import TEXTS, TARIFFS
@@ -1071,33 +1070,21 @@ async def topup_stars_handler(call: CallbackQuery):
     # Список тарифов
     tariffs = [5, 10, 50, 100, 500, 1000, 2500, 5000]
 
-    # Создаём кнопки для каждого тарифа
-    keyboard_buttons = [
-        [InlineKeyboardButton(text=f"{tariff} ⭐", callback_data=f"pay_stars:{tariff}")]
-        for tariff in tariffs
-    ]
+    # Создаём кнопки для каждого тарифа с pay=True
+    keyboard = InlineKeyboardBuilder()
+    for tariff in tariffs:
+        keyboard.button(text=f"{tariff} ⭐️", pay=True)
 
-    # Добавляем кнопку "назад"
-    keyboard_buttons.append([InlineKeyboardButton(text="Назад", callback_data="topup_balance")])
+    # Кнопка назад
+    keyboard.button(text="Назад", callback_data="topup_balance")
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-
-    # Редактируем текущее сообщение и показываем тарифы
     await call.message.edit_caption(
         caption="⭐ Пополнение через Telegram Stars\n\nВыберите тариф пополнения:",
-        reply_markup=keyboard,
+        reply_markup=keyboard.as_markup(),
         parse_mode="Markdown"
     )
 
     await call.answer()
-
-
-
-
-
-
-
-
 
 
 # ------------------------------
@@ -1109,26 +1096,35 @@ async def pay_stars_handler(call: CallbackQuery):
     if not user:
         return
 
-    # Получаем выбранную сумму
     _, tariff = call.data.split(":")
     tariff = int(tariff)
 
-    # Отправляем платёжку через Telegram Stars
-    await call.bot.send_invoice(
-        chat_id=call.from_user.id,
+    prices = [LabeledPrice(label=f"{tariff} ⭐️", amount=tariff)]
+
+    # Отправка счёта через Telegram Stars
+    await call.message.answer_invoice(
         title="Пополнение баланса",
         description=f"{tariff} ⭐ на баланс",
         payload=f"topup_stars:{user.id}:{tariff}",
-        provider_token=None,        # важно!
-        currency="XTR",
-        prices=[LabeledPrice(label=f"{tariff} ⭐", amount=tariff * 1)]
+        provider_token="",          # пустая строка для Stars
+        currency="XTR",             # валюта Stars
+        prices=prices
     )
 
     await call.answer(f"Вы выбрали тариф {tariff} ⭐")
 
 
 # ------------------------------
-# Проверка оплаты - звёзды
+# Подтверждение платежа
+# ------------------------------
+@router.pre_checkout_query()
+async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
+    # Подтверждаем платеж
+    await pre_checkout_query.answer(ok=True)
+
+
+# ------------------------------
+# Успешная оплата
 # ------------------------------
 @router.message(F.successful_payment)
 async def successful_stars_payment(message: Message):
@@ -1139,25 +1135,22 @@ async def successful_stars_payment(message: Message):
     if not user:
         return
 
-    # Проверяем, что это именно оплата через Telegram Stars
     if not payload.startswith("topup_stars"):
         return
 
     _, user_id, amount = payload.split(":")
     amount = int(amount)
 
-    # 🔥 начисляем баланс ЗВЁЗД
+    # Начисляем баланс ЗВЁЗД
     with Session() as session:
         balance = session.query(UserBalance).filter_by(user_id=user.id).first()
         if balance:
-            balance.stars += amount  # начисляем ЗВЁЗДЫ, а не персики
-
-            # сохраняем историю
+            balance.stars += amount
             session.add(
                 UserBalanceHistory(
                     user_id=user.id,
-                    change=0,           # персики не трогаем
-                    stars_change=amount, 
+                    change=0,
+                    stars_change=amount,
                     reason="Пополнение через Telegram Stars"
                 )
             )
@@ -1167,6 +1160,7 @@ async def successful_stars_payment(message: Message):
         f"✅ Баланс пополнен на *{amount} ⭐*",
         parse_mode="Markdown"
     )
+
 
 
 @router.callback_query(F.data == "topup_card")

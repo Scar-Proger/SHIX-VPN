@@ -297,35 +297,27 @@ def format_time_left(end_date: datetime, user) -> str:
     m = t(user, "time_min")       # "мин."
     s = t(user, "time_sec")       # "сек."
 
-    # Построение результата в зависимости от величины
+    parts = []
+
     if years > 0:
-        # Показываем только годы и месяцы
-        parts = [f"{years} {y}"]
-        if months > 0:
-            parts.append(f"{months} {mo}")
+        # Гарантированно показываем годы
+        parts.append(f"{years} {y}")
+        # Показываем месяцы даже если 0
+        parts.append(f"{months} {mo}")
     elif months > 0:
-        # Показываем месяцы и дни
-        parts = [f"{months} {mo}"]
-        if days > 0:
-            parts.append(f"{days} {d}")
+        parts.append(f"{months} {mo}")
+        parts.append(f"{days} {d}")
     elif days > 0:
-        # Показываем дни и часы
-        parts = [f"{days} {d}"]
-        if hours > 0:
-            parts.append(f"{hours} {h}")
+        parts.append(f"{days} {d}")
+        parts.append(f"{hours} {h}")
     elif hours > 0:
-        # Показываем часы и минуты
-        parts = [f"{hours} {h}"]
-        if minutes > 0:
-            parts.append(f"{minutes} {m}")
+        parts.append(f"{hours} {h}")
+        parts.append(f"{minutes} {m}")
     elif minutes > 0:
-        # Показываем минуты и секунды
-        parts = [f"{minutes} {m}"]
-        if seconds > 0:
-            parts.append(f"{seconds} {s}")
+        parts.append(f"{minutes} {m}")
+        parts.append(f"{seconds} {s}")
     else:
-        # Показываем только секунды
-        parts = [f"{seconds} {s}"]
+        parts.append(f"{seconds} {s}")
 
     return " ".join(parts)
 
@@ -1258,6 +1250,14 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
+
+
+
 
 
 

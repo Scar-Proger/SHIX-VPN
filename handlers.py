@@ -1029,7 +1029,6 @@ async def topup_balance_handler(call: CallbackQuery):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="⭐ Оплатить звёздами", callback_data="topup_stars")],
-            [InlineKeyboardButton(text="💳 Оплатить картой", callback_data="topup_card")],
             [InlineKeyboardButton(text="Назад", callback_data="back_to_menu")]
         ]
     )
@@ -1040,7 +1039,6 @@ async def topup_balance_handler(call: CallbackQuery):
         "Средства зачисляются мгновенно 👇"
     )
 
-    # Обычное редактирование, без pay=True
     await call.message.edit_caption(
         caption=text,
         reply_markup=keyboard,
@@ -1049,7 +1047,7 @@ async def topup_balance_handler(call: CallbackQuery):
 
 
 # ------------------------------
-# Пополнение звездами 
+# Пополнение звёздами — выбор тарифа
 # ------------------------------
 @router.callback_query(F.data == "topup_stars")
 async def topup_stars_handler(call: CallbackQuery):
@@ -1060,25 +1058,27 @@ async def topup_stars_handler(call: CallbackQuery):
     # Список тарифов
     tariffs = [1, 100, 200, 300, 500, 1000, 2000, 3000]
 
-    builder = InlineKeyboardBuilder()
-    for tariff in tariffs:
-        # Создаём callback_data для каждого тарифа
-        builder.button(
-            text=f"{tariff} ⭐",
-            callback_data=f"select_tariff:{tariff}"
-        )
+    # Формируем кнопки один под одним
+    keyboard_buttons = [[InlineKeyboardButton(text=f"{tariff} ⭐", callback_data=f"select_tariff:{tariff}")] for tariff in tariffs]
 
-    # Кнопка "Назад"
-    builder.button(text="⬅️ Назад", callback_data="topup_balance")
+    # Добавляем кнопку назад
+    keyboard_buttons.append([InlineKeyboardButton(text="Назад", callback_data="topup_balance")])
 
-    await call.message.answer(
-        "⭐ Выберите тариф пополнения:",
-        reply_markup=builder.as_markup()
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+    # Редактируем сообщение (не отправляем новое!)
+    await call.message.edit_caption(
+        caption="⭐ Выберите тариф пополнения:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
     )
 
     await call.answer()
 
 
+# ------------------------------
+# Выбор тарифа — открываем счёт
+# ------------------------------
 @router.callback_query(F.data.startswith("select_tariff:"))
 async def select_tariff_handler(call: CallbackQuery):
     user = await get_user(call.from_user.id)
@@ -1090,6 +1090,7 @@ async def select_tariff_handler(call: CallbackQuery):
 
     prices = [LabeledPrice(label=f"{tariff} ⭐", amount=tariff)]
 
+    # Отправляем счёт на оплату — новый message, не редактируем
     await call.message.answer_invoice(
         title="Пополнение баланса",
         description=f"{tariff} ⭐ на баланс",
@@ -1137,11 +1138,6 @@ async def successful_stars_payment(message: Message):
             session.commit()
 
     await message.answer(f"✅ Баланс пополнен на *{amount} ⭐*", parse_mode="Markdown")
-
-
-@router.callback_query(F.data == "topup_card")
-async def topup_card_handler(call: CallbackQuery):
-    await call.answer("💳 Оплата картой временно недоступна", show_alert=True)
 
 
 # ------------------------------
@@ -1233,12 +1229,6 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
-
-
-
-
-
-
 
 
 

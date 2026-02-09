@@ -1045,10 +1045,12 @@ async def check_payment(callback: CallbackQuery):
 # Пополнение баланса
 # ------------------------------
 @router.callback_query(F.data == "topup_balance")
-async def topup_balance_handler(call: CallbackQuery):
+async def topup_balance_handler(call: CallbackQuery, state: FSMContext):
     user = await get_user(call.from_user.id)
     if not user:
         return
+    
+    await state.clear()  # 🔥 ВАЖНО
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -1079,6 +1081,8 @@ async def topup_stars_handler(call: CallbackQuery):
     user = await get_user(call.from_user.id)
     if not user:
         return
+    
+    await call.answer()
 
     # Список тарифов
     tariffs = [1, 100, 200, 300, 500, 1000, 2000, 3000]
@@ -1097,8 +1101,6 @@ async def topup_stars_handler(call: CallbackQuery):
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
-
-    await call.answer()
 
 
 # ------------------------------
@@ -1173,6 +1175,8 @@ async def convert_peaches_start(call: CallbackQuery, state: FSMContext):
     user = await get_user(call.from_user.id)
     if not user:
         return
+    
+    await call.answer()
 
     with Session() as session:
         balance = session.query(UserBalance).filter_by(user_id=user.id).first()
@@ -1198,7 +1202,6 @@ async def convert_peaches_start(call: CallbackQuery, state: FSMContext):
 
     await state.update_data(main_message_id=call.message.message_id)
     await state.set_state(ConvertStates.WAIT_STARS)
-    await call.answer()
 
 
 @router.message(ConvertStates.WAIT_STARS)
@@ -1262,10 +1265,6 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
-
-
-
-
 
 
 

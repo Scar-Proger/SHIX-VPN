@@ -1069,7 +1069,7 @@ async def topup_stars_handler(call: CallbackQuery):
         return
 
     # Список тарифов
-    tariffs = [50, 100, 500, 1000, 2500, 5000]
+    tariffs = [5, 10, 50, 100, 500, 1000, 2500, 5000]
 
     # Создаём кнопки для каждого тарифа
     keyboard_buttons = [
@@ -1078,7 +1078,7 @@ async def topup_stars_handler(call: CallbackQuery):
     ]
 
     # Добавляем кнопку "назад"
-    keyboard_buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="topup_balance")])
+    keyboard_buttons.append([InlineKeyboardButton(text="Назад", callback_data="topup_balance")])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 

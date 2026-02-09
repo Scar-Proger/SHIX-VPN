@@ -72,6 +72,9 @@ class AdminPromoStates(StatesGroup):
     waiting_for_discount = State()   
     waiting_for_max_uses = State()
 
+class ConvertStates(StatesGroup):
+    WAIT_STARS = State()
+
 USERS_PER_PAGE = 5
 
 blocked_users = []
@@ -1166,67 +1169,98 @@ async def successful_stars_payment(message: Message):
 # Конвертация звёзд в персики
 # ------------------------------
 @router.callback_query(F.data == "convert_peaches")
-async def convert_peaches_handler(call: CallbackQuery):
+async def convert_peaches_start(call: CallbackQuery, state: FSMContext):
     user = await get_user(call.from_user.id)
     if not user:
         return
 
-    # Получаем текущий баланс пользователя
     with Session() as session:
         balance = session.query(UserBalance).filter_by(user_id=user.id).first()
+
         if not balance or balance.stars <= 0:
-            await call.answer("🚫 У вас нет звезд для конвертации", show_alert=True)
+            await call.answer("🚫 У вас нет ⭐ для конвертации", show_alert=True)
             return
 
-        # ------------------------------
-        # Логика конвертации
-        # 1 ⭐ = 100 🍑
-        # ------------------------------
-        stars_to_convert = balance.stars
-        peaches_received = stars_to_convert * 100  # коэффициент
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Назад", callback_data="topup_balance")
+    kb.adjust(1)
 
-        # Обнуляем звезды и начисляем персики
-        balance.stars = 0
-        balance.peaches = (balance.peaches or 0) + peaches_received
+    await call.message.edit_caption(
+        caption=(
+            "⭐ <b>Конвертация в 🍑</b>\n\n"
+            f"Доступно: <b>{balance.stars} ⭐</b>\n"
+            "Введите количество ⭐ для обмена:\n\n"
+            "1 ⭐ = 100 🍑"
+        ),
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
+    )
 
-        # Сохраняем историю конвертации
+    await state.update_data(main_message_id=call.message.message_id)
+    await state.set_state(ConvertStates.WAIT_STARS)
+    await call.answer()
+
+@router.message(ConvertStates.WAIT_STARS)
+async def convert_peaches_process(message: Message, state: FSMContext):
+    if not message.text.isdigit():
+        await message.delete()
+        return
+
+    stars = int(message.text)
+    if stars <= 0:
+        await message.delete()
+        return
+
+    user = await get_user(message.from_user.id)
+    if not user:
+        await message.delete()
+        return
+
+    with Session() as session:
+        balance = session.query(UserBalance).filter_by(user_id=user.id).first()
+
+        if not balance or stars > balance.stars:
+            await message.bot.edit_message_caption(
+                chat_id=message.chat.id,
+                message_id=(await state.get_data())["main_message_id"],
+                caption="❌ Недостаточно ⭐ на балансе",
+            )
+            await message.delete()
+            return
+
+        peaches = stars * 100
+
+        balance.stars -= stars
+        balance.amount += peaches
+
         session.add(
             UserBalanceHistory(
                 user_id=user.id,
-                change=0,
-                stars_change=-stars_to_convert,
-                peaches_change=peaches_received,
+                change=peaches,
+                stars_change=-stars,
                 reason="Конвертация ⭐ в 🍑"
             )
         )
         session.commit()
 
-    # ------------------------------
-    # Формируем новый caption с кнопкой "Назад"
-    # ------------------------------
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
-        ]
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Назад", callback_data="topup_balance")
+    kb.adjust(1)
+
+    await message.bot.edit_message_caption(
+        chat_id=message.chat.id,
+        message_id=(await state.get_data())["main_message_id"],
+        caption=(
+            "✅ <b>Конвертация выполнена!</b>\n\n"
+            f"⭐ Списано: <b>{stars}</b>\n"
+            f"🍑 Начислено: <b>{peaches}</b>"
+        ),
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
     )
 
-    caption_text = f"✅ Вы конвертировали {stars_to_convert} ⭐ в {peaches_received} 🍑!"
-
-    # Редактируем существующее сообщение
-    await call.message.edit_caption(
-        caption=caption_text,
-        reply_markup=keyboard,
-        parse_mode="Markdown"
-    )
-
-    await call.answer()
-
-
-
-
-
-
-
+    await message.delete()
+    await state.clear()
 
 
 
@@ -2324,7 +2358,6 @@ async def admin_send_message_target(callback: CallbackQuery, state: FSMContext):
     )
 
     await state.set_state(AdminStates.COMPOSE_TEXT)
-
 
 # -------------------------
 # Старт рассылки по ID

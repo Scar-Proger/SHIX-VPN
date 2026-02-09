@@ -279,7 +279,7 @@ def format_time_left(end_date: datetime, user) -> str:
     # Всего дней
     total_days = total_seconds // 86400
 
-    # Рассчитываем годы, месяцы и оставшиеся дни
+    # Рассчитываем годы, месяцы, дни
     years = total_days // 365
     months = (total_days % 365) // 30
     days = (total_days % 365) % 30
@@ -290,27 +290,42 @@ def format_time_left(end_date: datetime, user) -> str:
     seconds = total_seconds % 60
 
     # Переводы
-    y = t(user, "time_year")      # например "г."
-    mo = t(user, "time_month")    # например "мес."
+    y = t(user, "time_year")      # "г."
+    mo = t(user, "time_month")    # "мес."
     d = t(user, "time_day")       # "дн."
     h = t(user, "time_hour")      # "ч."
     m = t(user, "time_min")       # "мин."
     s = t(user, "time_sec")       # "сек."
 
-    parts = []
-
+    # Построение результата в зависимости от величины
     if years > 0:
-        parts.append(f"{years} {y}")
-    if months > 0:
-        parts.append(f"{months} {mo}")
-    if days > 0:
-        parts.append(f"{days} {d}")
-    if hours > 0:
-        parts.append(f"{hours} {h}")
-    if minutes > 0:
-        parts.append(f"{minutes} {m}")
-    if seconds > 0:
-        parts.append(f"{seconds} {s}")
+        # Показываем только годы и месяцы
+        parts = [f"{years} {y}"]
+        if months > 0:
+            parts.append(f"{months} {mo}")
+    elif months > 0:
+        # Показываем месяцы и дни
+        parts = [f"{months} {mo}"]
+        if days > 0:
+            parts.append(f"{days} {d}")
+    elif days > 0:
+        # Показываем дни и часы
+        parts = [f"{days} {d}"]
+        if hours > 0:
+            parts.append(f"{hours} {h}")
+    elif hours > 0:
+        # Показываем часы и минуты
+        parts = [f"{hours} {h}"]
+        if minutes > 0:
+            parts.append(f"{minutes} {m}")
+    elif minutes > 0:
+        # Показываем минуты и секунды
+        parts = [f"{minutes} {m}"]
+        if seconds > 0:
+            parts.append(f"{seconds} {s}")
+    else:
+        # Показываем только секунды
+        parts = [f"{seconds} {s}"]
 
     return " ".join(parts)
 
@@ -1243,6 +1258,13 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
+
+
 
 
 

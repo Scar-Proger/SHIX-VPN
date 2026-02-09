@@ -1013,8 +1013,12 @@ async def check_payment(callback: CallbackQuery):
     await callback.answer()
 
 
+
+
+
+
 # ------------------------------
-# Пополнение баланса 
+# Пополнение баланса
 # ------------------------------
 @router.callback_query(F.data == "topup_balance")
 async def topup_balance_handler(call: CallbackQuery):
@@ -1024,24 +1028,9 @@ async def topup_balance_handler(call: CallbackQuery):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="⭐ Оплатить звёздами",
-                    callback_data="topup_stars"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text="💳 Оплатить картой",
-                    callback_data="topup_card"
-                )
-            ],
-            [
-                InlineKeyboardButton(
-                    text=t(user, "back"),
-                    callback_data="back_to_menu"
-                )
-            ]
+            [InlineKeyboardButton(text="⭐ Оплатить звёздами", callback_data="topup_stars")],
+            [InlineKeyboardButton(text="💳 Оплатить картой", callback_data="topup_card")],
+            [InlineKeyboardButton(text="Назад", callback_data="back_to_menu")]
         ]
     )
 
@@ -1051,6 +1040,7 @@ async def topup_balance_handler(call: CallbackQuery):
         "Средства зачисляются мгновенно 👇"
     )
 
+    # Обычное редактирование, без pay=True
     await call.message.edit_caption(
         caption=text,
         reply_markup=keyboard,
@@ -1067,51 +1057,21 @@ async def topup_stars_handler(call: CallbackQuery):
     if not user:
         return
 
-    # Список тарифов
     tariffs = [5, 10, 50, 100, 500, 1000, 2500, 5000]
 
-    # Создаём кнопки для каждого тарифа с pay=True
-    keyboard = InlineKeyboardBuilder()
+    builder = InlineKeyboardBuilder()
     for tariff in tariffs:
-        keyboard.button(text=f"{tariff} ⭐️", pay=True)
+        builder.button(text=f"{tariff} ⭐️", pay=True)  # Кнопка оплаты Stars
 
-    # Кнопка назад
-    keyboard.button(text="Назад", callback_data="topup_balance")
+    builder.button(text="Назад", callback_data="topup_balance")
 
-    await call.message.edit_caption(
-        caption="⭐ Пополнение через Telegram Stars\n\nВыберите тариф пополнения:",
-        reply_markup=keyboard.as_markup(),
-        parse_mode="Markdown"
+    # Отправляем новое сообщение с тарифами
+    await call.message.answer(
+        "⭐ Пополнение через Telegram Stars\n\nВыберите тариф пополнения:",
+        reply_markup=builder.as_markup()
     )
 
     await call.answer()
-
-
-# ------------------------------
-# Клик по тарифу — отправка платёжки
-# ------------------------------
-@router.callback_query(F.data.startswith("pay_stars:"))
-async def pay_stars_handler(call: CallbackQuery):
-    user = await get_user(call.from_user.id)
-    if not user:
-        return
-
-    _, tariff = call.data.split(":")
-    tariff = int(tariff)
-
-    prices = [LabeledPrice(label=f"{tariff} ⭐️", amount=tariff)]
-
-    # Отправка счёта через Telegram Stars
-    await call.message.answer_invoice(
-        title="Пополнение баланса",
-        description=f"{tariff} ⭐ на баланс",
-        payload=f"topup_stars:{user.id}:{tariff}",
-        provider_token="",          # пустая строка для Stars
-        currency="XTR",             # валюта Stars
-        prices=prices
-    )
-
-    await call.answer(f"Вы выбрали тариф {tariff} ⭐")
 
 
 # ------------------------------
@@ -1119,7 +1079,6 @@ async def pay_stars_handler(call: CallbackQuery):
 # ------------------------------
 @router.pre_checkout_query()
 async def pre_checkout_handler(pre_checkout_query: PreCheckoutQuery):
-    # Подтверждаем платеж
     await pre_checkout_query.answer(ok=True)
 
 
@@ -1131,36 +1090,25 @@ async def successful_stars_payment(message: Message):
     payment = message.successful_payment
     payload = payment.invoice_payload
     user = await get_user(message.from_user.id)
-
-    if not user:
-        return
-
-    if not payload.startswith("topup_stars"):
+    if not user or not payload.startswith("topup_stars"):
         return
 
     _, user_id, amount = payload.split(":")
     amount = int(amount)
 
-    # Начисляем баланс ЗВЁЗД
     with Session() as session:
         balance = session.query(UserBalance).filter_by(user_id=user.id).first()
         if balance:
             balance.stars += amount
-            session.add(
-                UserBalanceHistory(
-                    user_id=user.id,
-                    change=0,
-                    stars_change=amount,
-                    reason="Пополнение через Telegram Stars"
-                )
-            )
+            session.add(UserBalanceHistory(
+                user_id=user.id,
+                change=0,
+                stars_change=amount,
+                reason="Пополнение через Telegram Stars"
+            ))
             session.commit()
 
-    await message.answer(
-        f"✅ Баланс пополнен на *{amount} ⭐*",
-        parse_mode="Markdown"
-    )
-
+    await message.answer(f"✅ Баланс пополнен на *{amount} ⭐*", parse_mode="Markdown")
 
 
 @router.callback_query(F.data == "topup_card")

@@ -1049,7 +1049,7 @@ async def topup_balance_handler(call: CallbackQuery):
 
 
 # ------------------------------
-# Пополнение звездами — выбор тарифа
+# Пополнение звездами 
 # ------------------------------
 @router.callback_query(F.data == "topup_stars")
 async def topup_stars_handler(call: CallbackQuery):
@@ -1057,22 +1057,22 @@ async def topup_stars_handler(call: CallbackQuery):
     if not user:
         return
 
-    tariffs = [5, 10, 50, 100, 500, 1000, 2500, 5000]
+    # Пример тарифа — можешь расширить
+    tariff = 1  # или передавать через callback_data, если нужно
 
-    builder = InlineKeyboardBuilder()
-    for tariff in tariffs:
-        builder.button(text=f"{tariff} ⭐️", pay=True)  # Кнопка оплаты Stars
+    prices = [LabeledPrice(label=f"{tariff} ⭐", amount=tariff)]
 
-    builder.button(text="Назад", callback_data="topup_balance")
-
-    # Отправляем новое сообщение с тарифами
-    await call.message.answer(
-        "⭐ Пополнение через Telegram Stars\n\nВыберите тариф пополнения:",
-        reply_markup=builder.as_markup()
+    await call.message.answer_invoice(
+        title="Пополнение баланса",
+        description=f"{tariff} ⭐ на баланс",
+        payload=f"topup_stars:{user.id}:{tariff}",
+        provider_token="",  # пустая строка для Stars
+        currency="XTR",
+        prices=prices,
+        # reply_markup не нужен — кнопка появляется автоматически
     )
 
-    await call.answer()
-
+    await call.answer(f"Вы выбрали тариф {tariff} ⭐")
 
 # ------------------------------
 # Подтверждение платежа
@@ -1205,11 +1205,6 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
-
-
-
-
-
 
 
 

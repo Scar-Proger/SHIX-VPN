@@ -21,6 +21,8 @@ TEXTS = {
         # 🚫 вышел из канала
         "channel_left": "🚫 Вы вышли из канала, доступ к VPN отключён",
 
+        "time_year": "г.",
+        "time_month": "мес.",
         "time_day": "дн.",
         "time_hour": "ч.",
         "time_min": "мин.",
@@ -187,6 +189,8 @@ TEXTS = {
 
     "en": {
         # EN
+        "time_year": "yr.",
+        "time_month": "mo.",
         "time_day": "d",
         "time_hour": "h",
         "time_min": "min",
@@ -349,6 +353,8 @@ TEXTS = {
 
     "zh": {
         # ZH
+        "time_year": "年",
+        "time_month": "月",
         "time_day": "天",
         "time_hour": "小时",
         "time_min": "分钟",

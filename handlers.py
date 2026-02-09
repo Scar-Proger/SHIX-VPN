@@ -276,25 +276,43 @@ def format_time_left(end_date: datetime, user) -> str:
 
     total_seconds = int(delta.total_seconds())
 
-    days = total_seconds // 86400
+    # Всего дней
+    total_days = total_seconds // 86400
+
+    # Рассчитываем годы, месяцы и оставшиеся дни
+    years = total_days // 365
+    months = (total_days % 365) // 30
+    days = (total_days % 365) % 30
+
+    # Часы, минуты, секунды
     hours = (total_seconds % 86400) // 3600
     minutes = (total_seconds % 3600) // 60
     seconds = total_seconds % 60
 
-    d = t(user, "time_day")
-    h = t(user, "time_hour")
-    m = t(user, "time_min")
-    s = t(user, "time_sec")
+    # Переводы
+    y = t(user, "time_year")      # например "г."
+    mo = t(user, "time_month")    # например "мес."
+    d = t(user, "time_day")       # "дн."
+    h = t(user, "time_hour")      # "ч."
+    m = t(user, "time_min")       # "мин."
+    s = t(user, "time_sec")       # "сек."
 
+    parts = []
+
+    if years > 0:
+        parts.append(f"{years} {y}")
+    if months > 0:
+        parts.append(f"{months} {mo}")
     if days > 0:
-        return f"{days} {d} {hours} {h}"
-    elif hours > 0:
-        return f"{hours} {h} {minutes} {m}"
-    elif minutes > 0:
-        return f"{minutes} {m} {seconds} {s}"
-    else:
-        return f"{seconds} {s}"
+        parts.append(f"{days} {d}")
+    if hours > 0:
+        parts.append(f"{hours} {h}")
+    if minutes > 0:
+        parts.append(f"{minutes} {m}")
+    if seconds > 0:
+        parts.append(f"{seconds} {s}")
 
+    return " ".join(parts)
 
 
 async def ensure_user(
@@ -1225,13 +1243,6 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
-
-
-
-
-
-
-
 
 
 

@@ -1047,7 +1047,7 @@ async def topup_balance_handler(call: CallbackQuery):
     )
 
     text = (
-        "💰 *Пополнение баланса*\n\n"
+        "💰 Пополнение баланса\n\n"
         "Вы можете пополнить баланс одним из способов ниже.\n"
         "Средства зачисляются мгновенно 👇"
     )
@@ -1084,7 +1084,7 @@ async def topup_stars_handler(call: CallbackQuery):
 
     # Редактируем текущее сообщение и показываем тарифы
     await call.message.edit_caption(
-        caption="⭐ *Пополнение через Telegram Stars*\n\nВыберите тариф пополнения:",
+        caption="⭐ Пополнение через Telegram Stars\n\nВыберите тариф пополнения:",
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
@@ -1138,7 +1138,7 @@ async def successful_stars_payment(message: Message):
     _, user_id, amount = payload.split(":")
     amount = int(amount)
 
-    # 🔥 начисляем баланс звезд
+    # 🔥 начисляем баланс ЗВЁЗД
     with Session() as session:
         balance = session.query(UserBalance).filter_by(user_id=user.id).first()
         if balance:
@@ -1148,15 +1148,15 @@ async def successful_stars_payment(message: Message):
             session.add(
                 UserBalanceHistory(
                     user_id=user.id,
-                    change=0,          # персики не трогаем
-                    stars_change=amount,
+                    change=0,           # персики не трогаем
+                    stars_change=amount, 
                     reason="Пополнение через Telegram Stars"
                 )
             )
             session.commit()
 
     await message.answer(
-        f"✅ Баланс пополнен на *{amount} персик* ⭐",
+        f"✅ Баланс пополнен на *{amount} ⭐*",
         parse_mode="Markdown"
     )
 
@@ -1255,6 +1255,12 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
+
 
 
 

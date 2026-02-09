@@ -1057,8 +1057,36 @@ async def topup_stars_handler(call: CallbackQuery):
     if not user:
         return
 
-    # Пример тарифа — можешь расширить
-    tariff = 1  # или передавать через callback_data, если нужно
+    # Список тарифов
+    tariffs = [1, 100, 200, 300, 500, 1000, 2000, 3000]
+
+    builder = InlineKeyboardBuilder()
+    for tariff in tariffs:
+        # Создаём callback_data для каждого тарифа
+        builder.button(
+            text=f"{tariff} ⭐",
+            callback_data=f"select_tariff:{tariff}"
+        )
+
+    # Кнопка "Назад"
+    builder.button(text="⬅️ Назад", callback_data="topup_balance")
+
+    await call.message.answer(
+        "⭐ Выберите тариф пополнения:",
+        reply_markup=builder.as_markup()
+    )
+
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("select_tariff:"))
+async def select_tariff_handler(call: CallbackQuery):
+    user = await get_user(call.from_user.id)
+    if not user:
+        return
+
+    _, tariff_str = call.data.split(":")
+    tariff = int(tariff_str)
 
     prices = [LabeledPrice(label=f"{tariff} ⭐", amount=tariff)]
 
@@ -1068,11 +1096,11 @@ async def topup_stars_handler(call: CallbackQuery):
         payload=f"topup_stars:{user.id}:{tariff}",
         provider_token="",  # пустая строка для Stars
         currency="XTR",
-        prices=prices,
-        # reply_markup не нужен — кнопка появляется автоматически
+        prices=prices
     )
 
     await call.answer(f"Вы выбрали тариф {tariff} ⭐")
+
 
 # ------------------------------
 # Подтверждение платежа
@@ -1205,6 +1233,11 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
 
 
 

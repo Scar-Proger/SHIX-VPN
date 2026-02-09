@@ -1073,12 +1073,12 @@ async def topup_stars_handler(call: CallbackQuery):
 
     # Создаём кнопки для каждого тарифа
     keyboard_buttons = [
-        [InlineKeyboardButton(f"{tariff} ⭐", callback_data=f"pay_stars:{tariff}")]
+        [InlineKeyboardButton(text=f"{tariff} ⭐", callback_data=f"pay_stars:{tariff}")]
         for tariff in tariffs
     ]
 
     # Добавляем кнопку "назад"
-    keyboard_buttons.append([InlineKeyboardButton("⬅️ Назад", callback_data="topup_balance")])
+    keyboard_buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data="topup_balance")])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
@@ -1255,6 +1255,11 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
+
+
+
+
+
 
 
 

@@ -1050,6 +1050,7 @@ async def topup_balance_handler(call: CallbackQuery):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="⭐ Пополнить звёздами", callback_data="topup_stars")],
+            [InlineKeyboardButton(text="🍑 Конвертировать", callback_data="convert_peaches")],
             [InlineKeyboardButton(text="Назад", callback_data="back_to_menu")]
         ]
     )
@@ -1159,6 +1160,76 @@ async def successful_stars_payment(message: Message):
             session.commit()
 
     await message.answer(f"✅ Баланс пополнен на *{amount} ⭐*", parse_mode="Markdown")
+
+
+# ------------------------------
+# Конвертация звёзд в персики
+# ------------------------------
+@router.callback_query(F.data == "convert_peaches")
+async def convert_peaches_handler(call: CallbackQuery):
+    user = await get_user(call.from_user.id)
+    if not user:
+        return
+
+    # Получаем текущий баланс пользователя
+    with Session() as session:
+        balance = session.query(UserBalance).filter_by(user_id=user.id).first()
+        if not balance or balance.stars <= 0:
+            await call.answer("🚫 У вас нет звезд для конвертации", show_alert=True)
+            return
+
+        # ------------------------------
+        # Логика конвертации
+        # 1 ⭐ = 100 🍑
+        # ------------------------------
+        stars_to_convert = balance.stars
+        peaches_received = stars_to_convert * 100  # коэффициент
+
+        # Обнуляем звезды и начисляем персики
+        balance.stars = 0
+        balance.peaches = (balance.peaches or 0) + peaches_received
+
+        # Сохраняем историю конвертации
+        session.add(
+            UserBalanceHistory(
+                user_id=user.id,
+                change=0,
+                stars_change=-stars_to_convert,
+                peaches_change=peaches_received,
+                reason="Конвертация ⭐ в 🍑"
+            )
+        )
+        session.commit()
+
+    # ------------------------------
+    # Формируем новый caption с кнопкой "Назад"
+    # ------------------------------
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+        ]
+    )
+
+    caption_text = f"✅ Вы конвертировали {stars_to_convert} ⭐ в {peaches_received} 🍑!"
+
+    # Редактируем существующее сообщение
+    await call.message.edit_caption(
+        caption=caption_text,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+    await call.answer()
+
+
+
+
+
+
+
+
+
+
 
 
 # ------------------------------

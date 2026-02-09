@@ -1092,6 +1092,10 @@ async def topup_stars_handler(call: CallbackQuery):
     await call.answer()
 
 
+
+
+
+
 # ------------------------------
 # Клик по тарифу — отправка платёжки
 # ------------------------------
@@ -1111,9 +1115,9 @@ async def pay_stars_handler(call: CallbackQuery):
         title="Пополнение баланса",
         description=f"{tariff} ⭐ на баланс",
         payload=f"topup_stars:{user.id}:{tariff}",
-        provider_token="",        # Stars → всегда пусто
-        currency="XTR",           # Telegram Stars
-        prices=[LabeledPrice(label=f"{tariff} ⭐", amount=tariff)]
+        provider_token=None,        # важно!
+        currency="XTR",
+        prices=[LabeledPrice(label=f"{tariff} ⭐", amount=tariff * 100)]
     )
 
     await call.answer(f"Вы выбрали тариф {tariff} ⭐")

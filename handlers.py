@@ -1096,6 +1096,10 @@ async def topup_stars_handler(call: CallbackQuery):
 
 
 
+
+
+
+
 # ------------------------------
 # Клик по тарифу — отправка платёжки
 # ------------------------------
@@ -1117,7 +1121,7 @@ async def pay_stars_handler(call: CallbackQuery):
         payload=f"topup_stars:{user.id}:{tariff}",
         provider_token=None,        # важно!
         currency="XTR",
-        prices=[LabeledPrice(label=f"{tariff} ⭐", amount=tariff * 100)]
+        prices=[LabeledPrice(label=f"{tariff} ⭐", amount=tariff * 1)]
     )
 
     await call.answer(f"Вы выбрали тариф {tariff} ⭐")

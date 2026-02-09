@@ -74,7 +74,7 @@ TEXTS = {
         # ===== Buttons =====
         "btn_buy": "💳 Купить",
         "btn_renew": "💳 Продлить",
-        "btn_connect": "🚀 Подключиться",
+        "btn_connect": "🚀 Подключить",
         "btn_promo": "🎁 Промокод",
         "btn_help": "ℹ️ О нас",
         "btn_investments": "📈 Инвестиции (SOON)",

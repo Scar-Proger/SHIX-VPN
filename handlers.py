@@ -1013,10 +1013,6 @@ async def check_payment(callback: CallbackQuery):
     await callback.answer()
 
 
-
-
-
-
 # ------------------------------
 # Пополнение баланса
 # ------------------------------
@@ -1028,7 +1024,7 @@ async def topup_balance_handler(call: CallbackQuery):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ Оплатить звёздами", callback_data="topup_stars")],
+            [InlineKeyboardButton(text="⭐ Пополнить звёздами", callback_data="topup_stars")],
             [InlineKeyboardButton(text="Назад", callback_data="back_to_menu")]
         ]
     )
@@ -1229,11 +1225,6 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
-
-
-
-
-
 
 
 

@@ -1187,10 +1187,10 @@ async def convert_peaches_start(call: CallbackQuery, state: FSMContext):
 
     await call.message.edit_caption(
         caption=(
-            "⭐ <b>Конвертация в 🍑</b>\n\n"
-            f"Доступно: <b>{balance.stars} ⭐</b>\n"
+            "⭐ Конвертация в персики\n\n"
+            f"Доступно: {balance.stars} ⭐\n"
             "Введите количество ⭐ для обмена:\n\n"
-            "1 ⭐ = 100 🍑"
+            "1 ⭐ = 100 персиков"
         ),
         reply_markup=kb.as_markup(),
         parse_mode="HTML"
@@ -1199,6 +1199,7 @@ async def convert_peaches_start(call: CallbackQuery, state: FSMContext):
     await state.update_data(main_message_id=call.message.message_id)
     await state.set_state(ConvertStates.WAIT_STARS)
     await call.answer()
+
 
 @router.message(ConvertStates.WAIT_STARS)
 async def convert_peaches_process(message: Message, state: FSMContext):
@@ -1223,7 +1224,7 @@ async def convert_peaches_process(message: Message, state: FSMContext):
             await message.bot.edit_message_caption(
                 chat_id=message.chat.id,
                 message_id=(await state.get_data())["main_message_id"],
-                caption="❌ Недостаточно ⭐ на балансе",
+                caption="🚫 Недостаточно ⭐ на балансе",
             )
             await message.delete()
             return
@@ -1238,7 +1239,7 @@ async def convert_peaches_process(message: Message, state: FSMContext):
                 user_id=user.id,
                 change=peaches,
                 stars_change=-stars,
-                reason="Конвертация ⭐ в 🍑"
+                reason="Конвертация ⭐ в персики"
             )
         )
         session.commit()
@@ -1252,8 +1253,8 @@ async def convert_peaches_process(message: Message, state: FSMContext):
         message_id=(await state.get_data())["main_message_id"],
         caption=(
             "✅ <b>Конвертация выполнена!</b>\n\n"
-            f"⭐ Списано: <b>{stars}</b>\n"
-            f"🍑 Начислено: <b>{peaches}</b>"
+            f"⭐ Списано: {stars}\n"
+            f"Начислено: {peaches} персиков"
         ),
         reply_markup=kb.as_markup(),
         parse_mode="HTML"
@@ -1261,6 +1262,14 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
+
+
+
+
+
+
+
+
 
 
 

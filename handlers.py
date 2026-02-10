@@ -1111,7 +1111,7 @@ async def topup_stars_handler(call: CallbackQuery, state: FSMContext):
     await call.message.edit_caption(
         caption=(
             "⭐ Введите количество звёзд для пополнения\n\n"
-            "🔢 *Только цифры*\n"
+            "🔢 Только цифры\n"
             "Например: `150`"
         ),
         reply_markup=keyboard,
@@ -1125,19 +1125,37 @@ async def topup_stars_handler(call: CallbackQuery, state: FSMContext):
 # Создание счета
 # ------------------------------
 @router.message(TopUpStars.waiting_for_amount)
-async def process_stars_amount(message: Message, state: FSMContext):
+async def process_stars_amount(message: Message, call: CallbackQuery, state: FSMContext):
     user = await get_user(message.from_user.id)
     if not user:
         return
 
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+        ]
+    )
+    
     if not message.text.isdigit():
-        await message.answer("🚫 Введите *только число*, без текста")
+        await call.message.edit_caption(
+            caption=(
+                "🚫 Введите только число, без текста"
+            ),
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
         return
 
     amount = int(message.text)
 
     if amount <= 0:
-        await message.answer("🚫 Сумма должна быть больше 0")
+        await call.message.edit_caption(
+            caption=(
+                "🚫 Сумма должна быть больше 0"
+            ),
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
         return
 
     data = await state.get_data()
@@ -1149,12 +1167,6 @@ async def process_stars_amount(message: Message, state: FSMContext):
     await message.delete()
 
     prices = [LabeledPrice(label=f"{amount} ⭐", amount=amount)]
-
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
-        ]
-    )
 
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
@@ -1528,6 +1540,12 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
+
+
+
+
+
+
 
 
 

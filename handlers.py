@@ -1341,12 +1341,13 @@ async def transfer_amount(message: Message, state: FSMContext):
         sender_balance = session.query(UserBalance).filter_by(user_id=sender.id).first()
         receiver_balance = session.query(UserBalance).filter_by(user_id=target_user_id).first()
 
-        if not sender_balance or sender_balance.stars < amount:
+        # Проверяем баланс отправителя
+        if not sender_balance or sender_balance.amount < amount:
             await message.delete()
             await message.bot.edit_message_caption(
                 chat_id=message.chat.id,
                 message_id=caption_message_id,
-                caption="🚫 *Недостаточно звёзд*",
+                caption="🚫 *Недостаточно средств*",
                 parse_mode="Markdown",
                 reply_markup=InlineKeyboardMarkup(
                     inline_keyboard=[
@@ -1356,22 +1357,25 @@ async def transfer_amount(message: Message, state: FSMContext):
             )
             return
 
+        # Если у получателя ещё нет записи — создаём
         if not receiver_balance:
-            receiver_balance = UserBalance(user_id=target_user_id, stars=0)
+            receiver_balance = UserBalance(user_id=target_user_id, amount=0)
             session.add(receiver_balance)
 
-        sender_balance.stars -= amount
-        receiver_balance.stars += amount
+        # 🔥 перевод
+        sender_balance.amount -= amount
+        receiver_balance.amount += amount
 
+        # История перевода
         session.add_all([
             UserBalanceHistory(
                 user_id=sender.id,
-                stars_change=-amount,
+                change=-amount,
                 reason="Перевод пользователю"
             ),
             UserBalanceHistory(
                 user_id=target_user_id,
-                stars_change=amount,
+                change=amount,
                 reason="Получение перевода"
             )
         ])
@@ -1386,7 +1390,7 @@ async def transfer_amount(message: Message, state: FSMContext):
         message_id=caption_message_id,
         caption=(
             "✅ *Перевод выполнен*\n\n"
-            f"⭐ Отправлено: *{amount}*"
+            f"💰 Отправлено: *{amount}*"
         ),
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(
@@ -1494,6 +1498,11 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
+
+
+
+
+
 
 
 

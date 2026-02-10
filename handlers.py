@@ -78,6 +78,10 @@ class ConvertStates(StatesGroup):
 class TopUpStars(StatesGroup):
     waiting_for_amount = State()
 
+class TransferBalance(StatesGroup):
+    waiting_for_user_id = State()
+    waiting_for_amount = State()
+
 USERS_PER_PAGE = 5
 
 blocked_users = []
@@ -1058,6 +1062,7 @@ async def topup_balance_handler(call: CallbackQuery, state: FSMContext):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="⭐ Пополнить звёзды", callback_data="topup_stars")],
+            [InlineKeyboardButton(text="🔁 Перевод баланса", callback_data="transfer_balance")],
             [InlineKeyboardButton(text="🍑 Конвертировать", callback_data="convert_peaches")],
             [InlineKeyboardButton(text="Назад", callback_data="back_to_menu")]
         ]
@@ -1205,6 +1210,194 @@ async def successful_stars_payment(message: Message):
 
 
 # ------------------------------
+# Перевод баланса
+# ------------------------------
+@router.callback_query(F.data == "transfer_balance")
+async def transfer_balance_start(call: CallbackQuery, state: FSMContext):
+    await state.set_state(TransferBalance.waiting_for_user_id)
+
+    # 🔥 сохраняем message_id с caption
+    await state.update_data(caption_message_id=call.message.message_id)
+
+    await call.message.edit_caption(
+        caption=(
+            "🔁 *Перевод баланса*\n\n"
+            "Введите *Telegram ID* пользователя,\n"
+            "которому хотите перевести средства."
+        ),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+            ]
+        )
+    )
+
+    await call.answer()
+
+
+# ------------------------------
+# Получение ID для перевода баланса
+# ------------------------------
+@router.message(TransferBalance.waiting_for_user_id)
+async def transfer_get_user(message: Message, state: FSMContext):
+    data = await state.get_data()
+    caption_message_id = data.get("caption_message_id")
+
+    if not message.text.isdigit():
+        await message.delete()
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=caption_message_id,
+            caption="🚫 *Ошибка*\n\nВведите *числовой Telegram ID*",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+                ]
+            )
+        )
+        return
+
+    target_telegram_id = int(message.text)
+
+    with Session() as session:
+        target_user = session.query(User).filter_by(telegram_id=target_telegram_id).first()
+
+    await message.delete()
+
+    if not target_user:
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=caption_message_id,
+            caption="🚫 *Пользователь не найден*\n\nПопробуйте ещё раз",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+                ]
+            )
+        )
+        return
+
+    await state.update_data(target_user_id=target_user.id)
+    await state.set_state(TransferBalance.waiting_for_amount)
+
+    await message.bot.edit_message_caption(
+        chat_id=message.chat.id,
+        message_id=caption_message_id,
+        caption=(
+            "🔁 *Перевод баланса*\n\n"
+            f"👤 Получатель ID: `{target_telegram_id}`\n\n"
+            "Введите сумму для перевода:"
+        ),
+        parse_mode="Markdown"
+    )
+
+
+# ------------------------------
+# Перевода баланса пользователю
+# ------------------------------
+@router.message(TransferBalance.waiting_for_amount)
+async def transfer_amount(message: Message, state: FSMContext):
+    data = await state.get_data()
+    caption_message_id = data.get("caption_message_id")
+    target_user_id = data.get("target_user_id")
+
+    if not message.text.isdigit():
+        await message.delete()
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=caption_message_id,
+            caption="🚫 *Ошибка*\n\nВведите *число*",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+                ]
+            )
+        )
+        return
+
+    amount = int(message.text)
+
+    if amount <= 0:
+        await message.delete()
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=caption_message_id,
+            caption="🚫 *Ошибка*\n\nСумма должна быть больше 0",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+                ]
+            )
+        )
+        return
+
+    with Session() as session:
+        sender = session.query(User).filter_by(telegram_id=message.from_user.id).first()
+        sender_balance = session.query(UserBalance).filter_by(user_id=sender.id).first()
+        receiver_balance = session.query(UserBalance).filter_by(user_id=target_user_id).first()
+
+        if not sender_balance or sender_balance.stars < amount:
+            await message.delete()
+            await message.bot.edit_message_caption(
+                chat_id=message.chat.id,
+                message_id=caption_message_id,
+                caption="🚫 *Недостаточно звёзд*",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+                    ]
+                )
+            )
+            return
+
+        if not receiver_balance:
+            receiver_balance = UserBalance(user_id=target_user_id, stars=0)
+            session.add(receiver_balance)
+
+        sender_balance.stars -= amount
+        receiver_balance.stars += amount
+
+        session.add_all([
+            UserBalanceHistory(
+                user_id=sender.id,
+                stars_change=-amount,
+                reason="Перевод пользователю"
+            ),
+            UserBalanceHistory(
+                user_id=target_user_id,
+                stars_change=amount,
+                reason="Получение перевода"
+            )
+        ])
+
+        session.commit()
+
+    await message.delete()
+    await state.clear()
+
+    await message.bot.edit_message_caption(
+        chat_id=message.chat.id,
+        message_id=caption_message_id,
+        caption=(
+            "✅ *Перевод выполнен*\n\n"
+            f"⭐ Отправлено: *{amount}*"
+        ),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+            ]
+        )
+    )
+
+
+# ------------------------------
 # Конвертация звёзд в персики
 # ------------------------------
 @router.callback_query(F.data == "convert_peaches")
@@ -1301,6 +1494,13 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
+
+
+
+
+
+
+
 
 
 

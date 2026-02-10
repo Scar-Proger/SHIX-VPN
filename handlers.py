@@ -1018,7 +1018,7 @@ async def check_payment(callback: CallbackQuery):
         builder.row(
             InlineKeyboardButton(
                 text=t(user, "btn_pay"),
-                web_app=WebAppInfo(url=payment.pay_url)
+                url=payment.pay_url
             )
         )
 
@@ -1528,21 +1528,6 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

@@ -75,6 +75,9 @@ class AdminPromoStates(StatesGroup):
 class ConvertStates(StatesGroup):
     WAIT_STARS = State()
 
+class TopUpStars(StatesGroup):
+    waiting_for_amount = State()
+
 USERS_PER_PAGE = 5
 
 blocked_users = []
@@ -924,7 +927,7 @@ async def tariff_selected(callback: CallbackQuery):
         [
             InlineKeyboardButton(
                 text=t(user, "btn_pay"),
-                web_app=WebAppInfo(url=payment.pay_url)
+                url=payment.pay_url
             )
         ],
         [
@@ -1054,7 +1057,7 @@ async def topup_balance_handler(call: CallbackQuery, state: FSMContext):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ Пополнить звёздами", callback_data="topup_stars")],
+            [InlineKeyboardButton(text="⭐ Пополнить звёзды", callback_data="topup_stars")],
             [InlineKeyboardButton(text="🍑 Конвертировать", callback_data="convert_peaches")],
             [InlineKeyboardButton(text="Назад", callback_data="back_to_menu")]
         ]
@@ -1074,60 +1077,94 @@ async def topup_balance_handler(call: CallbackQuery, state: FSMContext):
 
 
 # ------------------------------
-# Пополнение звёздами — выбор тарифа
+# Пополнение звёздами
 # ------------------------------
 @router.callback_query(F.data == "topup_stars")
-async def topup_stars_handler(call: CallbackQuery):
+async def topup_stars_handler(call: CallbackQuery, state: FSMContext):
     user = await get_user(call.from_user.id)
     if not user:
         return
-    
-    await call.answer()
 
-    # Список тарифов
-    tariffs = [1, 100, 200, 300, 500, 1000, 2000, 3000]
+    await state.set_state(TopUpStars.waiting_for_amount)
 
-    # Формируем кнопки один под одним
-    keyboard_buttons = [[InlineKeyboardButton(text=f"{tariff} ⭐", callback_data=f"select_tariff:{tariff}")] for tariff in tariffs]
+    # 🔥 сохраняем ID сообщения с caption
+    await state.update_data(caption_message_id=call.message.message_id)
 
-    # Добавляем кнопку назад
-    keyboard_buttons.append([InlineKeyboardButton(text="Назад", callback_data="topup_balance")])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+        ]
+    )
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-
-    # Редактируем сообщение (не отправляем новое!)
     await call.message.edit_caption(
-        caption="⭐ Выберите тариф пополнения:",
+        caption=(
+            "⭐ Введите количество звёзд для пополнения\n\n"
+            "🔢 *Только цифры*\n"
+            "Например: `150`"
+        ),
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
 
+    await call.answer()
+
 
 # ------------------------------
-# Выбор тарифа — открываем счёт
+# Создание счета
 # ------------------------------
-@router.callback_query(F.data.startswith("select_tariff:"))
-async def select_tariff_handler(call: CallbackQuery):
-    user = await get_user(call.from_user.id)
+@router.message(TopUpStars.waiting_for_amount)
+async def process_stars_amount(message: Message, state: FSMContext):
+    user = await get_user(message.from_user.id)
     if not user:
         return
 
-    _, tariff_str = call.data.split(":")
-    tariff = int(tariff_str)
+    if not message.text.isdigit():
+        await message.answer("🚫 Введите *только число*, без текста")
+        return
 
-    prices = [LabeledPrice(label=f"{tariff} ⭐", amount=tariff)]
+    amount = int(message.text)
 
-    # Отправляем счёт на оплату — новый message, не редактируем
-    await call.message.answer_invoice(
+    if amount <= 0:
+        await message.answer("🚫 Сумма должна быть больше 0")
+        return
+
+    data = await state.get_data()
+    caption_message_id = data.get("caption_message_id")
+
+    await state.clear()
+
+    # 🧹 удаляем сообщение пользователя (по желанию, но красиво)
+    await message.delete()
+
+    prices = [LabeledPrice(label=f"{amount} ⭐", amount=amount)]
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⬅ Назад", callback_data="topup_balance")]
+        ]
+    )
+
+    await message.bot.edit_message_caption(
+        chat_id=message.chat.id,
+        message_id=caption_message_id,
+        caption=(
+            "🧾 *Счёт на пополнение сформирован*\n\n"
+            f"⭐ Количество звёзд: *{amount}*\n"
+            "💳 Счёт отправлен ниже"
+        ),
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+    # Отправляем счёт отдельным сообщением (так требует Telegram)
+    await message.answer_invoice(
         title="Пополнение баланса",
-        description=f"{tariff} ⭐ на баланс",
-        payload=f"topup_stars:{user.id}:{tariff}",
-        provider_token="",  # пустая строка для Stars
+        description=f"{amount} ⭐ на баланс",
+        payload=f"topup_stars:{user.id}:{amount}",
+        provider_token="",
         currency="XTR",
         prices=prices
     )
-
-    await call.answer(f"Вы выбрали тариф {tariff} ⭐")
 
 
 # ------------------------------
@@ -1175,8 +1212,6 @@ async def convert_peaches_start(call: CallbackQuery, state: FSMContext):
     user = await get_user(call.from_user.id)
     if not user:
         return
-    
-    await call.answer()
 
     with Session() as session:
         balance = session.query(UserBalance).filter_by(user_id=user.id).first()
@@ -1202,7 +1237,8 @@ async def convert_peaches_start(call: CallbackQuery, state: FSMContext):
 
     await state.update_data(main_message_id=call.message.message_id)
     await state.set_state(ConvertStates.WAIT_STARS)
-
+    await call.answer()
+    
 
 @router.message(ConvertStates.WAIT_STARS)
 async def convert_peaches_process(message: Message, state: FSMContext):

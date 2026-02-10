@@ -1125,45 +1125,45 @@ async def topup_stars_handler(call: CallbackQuery, state: FSMContext):
 # Создание счета
 # ------------------------------
 @router.message(TopUpStars.waiting_for_amount)
-async def process_stars_amount(message: Message, call: CallbackQuery, state: FSMContext):
+async def process_stars_amount(message: Message, state: FSMContext):
     user = await get_user(message.from_user.id)
     if not user:
         return
+
+    data = await state.get_data()
+    caption_message_id = data.get("caption_message_id")
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
         ]
     )
-    
+
     if not message.text.isdigit():
-        await call.message.edit_caption(
-            caption=(
-                "🚫 Введите только число, без текста"
-            ),
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=caption_message_id,
+            caption="🚫 Введите только число, без текста",
             reply_markup=keyboard,
             parse_mode="Markdown"
         )
+        await message.delete()
         return
 
     amount = int(message.text)
 
     if amount <= 0:
-        await call.message.edit_caption(
-            caption=(
-                "🚫 Сумма должна быть больше 0"
-            ),
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=caption_message_id,
+            caption="🚫 Сумма должна быть больше 0",
             reply_markup=keyboard,
             parse_mode="Markdown"
         )
+        await message.delete()
         return
 
-    data = await state.get_data()
-    caption_message_id = data.get("caption_message_id")
-
     await state.clear()
-
-    # 🧹 удаляем сообщение пользователя (по желанию, но красиво)
     await message.delete()
 
     prices = [LabeledPrice(label=f"{amount} ⭐", amount=amount)]
@@ -1172,20 +1172,20 @@ async def process_stars_amount(message: Message, call: CallbackQuery, state: FSM
         chat_id=message.chat.id,
         message_id=caption_message_id,
         caption=(
-            "🧾 *Счёт на пополнение сформирован*\n\n"
+            f"🧾 Счёт на пополнение сформирован\n\n"
             f"⭐ Количество звёзд: *{amount}*\n"
-            "💳 Счёт отправлен ниже"
+            f"💳 Счёт отправлен ниже"
         ),
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
 
-    # Отправляем счёт отдельным сообщением (так требует Telegram)
+    # ⚠️ Инвойс ВСЕГДА отдельным сообщением
     await message.answer_invoice(
         title="Пополнение баланса",
         description=f"{amount} ⭐ на баланс",
         payload=f"topup_stars:{user.id}:{amount}",
-        provider_token="",
+        provider_token="",  # Telegram Stars → пусто
         currency="XTR",
         prices=prices
     )
@@ -1540,6 +1540,11 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
+
+
+
+
+
 
 
 

@@ -1173,7 +1173,7 @@ async def process_stars_amount(message: Message, state: FSMContext):
         message_id=caption_message_id,
         caption=(
             f"🧾 Счёт на пополнение сформирован\n\n"
-            f"⭐ Количество звёзд: *{amount}*\n"
+            f"⭐ Количество звёзд: `{amount}`\n"
             f"💳 Счёт отправлен ниже"
         ),
         reply_markup=keyboard,
@@ -1262,6 +1262,12 @@ async def transfer_get_user(message: Message, state: FSMContext):
     data = await state.get_data()
     caption_message_id = data.get("caption_message_id")
 
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+        ]
+    )
+
     if not message.text.isdigit():
         await message.delete()
         await safe_edit_caption (
@@ -1270,11 +1276,7 @@ async def transfer_get_user(message: Message, state: FSMContext):
             message_id=caption_message_id,
             caption="🚫 Ошибка\n\nВведите числовой Telegram ID",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
-                ]
-            )
+            reply_markup=keyboard
         )
         return
 
@@ -1292,11 +1294,7 @@ async def transfer_get_user(message: Message, state: FSMContext):
             message_id=caption_message_id,
             caption="🚫 Пользователь не найден\n\nПопробуйте ещё раз",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
-                ]
-            )
+            reply_markup=keyboard
         )
         return
 
@@ -1317,7 +1315,8 @@ async def transfer_get_user(message: Message, state: FSMContext):
             f"💰 Ваш баланс: `{amount}` персиков\n\n"
             "Введите сумму для перевода персиков:"
         ),
-        parse_mode="Markdown"
+        parse_mode="Markdown",
+        reply_markup=keyboard
     )
 
 
@@ -1330,6 +1329,18 @@ async def transfer_amount(message: Message, state: FSMContext):
     caption_message_id = data.get("caption_message_id")
     target_user_id = data.get("target_user_id")
 
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+        ]
+    )
+
+    menu = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Назад", callback_data="back_to_menu")]
+        ]
+    )
+
     if not message.text.isdigit():
         await message.delete()
         await safe_edit_caption(
@@ -1338,11 +1349,7 @@ async def transfer_amount(message: Message, state: FSMContext):
             message_id=caption_message_id,
             caption="🚫 Ошибка\n\nВведите число",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
-                ]
-            )
+            reply_markup=keyboard
         )
         return
 
@@ -1356,11 +1363,7 @@ async def transfer_amount(message: Message, state: FSMContext):
             message_id=caption_message_id,
             caption="🚫 Ошибка\n\nСумма должна быть больше 0",
             parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
-                ]
-            )
+            reply_markup=keyboard
         )
         return
 
@@ -1389,11 +1392,7 @@ async def transfer_amount(message: Message, state: FSMContext):
                 message_id=caption_message_id,
                 caption="🚫 Недостаточно средств",
                 parse_mode="Markdown",
-                reply_markup=InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
-                    ]
-                )
+                reply_markup=keyboard
             )
             return
 
@@ -1436,11 +1435,7 @@ async def transfer_amount(message: Message, state: FSMContext):
             f"💰 Отправлено: {amount} персиков"
         ),
         parse_mode="Markdown",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
-            ]
-        )
+        reply_markup=keyboard
     )
 
     # ✨ уведомляем получателя
@@ -1448,11 +1443,12 @@ async def transfer_amount(message: Message, state: FSMContext):
         await message.bot.send_message(
             chat_id=receiver_tg_id,
             text=(
-                "💸 *Вы получили перевод*\n\n"
+                "💸 Вы получили перевод:\n\n"
                 f"От: {sender_name} (`{sender_tg_id}`)\n"
                 f"Сумма: `{amount}` персиков"
             ),
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            reply_markup=menu
         )
     except Exception as e:
         logger.warning(f"Не удалось уведомить получателя: {e}")
@@ -1499,6 +1495,10 @@ async def convert_peaches_process(message: Message, state: FSMContext):
     if not message.text.isdigit():
         await message.delete()
         return
+    
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Назад", callback_data="topup_balance")
+    kb.adjust(1)
 
     stars = int(message.text)
     if stars <= 0:
@@ -1518,6 +1518,7 @@ async def convert_peaches_process(message: Message, state: FSMContext):
                 chat_id=message.chat.id,
                 message_id=(await state.get_data())["main_message_id"],
                 caption="🚫 Недостаточно ⭐ на балансе",
+                reply_markup=kb.as_markup(),
             )
             await message.delete()
             return
@@ -1537,10 +1538,6 @@ async def convert_peaches_process(message: Message, state: FSMContext):
         )
         session.commit()
 
-    kb = InlineKeyboardBuilder()
-    kb.button(text="Назад", callback_data="topup_balance")
-    kb.adjust(1)
-
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
         message_id=(await state.get_data())["main_message_id"],
@@ -1556,6 +1553,12 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
+
+
+
+
+
+
 
 
 

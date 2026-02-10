@@ -99,6 +99,21 @@ async def get_user_balance(user_id: int):
         if not balance:
             return 0, 0
         return balance.amount, balance.stars
+    
+async def safe_edit_caption(bot, chat_id, message_id, caption, reply_markup=None, parse_mode="Markdown"):
+    try:
+        await bot.edit_message_caption(
+            chat_id=chat_id,
+            message_id=message_id,
+            caption=caption,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup
+        )
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            return
+        raise  
+
 
     
 # ------------------------------
@@ -1246,7 +1261,7 @@ async def transfer_get_user(message: Message, state: FSMContext):
 
     if not message.text.isdigit():
         await message.delete()
-        await message.bot.edit_message_caption(
+        await safe_edit_caption (
             chat_id=message.chat.id,
             message_id=caption_message_id,
             caption="🚫 Ошибка\n\nВведите числовой Telegram ID",
@@ -1267,7 +1282,7 @@ async def transfer_get_user(message: Message, state: FSMContext):
     await message.delete()
 
     if not target_user:
-        await message.bot.edit_message_caption(
+        await safe_edit_caption (
             chat_id=message.chat.id,
             message_id=caption_message_id,
             caption="🚫 Пользователь не найден\n\nПопробуйте ещё раз",
@@ -1306,7 +1321,7 @@ async def transfer_amount(message: Message, state: FSMContext):
 
     if not message.text.isdigit():
         await message.delete()
-        await message.bot.edit_message_caption(
+        await safe_edit_caption(
             chat_id=message.chat.id,
             message_id=caption_message_id,
             caption="🚫 Ошибка\n\nВведите число",
@@ -1323,7 +1338,7 @@ async def transfer_amount(message: Message, state: FSMContext):
 
     if amount <= 0:
         await message.delete()
-        await message.bot.edit_message_caption(
+        await safe_edit_caption (
             chat_id=message.chat.id,
             message_id=caption_message_id,
             caption="🚫 Ошибка\n\nСумма должна быть больше 0",
@@ -1346,7 +1361,7 @@ async def transfer_amount(message: Message, state: FSMContext):
         # Проверяем баланс отправителя
         if not sender_balance or sender_balance.amount < amount:
             await message.delete()
-            await message.bot.edit_message_caption(
+            await safe_edit_caption (
                 chat_id=message.chat.id,
                 message_id=caption_message_id,
                 caption="🚫 *Недостаточно средств*",
@@ -1516,6 +1531,13 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
+
+
+
+
+
+
+
 
 
 

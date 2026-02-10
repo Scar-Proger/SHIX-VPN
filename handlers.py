@@ -1225,7 +1225,7 @@ async def successful_stars_payment(message: Message):
             ))
             session.commit()
 
-    await message.answer(f"✅ Баланс пополнен на *{amount} ⭐*", parse_mode="Markdown")
+    await message.answer(f"✅ Баланс пополнен на {amount} ⭐", parse_mode="Markdown")
 
 
 # ------------------------------
@@ -1300,8 +1300,13 @@ async def transfer_get_user(message: Message, state: FSMContext):
         )
         return
 
+    # 🔥 сохраняем ID получателя
     await state.update_data(target_user_id=target_user.id)
     await state.set_state(TransferBalance.waiting_for_amount)
+
+    # 🔥 ПОЛУЧАЕМ БАЛАНС ОТПРАВИТЕЛЯ
+    sender = await get_user(message.from_user.id)
+    amount, _ = await get_user_balance(sender.id)
 
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
@@ -1309,7 +1314,8 @@ async def transfer_get_user(message: Message, state: FSMContext):
         caption=(
             "🔁 Перевод баланса\n\n"
             f"👤 Получатель ID: `{target_telegram_id}`\n\n"
-            "Введите сумму для перевода:"
+            f"💰 Ваш баланс: `{amount}` персиков\n\n"
+            "Введите сумму для перевода персиков:"
         ),
         parse_mode="Markdown"
     )
@@ -1359,17 +1365,26 @@ async def transfer_amount(message: Message, state: FSMContext):
         return
 
     with Session() as session:
-        # Получаем отправителя и получателя
-        sender = session.query(User).filter_by(telegram_id=message.from_user.id).first()
-        sender_balance = session.query(UserBalance).filter_by(user_id=sender.id).first()
-        receiver = session.query(User).filter_by(id=target_user_id).first()
-        receiver_balance = session.query(UserBalance).filter_by(user_id=target_user_id).first()
+        sender = session.query(User).filter_by(
+            telegram_id=message.from_user.id
+        ).first()
 
-        # Проверяем баланс отправителя
+        receiver = session.query(User).filter_by(
+            id=target_user_id
+        ).first()
+
+        sender_balance = session.query(UserBalance).filter_by(
+            user_id=sender.id
+        ).first()
+
+        receiver_balance = session.query(UserBalance).filter_by(
+            user_id=receiver.id
+        ).first()
+
         if not sender_balance or sender_balance.amount < amount:
             await message.delete()
-            await safe_edit_caption (
-                bot=message.bot,  
+            await safe_edit_caption(
+                bot=message.bot,
                 chat_id=message.chat.id,
                 message_id=caption_message_id,
                 caption="🚫 Недостаточно средств",
@@ -1382,26 +1397,28 @@ async def transfer_amount(message: Message, state: FSMContext):
             )
             return
 
-        # Если у получателя ещё нет баланса — создаём
         if not receiver_balance:
-            receiver_balance = UserBalance(user_id=target_user_id, amount=0)
+            receiver_balance = UserBalance(user_id=receiver.id, amount=0)
             session.add(receiver_balance)
 
-        # 🔥 перевод
         sender_balance.amount -= amount
         receiver_balance.amount += amount
 
-        # История перевода
+        # 🔥 СОХРАНЯЕМ ВСЁ НУЖНОЕ В ПЕРЕМЕННЫЕ
+        receiver_tg_id = receiver.telegram_id
+        sender_tg_id = sender.telegram_id
+        sender_name = sender.full_name or sender.username or str(sender.telegram_id)
+
         session.add_all([
             UserBalanceHistory(
                 user_id=sender.id,
                 change=-amount,
-                reason=f"Перевод пользователю {receiver.full_name or receiver.username or receiver.telegram_id}"
+                reason=f"Перевод пользователю {receiver.telegram_id}"
             ),
             UserBalanceHistory(
                 user_id=receiver.id,
                 change=amount,
-                reason=f"Получение перевода от {sender.full_name or sender.username or sender.telegram_id}"
+                reason=f"Получение перевода от {sender_name}"
             )
         ])
 
@@ -1416,7 +1433,7 @@ async def transfer_amount(message: Message, state: FSMContext):
         message_id=caption_message_id,
         caption=(
             "✅ Перевод выполнен\n\n"
-            f"💰 Отправлено: *{amount}*"
+            f"💰 Отправлено: {amount} персиков"
         ),
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(
@@ -1428,13 +1445,12 @@ async def transfer_amount(message: Message, state: FSMContext):
 
     # ✨ уведомляем получателя
     try:
-        sender_name = sender.full_name or sender.username or sender.telegram_id
         await message.bot.send_message(
-            chat_id=receiver.telegram_id,
+            chat_id=receiver_tg_id,
             text=(
-                "💸 Вы получили перевод\n\n"
-                f"От: {sender_name} (`{sender.telegram_id}`)\n"
-                f"Сумма: {amount}"
+                "💸 *Вы получили перевод*\n\n"
+                f"От: {sender_name} (`{sender_tg_id}`)\n"
+                f"Сумма: `{amount}` персиков"
             ),
             parse_mode="Markdown"
         )

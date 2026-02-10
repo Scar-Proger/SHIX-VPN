@@ -1140,7 +1140,7 @@ async def process_stars_amount(message: Message, state: FSMContext):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⬅ Назад", callback_data="topup_balance")]
+            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
         ]
     )
 
@@ -1301,11 +1301,6 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
-
-
-
-
-
 
 
 

@@ -1262,6 +1262,7 @@ async def transfer_get_user(message: Message, state: FSMContext):
     if not message.text.isdigit():
         await message.delete()
         await safe_edit_caption (
+            bot=message.bot,  
             chat_id=message.chat.id,
             message_id=caption_message_id,
             caption="🚫 Ошибка\n\nВведите числовой Telegram ID",
@@ -1283,6 +1284,7 @@ async def transfer_get_user(message: Message, state: FSMContext):
 
     if not target_user:
         await safe_edit_caption (
+            bot=message.bot,  
             chat_id=message.chat.id,
             message_id=caption_message_id,
             caption="🚫 Пользователь не найден\n\nПопробуйте ещё раз",
@@ -1322,6 +1324,7 @@ async def transfer_amount(message: Message, state: FSMContext):
     if not message.text.isdigit():
         await message.delete()
         await safe_edit_caption(
+            bot=message.bot,
             chat_id=message.chat.id,
             message_id=caption_message_id,
             caption="🚫 Ошибка\n\nВведите число",
@@ -1339,6 +1342,7 @@ async def transfer_amount(message: Message, state: FSMContext):
     if amount <= 0:
         await message.delete()
         await safe_edit_caption (
+            bot=message.bot,  
             chat_id=message.chat.id,
             message_id=caption_message_id,
             caption="🚫 Ошибка\n\nСумма должна быть больше 0",
@@ -1362,6 +1366,7 @@ async def transfer_amount(message: Message, state: FSMContext):
         if not sender_balance or sender_balance.amount < amount:
             await message.delete()
             await safe_edit_caption (
+                bot=message.bot,  
                 chat_id=message.chat.id,
                 message_id=caption_message_id,
                 caption="🚫 *Недостаточно средств*",
@@ -1531,6 +1536,13 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
+
+
+
+
+
+
+
 
 
 

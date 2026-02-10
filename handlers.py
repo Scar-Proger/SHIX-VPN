@@ -86,8 +86,8 @@ USERS_PER_PAGE = 5
 
 blocked_users = []
 
-STARS_PACK_AMOUNT = 100   # сколько персиков даём
-STARS_PRICE = 50          # цена в звёздах
+STAR_TO_RUB_RATE = 1.82
+
 
 async def get_payment_by_tx(transaction_id: str) -> Payment | None:
     with Session() as session:
@@ -884,16 +884,6 @@ async def renew_cb(callback: CallbackQuery):
         [InlineKeyboardButton(text=t(user, "tariff_6m"), callback_data="tariff_6m")],
         [InlineKeyboardButton(text=t(user, "tariff_1y"), callback_data="tariff_1y")],
         [InlineKeyboardButton(text=t(user, "tariff_2y"), callback_data="tariff_2y")],
-
-        # 🔹 новые кнопки оплаты
-        #[
-        #    InlineKeyboardButton(text="💎 Оплата через звёзды", callback_data="pay_with_stars"),
-        #],
-
-        #[
-        #    InlineKeyboardButton(text="💳 Оплата картой", callback_data="pay_with_card")
-        #],
-
         [InlineKeyboardButton(text=t(user, "back"), callback_data="back_to_menu")]
     ])
 
@@ -1077,16 +1067,18 @@ async def topup_balance_handler(call: CallbackQuery, state: FSMContext):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="⭐ Пополнить звёзды", callback_data="topup_stars")],
-            [InlineKeyboardButton(text="🔁 Перевод баланса", callback_data="transfer_balance")],
-            [InlineKeyboardButton(text="🍑 Конвертировать", callback_data="convert_peaches")],
+            [InlineKeyboardButton(text="💳 Переводы", callback_data="transfer_balance")],
+            [InlineKeyboardButton(text="💎 Обменять", callback_data="convert_peaches")],
             [InlineKeyboardButton(text="Назад", callback_data="back_to_menu")]
         ]
     )
 
+    amount, stars = await get_user_balance(user.id)
+
     text = (
-        "💰 Пополнение баланса\n\n"
-        "Вы можете пополнить баланс одним из способов ниже.\n"
-        "Средства зачисляются мгновенно 👇"
+        "💰 Баланс:\n"
+        f"{amount} персиков\n\n"
+        f"{stars} ⭐️"
     )
 
     await call.message.edit_caption(
@@ -1236,9 +1228,8 @@ async def transfer_balance_start(call: CallbackQuery, state: FSMContext):
 
     await call.message.edit_caption(
         caption=(
-            "🔁 *Перевод баланса*\n\n"
-            "Введите Telegram ID пользователя,\n"
-            "которому хотите перевести средства."
+            "🔁 Перевод баланса\n\n"
+            "Введите Telegram ID пользователя, которому хотите перевести средства."
         ),
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(
@@ -1369,7 +1360,7 @@ async def transfer_amount(message: Message, state: FSMContext):
                 bot=message.bot,  
                 chat_id=message.chat.id,
                 message_id=caption_message_id,
-                caption="🚫 *Недостаточно средств*",
+                caption="🚫 Недостаточно средств",
                 parse_mode="Markdown",
                 reply_markup=InlineKeyboardMarkup(
                     inline_keyboard=[
@@ -1412,7 +1403,7 @@ async def transfer_amount(message: Message, state: FSMContext):
         chat_id=message.chat.id,
         message_id=caption_message_id,
         caption=(
-            "✅ *Перевод выполнен*\n\n"
+            "✅ Перевод выполнен\n\n"
             f"💰 Отправлено: *{amount}*"
         ),
         parse_mode="Markdown",
@@ -1429,9 +1420,9 @@ async def transfer_amount(message: Message, state: FSMContext):
         await message.bot.send_message(
             chat_id=receiver.telegram_id,
             text=(
-                "💸 *Вы получили перевод*\n\n"
+                "💸 Вы получили перевод\n\n"
                 f"От: {sender_name} (`{sender.telegram_id}`)\n"
-                f"Сумма: *{amount}*"
+                f"Сумма: {amount}"
             ),
             parse_mode="Markdown"
         )
@@ -1461,10 +1452,10 @@ async def convert_peaches_start(call: CallbackQuery, state: FSMContext):
 
     await call.message.edit_caption(
         caption=(
-            "⭐ Конвертация в персики\n\n"
-            f"Доступно: {balance.stars} ⭐\n"
-            "Введите количество ⭐ для обмена:\n\n"
-            "1 ⭐ = 100 персиков"
+            "⭐ Конвертация звёзд\n\n"
+            f"Доступно: {balance.stars} ⭐\n\n"
+            f"Курс: 1 ⭐ = {STAR_TO_RUB_RATE} персиков\n\n"
+            "Введите количество ⭐ для обмена:"
         ),
         reply_markup=kb.as_markup(),
         parse_mode="HTML"
@@ -1503,7 +1494,7 @@ async def convert_peaches_process(message: Message, state: FSMContext):
             await message.delete()
             return
 
-        peaches = stars * 100
+        peaches = int(stars * STAR_TO_RUB_RATE)
 
         balance.stars -= stars
         balance.amount += peaches
@@ -1526,9 +1517,10 @@ async def convert_peaches_process(message: Message, state: FSMContext):
         chat_id=message.chat.id,
         message_id=(await state.get_data())["main_message_id"],
         caption=(
-            "✅ <b>Конвертация выполнена!</b>\n\n"
+            "✅ Конвертация выполнена!\n\n"
             f"⭐ Списано: {stars}\n"
-            f"Начислено: {peaches} персиков"
+            f"💰 Начислено: {peaches} персиков\n\n"
+            f"Курс: 1 ⭐ = {STAR_TO_RUB_RATE} ₽"
         ),
         reply_markup=kb.as_markup(),
         parse_mode="HTML"
@@ -1536,12 +1528,6 @@ async def convert_peaches_process(message: Message, state: FSMContext):
 
     await message.delete()
     await state.clear()
-
-
-
-
-
-
 
 
 

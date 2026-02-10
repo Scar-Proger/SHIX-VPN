@@ -146,11 +146,11 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 Тарифы временно недоступны",
 
-        "tariff_1m": "99 ₽/мес — 1 месяц",
-        "tariff_3m": "89 ₽/мес — 3 месяца",
-        "tariff_6m": "79 ₽/мес — 6 месяцев",
-        "tariff_1y": "59 ₽/мес — 1 год",
-        "tariff_2y": "49 ₽/мес — 2 года",
+        "tariff_1m": "299 ₽/мес — 1 месяц",
+        "tariff_3m": "239 ₽/мес — 3 месяца",
+        "tariff_6m": "199 ₽/мес — 6 месяцев",
+        "tariff_1y": "179 ₽/мес — 1 год",
+        "tariff_2y": "149 ₽/мес — 2 года",
 
         "pay_tariff": "🧾 *Тариф:* {title}",
         "pay_price": "💰 *Цена:* {price} ₽ / мес",
@@ -312,11 +312,11 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 Tariffs are temporarily unavailable",
 
-        "tariff_1m": "99 ₽/mo — 1 month",
-        "tariff_3m": "89 ₽/mo — 3 months",
-        "tariff_6m": "79 ₽/mo — 6 months",
-        "tariff_1y": "59 ₽/mo — 1 year",
-        "tariff_2y": "49 ₽/mo — 2 years",
+        "tariff_1m": "299 ₽/mo — 1 month",
+        "tariff_3m": "239 ₽/mo — 3 months",
+        "tariff_6m": "199 ₽/mo — 6 months",
+        "tariff_1y": "179 ₽/mo — 1 year",
+        "tariff_2y": "149 ₽/mo — 2 years",
 
         "pay_tariff": "🧾 *Tariff:* {title}",
         "pay_price": "💰 *Price:* {price} ₽ / mo",
@@ -479,11 +479,11 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 套餐暂时不可用。",
 
-        "tariff_1m": "99 ₽/月 — 1 个月",
-        "tariff_3m": "89 ₽/月 — 3 个月",
-        "tariff_6m": "79 ₽/月 — 6 个月",
-        "tariff_1y": "59 ₽/月 — 1 年",
-        "tariff_2y": "49 ₽/月 — 2 年",
+        "tariff_1m": "299 ₽/月 — 1 个月",
+        "tariff_3m": "239 ₽/月 — 3 个月",
+        "tariff_6m": "199 ₽/月 — 6 个月",
+        "tariff_1y": "179 ₽/月 — 1 年",
+        "tariff_2y": "149 ₽/月 — 2 年",
 
         "pay_tariff": "🧾 *套餐:* {title}",
         "pay_price": "💰 *价格:* {price} ₽ / 月",
@@ -521,9 +521,9 @@ TEXTS = {
 
 
 TARIFFS = {
-    "tariff_1m": {"price": 99, "months": 1},
-    "tariff_3m": {"price": 89, "months": 3},
-    "tariff_6m": {"price": 79, "months": 6},
-    "tariff_1y": {"price": 59, "months": 12},
-    "tariff_2y": {"price": 49, "months": 24},
+    "tariff_1m": {"price": 299, "months": 1},
+    "tariff_3m": {"price": 239, "months": 3},
+    "tariff_6m": {"price": 199, "months": 6},
+    "tariff_1y": {"price": 179, "months": 12},
+    "tariff_2y": {"price": 149, "months": 24},
 }

@@ -1078,6 +1078,16 @@ async def check_payment(callback: CallbackQuery):
     await callback.answer()
 
 
+
+
+
+
+
+
+
+
+
+
 # ------------------------------
 # Пополнение баланса
 # ------------------------------
@@ -1251,22 +1261,6 @@ async def successful_stars_payment(message: Message):
             session.commit()
 
     await message.answer(f"✅ Баланс пополнен на {amount} ⭐", parse_mode="Markdown")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # ------------------------------
@@ -1548,7 +1542,7 @@ async def convert_stars_to_peaches(call: CallbackQuery, state: FSMContext):
                             main_message_id=call.message.message_id)
 
     kb = InlineKeyboardBuilder()
-    kb.button(text="Назад", callback_data="topup_balance")
+    kb.button(text="Назад", callback_data="convert_peaches")
     kb.adjust(1)
 
     await call.message.edit_caption(
@@ -1573,7 +1567,7 @@ async def convert_peaches_to_stars(call: CallbackQuery, state: FSMContext):
                             main_message_id=call.message.message_id)
     
     kb = InlineKeyboardBuilder()
-    kb.button(text="Назад", callback_data="topup_balance")
+    kb.button(text="Назад", callback_data="convert_peaches")
     kb.adjust(1)
 
     await call.message.edit_caption(
@@ -1724,10 +1718,6 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
 
     await state.clear()
     await call.answer()
-
-
-
-
 
 
 

@@ -1520,12 +1520,17 @@ async def convert_stars_to_peaches(call: CallbackQuery, state: FSMContext):
     await state.update_data(direction="stars_to_peaches",
                             main_message_id=call.message.message_id)
 
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Назад", callback_data="topup_balance")
+    kb.adjust(1)
+
     await call.message.edit_caption(
         caption=(
             "⭐ STARS → Персики || Конвертация\n\n"
             f"Курс: 1 STARS = {STAR_TO_RUB_RATE} персиков\n\n"
             "Введите количество ⭐ STARS:"
-        )
+        ),
+        reply_markup=kb.as_markup()
     )
 
     await state.set_state(ConvertStates.WAIT_AMOUNT)
@@ -1539,13 +1544,18 @@ async def convert_stars_to_peaches(call: CallbackQuery, state: FSMContext):
 async def convert_peaches_to_stars(call: CallbackQuery, state: FSMContext):
     await state.update_data(direction="peaches_to_stars",
                             main_message_id=call.message.message_id)
+    
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Назад", callback_data="topup_balance")
+    kb.adjust(1)
 
     await call.message.edit_caption(
         caption=(
             "🍑 → ⭐ Конвертация\n\n"
             f"Курс: 1 ⭐ = {STAR_TO_RUB_RATE} персиков\n\n"
             "Введите количество 🍑:"
-        )
+        ),
+        reply_markup=kb.as_markup()
     )
 
     await state.set_state(ConvertStates.WAIT_AMOUNT)
@@ -1557,17 +1567,37 @@ async def convert_peaches_to_stars(call: CallbackQuery, state: FSMContext):
 # ------------------------------
 @router.message(ConvertStates.WAIT_AMOUNT)
 async def convert_amount_process(message: Message, state: FSMContext):
+    data = await state.get_data()
+    main_message_id = data["main_message_id"]
+    direction = data["direction"]
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Назад", callback_data="convert_peaches")]
+        ]
+    )
+
     if not message.text.isdigit():
         await message.delete()
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=main_message_id,
+            caption="🚫 Введите число.",
+            reply_markup=keyboard
+        )
         return
 
     amount = int(message.text)
+
     if amount <= 0:
         await message.delete()
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=main_message_id,
+            caption="🚫 Сумма должна быть больше 0.",
+            reply_markup=keyboard
+        )
         return
-
-    data = await state.get_data()
-    direction = data["direction"]
 
     user = await get_user(message.from_user.id)
     if not user:
@@ -1580,6 +1610,15 @@ async def convert_amount_process(message: Message, state: FSMContext):
         if direction == "stars_to_peaches":
             if amount > balance.stars:
                 await message.delete()
+                await message.bot.edit_message_caption(
+                    chat_id=message.chat.id,
+                    message_id=main_message_id,
+                    caption=(
+                        "🚫 Недостаточно ⭐ STARS\n\n"
+                        f"Ваш баланс: {balance.stars}"
+                    ),
+                    reply_markup=keyboard
+                )
                 return
 
             result = int(amount * STAR_TO_RUB_RATE)
@@ -1587,6 +1626,15 @@ async def convert_amount_process(message: Message, state: FSMContext):
         else:  # peaches_to_stars
             if amount > balance.amount:
                 await message.delete()
+                await message.bot.edit_message_caption(
+                    chat_id=message.chat.id,
+                    message_id=main_message_id,
+                    caption=(
+                        "🚫 Недостаточно персиков\n\n"
+                        f"Ваш баланс: {balance.amount}"
+                    ),
+                    reply_markup=keyboard
+                )
                 return
 
             result = int(amount / STAR_TO_RUB_RATE)
@@ -1598,7 +1646,7 @@ async def convert_amount_process(message: Message, state: FSMContext):
 
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
-        message_id=data["main_message_id"],
+        message_id=main_message_id,
         caption=(
             "🔄 Подтверждение обмена\n\n"
             f"Отдаёте: {amount}\n"
@@ -1610,6 +1658,7 @@ async def convert_amount_process(message: Message, state: FSMContext):
 
     await state.update_data(amount=amount, result=result)
     await state.set_state(ConvertStates.CONFIRM)
+
     await message.delete()
 
 
@@ -1625,6 +1674,10 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
 
     user = await get_user(call.from_user.id)
 
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Назад", callback_data="topup_balance")
+    kb.adjust(1)
+
     with Session() as session:
         balance = session.query(UserBalance).filter_by(user_id=user.id).first()
 
@@ -1638,7 +1691,8 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
         session.commit()
 
     await call.message.edit_caption(
-        caption="✅ Обмен успешно выполнен!"
+        caption="✅ Обмен успешно выполнен!",
+        reply_markup=kb.as_markup()
     )
 
     await state.clear()

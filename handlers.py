@@ -1088,6 +1088,10 @@ async def check_payment(callback: CallbackQuery):
 
 
 
+
+
+
+
 # ------------------------------
 # Пополнение баланса
 # ------------------------------
@@ -1101,7 +1105,7 @@ async def topup_balance_handler(call: CallbackQuery, state: FSMContext):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Пополнить баланс", callback_data="topup_stars")],
+            [InlineKeyboardButton(text="💳 Пополнить", callback_data="topup_stars")],
             [InlineKeyboardButton(text="💰 Перевести", callback_data="transfer_balance")],
             [InlineKeyboardButton(text="💎 Обменять", callback_data="convert_peaches")],
             [InlineKeyboardButton(text="Назад", callback_data="back_to_menu")]

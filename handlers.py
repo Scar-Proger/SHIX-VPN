@@ -101,7 +101,14 @@ async def get_user_balance(user_id: int):
             return 0, 0
         return balance.amount, balance.stars
     
-async def safe_edit_caption(bot, chat_id, message_id, caption, reply_markup=None, parse_mode="Markdown"):
+async def safe_edit_caption(
+    bot,
+    chat_id: int,
+    message_id: int,
+    caption: str,
+    reply_markup=None,
+    parse_mode: str = "Markdown"
+):
     try:
         await bot.edit_message_caption(
             chat_id=chat_id,
@@ -110,13 +117,30 @@ async def safe_edit_caption(bot, chat_id, message_id, caption, reply_markup=None
             parse_mode=parse_mode,
             reply_markup=reply_markup
         )
+
     except TelegramBadRequest as e:
-        if "message is not modified" in str(e):
+        error_text = str(e)
+
+        if "message is not modified" in error_text:
             return
-        raise  
+
+        if "message to edit not found" in error_text:
+            return
+
+        if "message can't be edited" in error_text:
+            return
+
+        raise
 
 
     
+
+
+
+
+
+
+
 # ------------------------------
 # Получение промокода из БД
 # ------------------------------
@@ -1227,9 +1251,6 @@ async def successful_stars_payment(message: Message):
             session.commit()
 
     await message.answer(f"✅ Баланс пополнен на {amount} ⭐", parse_mode="Markdown")
-
-
-
 
 
 

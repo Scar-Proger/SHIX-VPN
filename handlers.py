@@ -1548,8 +1548,8 @@ async def convert_stars_to_peaches(call: CallbackQuery, state: FSMContext):
     await call.message.edit_caption(
         caption=(
             "⭐ STARS → Персики || Конвертация\n\n"
-            f"Курс: 1 STARS = {STAR_TO_RUB_RATE} персиков\n\n"
-            "Введите количество ⭐ STARS:"
+            f"Курс: 1 ⭐ STARS = {STAR_TO_RUB_RATE} персиков\n\n"
+            "Введите количество STARS:"
         ),
         reply_markup=kb.as_markup()
     )
@@ -1572,9 +1572,9 @@ async def convert_peaches_to_stars(call: CallbackQuery, state: FSMContext):
 
     await call.message.edit_caption(
         caption=(
-            "🍑 → ⭐ Конвертация\n\n"
-            f"Курс: 1 ⭐ = {STAR_TO_RUB_RATE} персиков\n\n"
-            "Введите количество 🍑:"
+            "Персики → ⭐ STARS Конвертация\n\n"
+            f"Курс: 1 ⭐ STARS = {STAR_TO_RUB_RATE} персиков\n\n"
+            "Введите количество персиков:"
         ),
         reply_markup=kb.as_markup()
     )
@@ -1600,7 +1600,7 @@ async def convert_amount_process(message: Message, state: FSMContext):
 
     if not message.text.isdigit():
         await message.delete()
-        await message.bot.edit_message_caption(
+        await safe_edit_caption (
             chat_id=message.chat.id,
             message_id=main_message_id,
             caption="🚫 Введите число.",
@@ -1612,7 +1612,7 @@ async def convert_amount_process(message: Message, state: FSMContext):
 
     if amount <= 0:
         await message.delete()
-        await message.bot.edit_message_caption(
+        await safe_edit_caption (
             chat_id=message.chat.id,
             message_id=main_message_id,
             caption="🚫 Сумма должна быть больше 0.",
@@ -1631,12 +1631,12 @@ async def convert_amount_process(message: Message, state: FSMContext):
         if direction == "stars_to_peaches":
             if amount > balance.stars:
                 await message.delete()
-                await message.bot.edit_message_caption(
+                await safe_edit_caption (
                     chat_id=message.chat.id,
                     message_id=main_message_id,
                     caption=(
                         "🚫 Недостаточно ⭐ STARS\n\n"
-                        f"Ваш баланс: {balance.stars}"
+                        f"Ваш баланс: {balance.stars}  ⭐ STARS"
                     ),
                     reply_markup=keyboard
                 )
@@ -1647,7 +1647,7 @@ async def convert_amount_process(message: Message, state: FSMContext):
         else:  # peaches_to_stars
             if amount > balance.amount:
                 await message.delete()
-                await message.bot.edit_message_caption(
+                await safe_edit_caption (
                     chat_id=message.chat.id,
                     message_id=main_message_id,
                     caption=(
@@ -1718,10 +1718,6 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
 
     await state.clear()
     await call.answer()
-
-
-
-
 
 
 

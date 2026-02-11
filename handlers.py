@@ -1263,6 +1263,12 @@ async def successful_stars_payment(message: Message):
 
 
 
+
+
+
+
+
+
 # ------------------------------
 # Перевод баланса
 # ------------------------------
@@ -1547,7 +1553,7 @@ async def convert_stars_to_peaches(call: CallbackQuery, state: FSMContext):
 
     await call.message.edit_caption(
         caption=(
-            "⭐ STARS → Персики || Конвертация\n\n"
+            "⭐ STARS → Персики | Конвертация\n\n"
             f"Курс: 1 ⭐ STARS = {STAR_TO_RUB_RATE} персиков\n\n"
             "Введите количество STARS:"
         ),
@@ -1572,7 +1578,7 @@ async def convert_peaches_to_stars(call: CallbackQuery, state: FSMContext):
 
     await call.message.edit_caption(
         caption=(
-            "Персики → ⭐ STARS Конвертация\n\n"
+            "Персики → ⭐ STARS | Конвертация\n\n"
             f"Курс: 1 ⭐ STARS = {STAR_TO_RUB_RATE} персиков\n\n"
             "Введите количество персиков:"
         ),

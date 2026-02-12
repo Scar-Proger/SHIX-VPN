@@ -167,8 +167,8 @@ def t(user, key: str, **kwargs) -> str:
 
 
 def admin_channel_joined_text(user) -> str:
-    username = f"@{user.username}" if user.username else "—"
-    full_name = user.full_name or "Без имени"
+    username = f"@{user.username}" if user.username else "Без имени"
+    full_name = user.full_name or "Пользователь"
 
     return (
         "✅ <b>Пользователь подписался на канал</b>\n\n"
@@ -602,14 +602,12 @@ async def start_cmd(message: Message, bot: Bot):
         )
         wait_msg = await message.answer(TEXTS["ru"]["creating_profile"])
 
-        # ✅ Даем пользователю 2 секунды увидеть стикер
         await asyncio.sleep(2)
 
-        # Убираем ожидание
         await wait_msg.delete()
         await wait_sticker.delete()
 
-        # создаём пользователя и профиль
+        # ✅ Создаём пользователя один раз
         user = await ensure_user(
             bot,
             telegram_id,
@@ -617,6 +615,9 @@ async def start_cmd(message: Message, bot: Bot):
             username=message.from_user.username,
             referrer_id=referrer_id
         )
+
+        # 🔔 Уведомляем админов только для нового пользователя
+        await notify_admins_user_joined(bot, user)
 
         # -------------------------------
         # Welcome
@@ -628,11 +629,8 @@ async def start_cmd(message: Message, bot: Bot):
             parse_mode="Markdown"
         )
 
-        # 🔔 уведомляем админов
-        await notify_admins_user_joined(bot, user)
-
         # -------------------------------
-        # уведомляем реферера
+        # Уведомляем реферера
         # -------------------------------
         if referrer_id:
             await bot.send_message(
@@ -640,7 +638,7 @@ async def start_cmd(message: Message, bot: Bot):
                 t(
                     user,
                     "referral_notify",
-                    name=message.from_user.username or message.from_user.full_name,
+                    name=message.from_user.username or message.from_user.full_name or "Пользователь",
                     id=telegram_id
                 ),
                 parse_mode="Markdown"
@@ -1076,21 +1074,6 @@ async def check_payment(callback: CallbackQuery):
         pass
 
     await callback.answer()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # ------------------------------
 # Пополнение баланса
@@ -1537,11 +1520,6 @@ async def transfer_amount(message: Message, state: FSMContext):
         logger.warning(f"Notify error: {e}")
 
 
-
-
-
-
-
 # ------------------------------
 # Конвертация выбор
 # ------------------------------
@@ -1759,21 +1737,6 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
 
     await state.clear()
     await call.answer()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # ------------------------------

@@ -1630,6 +1630,7 @@ async def convert_amount_process(message: Message, state: FSMContext):
     if not message.text.isdigit():
         await message.delete()
         await safe_edit_caption(
+            bot=message.bot,
             chat_id=message.chat.id,
             message_id=main_message_id,
             caption=t(user, "convert_invalid_number"),
@@ -1642,6 +1643,7 @@ async def convert_amount_process(message: Message, state: FSMContext):
     if amount <= 0:
         await message.delete()
         await safe_edit_caption(
+            bot=message.bot,
             chat_id=message.chat.id,
             message_id=main_message_id,
             caption=t(user, "convert_invalid_amount"),
@@ -1657,9 +1659,10 @@ async def convert_amount_process(message: Message, state: FSMContext):
             if amount > balance.stars:
                 await message.delete()
                 await safe_edit_caption(
+                    bot=message.bot,
                     chat_id=message.chat.id,
                     message_id=main_message_id,
-                    caption=t(user, "convert_not_enough_stars").format(balance=balance.stars),
+                    caption=t(user, "convert_not_enough_stars", balance=balance.stars),
                     reply_markup=kb.as_markup()
                 )
                 return
@@ -1670,7 +1673,7 @@ async def convert_amount_process(message: Message, state: FSMContext):
                 await safe_edit_caption(
                     chat_id=message.chat.id,
                     message_id=main_message_id,
-                    caption=t(user, "convert_not_enough_peaches").format(balance=balance.amount),
+                    caption=t(user, "convert_not_enough_peaches", balance=balance.amount),
                     reply_markup=kb.as_markup()
                 )
                 return
@@ -1685,7 +1688,7 @@ async def convert_amount_process(message: Message, state: FSMContext):
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
         message_id=main_message_id,
-        caption=t(user, "convert_confirm").format(amount=amount, result=result, rate=STAR_TO_RUB_RATE),
+        caption = t(user, "convert_confirm", amount=amount, result=result, rate=STAR_TO_RUB_RATE),
         reply_markup=kb.as_markup()
     )
 
@@ -1727,7 +1730,7 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
         session.commit()
 
     await call.message.edit_caption(
-        caption=t(user, "convert_success").format(
+        caption=t(user, "convert_success",
             direction=direction_text,
             amount=amount,
             result=result
@@ -1801,7 +1804,8 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
 
         text_key = error_map.get(result["error"], "promo_invalid")
 
-        await bot.edit_message_caption(
+        await safe_edit_caption (
+            bot=message.bot,
             chat_id=chat_id,
             message_id=bot_message_id,
             caption=t(user, text_key),

@@ -1100,24 +1100,25 @@ async def topup_balance_handler(call: CallbackQuery, state: FSMContext):
     user = await get_user(call.from_user.id)
     if not user:
         return
-    
-    await state.clear()  # 🔥 ВАЖНО
+
+    await state.clear()
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Пополнить", callback_data="topup_stars")],
-            [InlineKeyboardButton(text="💰 Перевести", callback_data="transfer_balance")],
-            [InlineKeyboardButton(text="💎 Обменять", callback_data="convert_peaches")],
-            [InlineKeyboardButton(text="Назад", callback_data="back_to_menu")]
+            [InlineKeyboardButton(text=t(user, "btn_topup_stars"), callback_data="topup_stars")],
+            [InlineKeyboardButton(text=t(user, "btn_transfer_balance"), callback_data="transfer_balance")],
+            [InlineKeyboardButton(text=t(user, "btn_convert"), callback_data="convert_peaches")],
+            [InlineKeyboardButton(text=t(user, "back"), callback_data="back_to_menu")]
         ]
     )
 
     amount, stars = await get_user_balance(user.id)
 
     text = (
-        "💰 Баланс:\n"
-        f"{amount} персиков\n\n"
-        f"{stars} ⭐️"
+        f"{t(user, 'balance_title')}\n\n"
+        f"{t(user, 'balance_peaches', amount=amount)}\n"
+        f"{t(user, 'balance_stars', stars=stars)}\n\n"
+        f"{t(user, 'balance_hint')}"
     )
 
     await call.message.edit_caption(
@@ -1125,6 +1126,8 @@ async def topup_balance_handler(call: CallbackQuery, state: FSMContext):
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
+
+    await call.answer()
 
 
 # ------------------------------
@@ -1138,21 +1141,17 @@ async def topup_stars_handler(call: CallbackQuery, state: FSMContext):
 
     await state.set_state(TopUpStars.waiting_for_amount)
 
-    # 🔥 сохраняем ID сообщения с caption
+    # сохраняем ID сообщения с caption
     await state.update_data(caption_message_id=call.message.message_id)
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+            [InlineKeyboardButton(text=t(user, "back"), callback_data="topup_balance")]
         ]
     )
 
     await call.message.edit_caption(
-        caption=(
-            "⭐ Введите количество звёзд для пополнения\n\n"
-            "🔢 Только цифры\n"
-            "Например: `150`"
-        ),
+        caption=t(user, "topup_stars_text"),
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
@@ -1174,15 +1173,16 @@ async def process_stars_amount(message: Message, state: FSMContext):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+            [InlineKeyboardButton(text=t(user, "back"), callback_data="topup_balance")]
         ]
     )
 
+    # ❌ не число
     if not message.text.isdigit():
-        await message.bot.edit_message_caption(
+        await safe_edit_caption (
             chat_id=message.chat.id,
             message_id=caption_message_id,
-            caption="🚫 Введите только число, без текста",
+            caption=t(user, "error_only_number"),
             reply_markup=keyboard,
             parse_mode="Markdown"
         )
@@ -1191,11 +1191,12 @@ async def process_stars_amount(message: Message, state: FSMContext):
 
     amount = int(message.text)
 
+    # ❌ меньше или равно 0
     if amount <= 0:
-        await message.bot.edit_message_caption(
+        await safe_edit_caption (
             chat_id=message.chat.id,
             message_id=caption_message_id,
-            caption="🚫 Сумма должна быть больше 0",
+            caption=t(user, "error_positive"),
             reply_markup=keyboard,
             parse_mode="Markdown"
         )
@@ -1205,26 +1206,25 @@ async def process_stars_amount(message: Message, state: FSMContext):
     await state.clear()
     await message.delete()
 
-    prices = [LabeledPrice(label=f"{amount} ⭐", amount=amount)]
+    prices = [LabeledPrice(
+        label=t(user, "invoice_label", amount=amount),
+        amount=amount
+    )]
 
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
         message_id=caption_message_id,
-        caption=(
-            f"🧾 Счёт на пополнение сформирован\n\n"
-            f"⭐ Количество звёзд: `{amount}`\n"
-            f"💳 Счёт отправлен ниже"
-        ),
+        caption=t(user, "topup_invoice_created", amount=amount),
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
 
     # ⚠️ Инвойс ВСЕГДА отдельным сообщением
     await message.answer_invoice(
-        title="Пополнение баланса",
-        description=f"{amount} ⭐ на баланс",
+        title=t(user, "invoice_title"),
+        description=t(user, "invoice_description", amount=amount),
         payload=f"topup_stars:{user.id}:{amount}",
-        provider_token="",  # Telegram Stars → пусто
+        provider_token="",
         currency="XTR",
         prices=prices
     )
@@ -1246,6 +1246,7 @@ async def successful_stars_payment(message: Message):
     payment = message.successful_payment
     payload = payment.invoice_payload
     user = await get_user(message.from_user.id)
+
     if not user or not payload.startswith("topup_stars"):
         return
 
@@ -1256,34 +1257,45 @@ async def successful_stars_payment(message: Message):
         balance = session.query(UserBalance).filter_by(user_id=user.id).first()
         if balance:
             balance.stars += amount
+
             session.add(UserBalanceHistory(
                 user_id=user.id,
                 change=0,
                 stars_change=amount,
-                reason="Пополнение через Telegram Stars"
+                reason=t(user, "history_topup_stars")
             ))
+
             session.commit()
 
-    await message.answer(f"✅ Баланс пополнен на {amount} ⭐", parse_mode="Markdown")
-
+    await message.answer(
+        t(user, "topup_success", amount=amount),
+        parse_mode="Markdown"
+    )
 
 # ------------------------------
 # Перевод баланса
 # ------------------------------
 @router.callback_query(F.data == "transfer_balance")
 async def transfer_balance_start(call: CallbackQuery, state: FSMContext):
+    user = await get_user(call.from_user.id)
+    if not user:
+        return
+
     await state.clear()
 
     await call.message.edit_caption(
-        caption=(
-            "🔁 Перевод баланса\n\n"
-            "Выберите способ перевода:"
-        ),
+        caption=t(user, "transfer_intro"),
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="🆔 Перевести по ID", callback_data="transfer_by_id")],
-                [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+                [InlineKeyboardButton(
+                    text=t(user, "btn_transfer_by_id"),
+                    callback_data="transfer_by_id"
+                )],
+                [InlineKeyboardButton(
+                    text=t(user, "back"),
+                    callback_data="topup_balance"
+                )]
             ]
         )
     )
@@ -1296,20 +1308,22 @@ async def transfer_balance_start(call: CallbackQuery, state: FSMContext):
 # ------------------------------
 @router.callback_query(F.data == "transfer_by_id")
 async def transfer_by_id(call: CallbackQuery, state: FSMContext):
-    await state.set_state(TransferBalance.waiting_for_user_id)
+    user = await get_user(call.from_user.id)
+    if not user:
+        return
 
-    # сохраняем message_id
+    await state.set_state(TransferBalance.waiting_for_user_id)
     await state.update_data(caption_message_id=call.message.message_id)
 
     await call.message.edit_caption(
-        caption=(
-            "🔁 Перевод баланса\n\n"
-            "Введите Telegram ID пользователя, которому хотите перевести средства."
-        ),
+        caption=t(user, "transfer_enter_id"),
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="Назад", callback_data="transfer_balance")]
+                [InlineKeyboardButton(
+                    text=t(user, "back"),
+                    callback_data="transfer_balance"
+                )]
             ]
         )
     )
@@ -1322,22 +1336,26 @@ async def transfer_by_id(call: CallbackQuery, state: FSMContext):
 # ------------------------------
 @router.message(TransferBalance.waiting_for_user_id)
 async def transfer_get_user(message: Message, state: FSMContext):
+    user = await get_user(message.from_user.id)
+    if not user:
+        return
+
     data = await state.get_data()
     caption_message_id = data.get("caption_message_id")
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+            [InlineKeyboardButton(text=t(user, "back"), callback_data="topup_balance")]
         ]
     )
 
     if not message.text.isdigit():
         await message.delete()
-        await safe_edit_caption (
-            bot=message.bot,  
+        await safe_edit_caption(
+            bot=message.bot,
             chat_id=message.chat.id,
             message_id=caption_message_id,
-            caption="🚫 Ошибка\n\nВведите числовой Telegram ID",
+            caption=t(user, "error_invalid_id"),
             parse_mode="Markdown",
             reply_markup=keyboard
         )
@@ -1346,37 +1364,37 @@ async def transfer_get_user(message: Message, state: FSMContext):
     target_telegram_id = int(message.text)
 
     with Session() as session:
-        target_user = session.query(User).filter_by(telegram_id=target_telegram_id).first()
+        target_user = session.query(User).filter_by(
+            telegram_id=target_telegram_id
+        ).first()
 
     await message.delete()
 
     if not target_user:
-        await safe_edit_caption (
-            bot=message.bot,  
+        await safe_edit_caption(
+            bot=message.bot,
             chat_id=message.chat.id,
             message_id=caption_message_id,
-            caption="🚫 Пользователь не найден\n\nПопробуйте ещё раз",
+            caption=t(user, "error_user_not_found"),
             parse_mode="Markdown",
             reply_markup=keyboard
         )
         return
 
-    # 🔥 сохраняем ID получателя
     await state.update_data(target_user_id=target_user.id)
     await state.set_state(TransferBalance.waiting_for_amount)
 
-    # 🔥 ПОЛУЧАЕМ БАЛАНС ОТПРАВИТЕЛЯ
     sender = await get_user(message.from_user.id)
     amount, _ = await get_user_balance(sender.id)
 
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
         message_id=caption_message_id,
-        caption=(
-            "🔁 Перевод баланса\n\n"
-            f"👤 Получатель ID: `{target_telegram_id}`\n\n"
-            f"💰 Ваш баланс: `{amount}` персиков\n\n"
-            "Введите сумму для перевода персиков:"
+        caption=t(
+            user,
+            "transfer_enter_amount",
+            id=target_telegram_id,
+            balance=amount
         ),
         parse_mode="Markdown",
         reply_markup=keyboard
@@ -1388,19 +1406,23 @@ async def transfer_get_user(message: Message, state: FSMContext):
 # ------------------------------
 @router.message(TransferBalance.waiting_for_amount)
 async def transfer_amount(message: Message, state: FSMContext):
+    user = await get_user(message.from_user.id)
+    if not user:
+        return
+
     data = await state.get_data()
     caption_message_id = data.get("caption_message_id")
     target_user_id = data.get("target_user_id")
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+            [InlineKeyboardButton(text=t(user, "back"), callback_data="topup_balance")]
         ]
     )
 
     menu = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Назад", callback_data="back_to_menu")]
+            [InlineKeyboardButton(text=t(user, "back"), callback_data="back_to_menu")]
         ]
     )
 
@@ -1410,7 +1432,7 @@ async def transfer_amount(message: Message, state: FSMContext):
             bot=message.bot,
             chat_id=message.chat.id,
             message_id=caption_message_id,
-            caption="🚫 Ошибка\n\nВведите число",
+            caption=t(user, "error_not_number"),
             parse_mode="Markdown",
             reply_markup=keyboard
         )
@@ -1420,11 +1442,11 @@ async def transfer_amount(message: Message, state: FSMContext):
 
     if amount <= 0:
         await message.delete()
-        await safe_edit_caption (
-            bot=message.bot,  
+        await safe_edit_caption(
+            bot=message.bot,
             chat_id=message.chat.id,
             message_id=caption_message_id,
-            caption="🚫 Ошибка\n\nСумма должна быть больше 0",
+            caption=t(user, "error_positive"),
             parse_mode="Markdown",
             reply_markup=keyboard
         )
@@ -1453,7 +1475,7 @@ async def transfer_amount(message: Message, state: FSMContext):
                 bot=message.bot,
                 chat_id=message.chat.id,
                 message_id=caption_message_id,
-                caption="🚫 Недостаточно средств",
+                caption=t(user, "error_not_enough"),
                 parse_mode="Markdown",
                 reply_markup=keyboard
             )
@@ -1466,7 +1488,6 @@ async def transfer_amount(message: Message, state: FSMContext):
         sender_balance.amount -= amount
         receiver_balance.amount += amount
 
-        # 🔥 СОХРАНЯЕМ ВСЁ НУЖНОЕ В ПЕРЕМЕННЫЕ
         receiver_tg_id = receiver.telegram_id
         sender_tg_id = sender.telegram_id
         sender_name = sender.full_name or sender.username or str(sender.telegram_id)
@@ -1475,12 +1496,12 @@ async def transfer_amount(message: Message, state: FSMContext):
             UserBalanceHistory(
                 user_id=sender.id,
                 change=-amount,
-                reason=f"Перевод пользователю {receiver.telegram_id}"
+                reason="TRANSFER_SENT"
             ),
             UserBalanceHistory(
                 user_id=receiver.id,
                 change=amount,
-                reason=f"Получение перевода от {sender_name}"
+                reason="TRANSFER_RECEIVED"
             )
         ])
 
@@ -1489,32 +1510,36 @@ async def transfer_amount(message: Message, state: FSMContext):
     await message.delete()
     await state.clear()
 
-    # ✨ обновляем caption у отправителя
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
         message_id=caption_message_id,
-        caption=(
-            "✅ Перевод выполнен\n\n"
-            f"💰 Отправлено: {amount} персиков"
-        ),
+        caption=t(user, "transfer_success", amount=amount),
         parse_mode="Markdown",
         reply_markup=keyboard
     )
 
-    # ✨ уведомляем получателя
     try:
+        receiver_user = await get_user(receiver_tg_id)
+
         await message.bot.send_message(
             chat_id=receiver_tg_id,
-            text=(
-                "💸 Вы получили перевод:\n\n"
-                f"От: {sender_name} (`{sender_tg_id}`)\n"
-                f"Сумма: `{amount}` персиков"
+            text=t(
+                receiver_user,
+                "transfer_received",
+                name=sender_name,
+                id=sender_tg_id,
+                amount=amount
             ),
             parse_mode="Markdown",
             reply_markup=menu
         )
     except Exception as e:
-        logger.warning(f"Не удалось уведомить получателя: {e}")
+        logger.warning(f"Notify error: {e}")
+
+
+
+
+
 
 
 # ------------------------------
@@ -1522,15 +1547,25 @@ async def transfer_amount(message: Message, state: FSMContext):
 # ------------------------------
 @router.callback_query(F.data == "convert_peaches")
 async def convert_peaches_start(call: CallbackQuery, state: FSMContext):
-    kb = InlineKeyboardBuilder()
-    kb.button(text="STARS → Персики", callback_data="convert_stars_to_peaches")
-    kb.button(text="Персики → STARS", callback_data="convert_peaches_to_stars")
-    kb.button(text="Назад", callback_data="topup_balance")
-    kb.adjust(1)
+    user = await get_user(call.from_user.id)
+    if not user:
+        return
+
+    # 🔥 сохраняем message_id для дальнейшего редактирования
+    await state.update_data(caption_message_id=call.message.message_id)
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text=t(user, "convert_peaches_button"), callback_data="convert_stars_to_peaches")],
+            [InlineKeyboardButton(text=t(user, "convert_stars_button"), callback_data="convert_peaches_to_stars")],
+            [InlineKeyboardButton(text=t(user, "back"), callback_data="topup_balance")]
+        ]
+    )
 
     await call.message.edit_caption(
-        caption="🔄 Выберите направление обмена:",
-        reply_markup=kb.as_markup()
+        caption=t(user, "convert_choose"),
+        parse_mode="Markdown",
+        reply_markup=kb
     )
 
     await state.clear()
@@ -1542,19 +1577,23 @@ async def convert_peaches_start(call: CallbackQuery, state: FSMContext):
 # ------------------------------
 @router.callback_query(F.data == "convert_stars_to_peaches")
 async def convert_stars_to_peaches(call: CallbackQuery, state: FSMContext):
-    await state.update_data(direction="stars_to_peaches",
-                            main_message_id=call.message.message_id)
+    user = await get_user(call.from_user.id)
+    if not user:
+        return
+
+    await state.update_data(
+        direction="stars_to_peaches",
+        main_message_id=call.message.message_id
+    )
 
     kb = InlineKeyboardBuilder()
-    kb.button(text="Назад", callback_data="convert_peaches")
+    kb.button(text=t(user, "back"), callback_data="convert_peaches")
     kb.adjust(1)
 
+    caption = t(user, "convert_stars_to_peaches").format(rate=STAR_TO_RUB_RATE)
+
     await call.message.edit_caption(
-        caption=(
-            "⭐ STARS → Персики | Конвертация\n\n"
-            f"Курс: 1 ⭐ STARS = {STAR_TO_RUB_RATE} персиков\n\n"
-            "Введите количество STARS:"
-        ),
+        caption=caption,
         reply_markup=kb.as_markup()
     )
 
@@ -1567,19 +1606,23 @@ async def convert_stars_to_peaches(call: CallbackQuery, state: FSMContext):
 # ------------------------------
 @router.callback_query(F.data == "convert_peaches_to_stars")
 async def convert_peaches_to_stars(call: CallbackQuery, state: FSMContext):
-    await state.update_data(direction="peaches_to_stars",
-                            main_message_id=call.message.message_id)
-    
+    user = await get_user(call.from_user.id)
+    if not user:
+        return
+
+    await state.update_data(
+        direction="peaches_to_stars",
+        main_message_id=call.message.message_id
+    )
+
     kb = InlineKeyboardBuilder()
-    kb.button(text="Назад", callback_data="convert_peaches")
+    kb.button(text=t(user, "back"), callback_data="convert_peaches")
     kb.adjust(1)
 
+    caption = t(user, "convert_peaches_to_stars").format(rate=STAR_TO_RUB_RATE)
+
     await call.message.edit_caption(
-        caption=(
-            "Персики → ⭐ STARS | Конвертация\n\n"
-            f"Курс: 1 ⭐ STARS = {STAR_TO_RUB_RATE} персиков\n\n"
-            "Введите количество персиков:"
-        ),
+        caption=caption,
         reply_markup=kb.as_markup()
     )
 
@@ -1588,27 +1631,31 @@ async def convert_peaches_to_stars(call: CallbackQuery, state: FSMContext):
 
 
 # ------------------------------
-# Отправка кол-во конвертации  
+# Ввод суммы конвертации
 # ------------------------------
 @router.message(ConvertStates.WAIT_AMOUNT)
 async def convert_amount_process(message: Message, state: FSMContext):
+    user = await get_user(message.from_user.id)
+    if not user:
+        await message.delete()
+        return
+
     data = await state.get_data()
     main_message_id = data["main_message_id"]
     direction = data["direction"]
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Назад", callback_data="convert_peaches")]
-        ]
-    )
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t(user, "back"), callback_data="convert_peaches")
+    kb.adjust(1)
 
+    # Проверка ввода
     if not message.text.isdigit():
         await message.delete()
-        await safe_edit_caption (
+        await safe_edit_caption(
             chat_id=message.chat.id,
             message_id=main_message_id,
-            caption="🚫 Введите число.",
-            reply_markup=keyboard
+            caption=t(user, "convert_invalid_number"),
+            reply_markup=kb.as_markup()
         )
         return
 
@@ -1616,68 +1663,51 @@ async def convert_amount_process(message: Message, state: FSMContext):
 
     if amount <= 0:
         await message.delete()
-        await safe_edit_caption (
+        await safe_edit_caption(
             chat_id=message.chat.id,
             message_id=main_message_id,
-            caption="🚫 Сумма должна быть больше 0.",
-            reply_markup=keyboard
+            caption=t(user, "convert_invalid_amount"),
+            reply_markup=kb.as_markup()
         )
         return
 
-    user = await get_user(message.from_user.id)
-    if not user:
-        await message.delete()
-        return
-
+    # Получаем баланс пользователя
     with Session() as session:
         balance = session.query(UserBalance).filter_by(user_id=user.id).first()
 
         if direction == "stars_to_peaches":
             if amount > balance.stars:
                 await message.delete()
-                await safe_edit_caption (
+                await safe_edit_caption(
                     chat_id=message.chat.id,
                     message_id=main_message_id,
-                    caption=(
-                        "🚫 Недостаточно ⭐ STARS\n\n"
-                        f"Ваш баланс: {balance.stars}  ⭐ STARS"
-                    ),
-                    reply_markup=keyboard
+                    caption=t(user, "convert_not_enough_stars").format(balance=balance.stars),
+                    reply_markup=kb.as_markup()
                 )
                 return
-
             result = int(amount * STAR_TO_RUB_RATE)
-
-        else:  # peaches_to_stars
+        else:
             if amount > balance.amount:
                 await message.delete()
-                await safe_edit_caption (
+                await safe_edit_caption(
                     chat_id=message.chat.id,
                     message_id=main_message_id,
-                    caption=(
-                        "🚫 Недостаточно персиков\n\n"
-                        f"Ваш баланс: {balance.amount}"
-                    ),
-                    reply_markup=keyboard
+                    caption=t(user, "convert_not_enough_peaches").format(balance=balance.amount),
+                    reply_markup=kb.as_markup()
                 )
                 return
-
             result = int(amount / STAR_TO_RUB_RATE)
 
+    # Подтверждение обмена
     kb = InlineKeyboardBuilder()
-    kb.button(text="Подтвердить", callback_data=f"confirm_convert_{amount}")
-    kb.button(text="Отмена", callback_data="convert_peaches")
+    kb.button(text=t(user, "confirm"), callback_data=f"confirm_convert_{amount}")
+    kb.button(text=t(user, "cancel"), callback_data="convert_peaches")
     kb.adjust(1)
 
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
         message_id=main_message_id,
-        caption=(
-            "🔄 Подтверждение обмена\n\n"
-            f"Отдаёте: {amount}\n"
-            f"Получите: {result}\n\n"
-            f"Курс: 1 ⭐ STARS = {STAR_TO_RUB_RATE}"
-        ),
+        caption=t(user, "convert_confirm").format(amount=amount, result=result, rate=STAR_TO_RUB_RATE),
         reply_markup=kb.as_markup()
     )
 
@@ -1688,50 +1718,47 @@ async def convert_amount_process(message: Message, state: FSMContext):
 
 
 # ------------------------------
-# Подверждение
+# Подтверждение конвертации
 # ------------------------------
 @router.callback_query(ConvertStates.CONFIRM, F.data.startswith("confirm_convert_"))
 async def confirm_convert(call: CallbackQuery, state: FSMContext):
+    user = await get_user(call.from_user.id)
+    if not user:
+        return
+
     data = await state.get_data()
     amount = data["amount"]
     result = data["result"]
     direction = data["direction"]
 
-    user = await get_user(call.from_user.id)
-
     kb = InlineKeyboardBuilder()
-    kb.button(text="Назад", callback_data="topup_balance")
+    kb.button(text=t(user, "back"), callback_data="topup_balance")
     kb.adjust(1)
 
+    # Обновление баланса
     with Session() as session:
         balance = session.query(UserBalance).filter_by(user_id=user.id).first()
-
         if direction == "stars_to_peaches":
             balance.stars -= amount
             balance.amount += result
+            direction_text = "Telegram Stars→Персики"
         else:
             balance.amount -= amount
             balance.stars += result
-
+            direction_text = "Персики→Telegram Stars"
         session.commit()
 
     await call.message.edit_caption(
-        caption="✅ Обмен успешно выполнен!",
+        caption=t(user, "convert_success").format(
+            direction=direction_text,
+            amount=amount,
+            result=result
+        ),
         reply_markup=kb.as_markup()
     )
 
     await state.clear()
     await call.answer()
-
-
-
-
-
-
-
-
-
-
 
 
 

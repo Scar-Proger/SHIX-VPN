@@ -185,6 +185,132 @@ TEXTS = {
             "✅ **Промокод `{code}` применён!**\n"
             "💰 Теперь ваша скидка на подписку: `{discount}%`"
         ),
+
+        # ===== Balance =====
+
+        # ===== Balance Buttons =====
+        "btn_topup_stars": "💳 Пополнить",
+        "btn_transfer_balance": "💰 Перевести",
+        "btn_convert": "💎 Обменять",
+
+        "balance_title": "💰 Ваш баланс:",
+        "balance_peaches": "🍑 Персики: {amount}",
+        "balance_stars": "⭐️ Telegram Stars: {stars}",
+        "balance_hint": "✨ Продолжайте накапливать — новые возможности уже впереди!",
+
+        "topup_choose": "Выберите действие:",
+        "topup_stars_text": (
+            "⭐️ Укажите, сколько звёзд хотите добавить на баланс\n\n"
+            "🔢 Вводите только цифры, например: `150`\n\n"
+            "✨ Мгновенное пополнение — шагайте к новым возможностям!"
+        ),
+
+        # ===== Errors =====
+        "error_only_number": "🚫 Введите только число, без текста",
+        "error_positive": "🚫 Сумма должна быть больше 0",
+
+        # ===== Invoice =====
+        "invoice_label": "{amount} ⭐",
+        "invoice_title": "Пополнение баланса",
+        "invoice_description": "{amount} ⭐ на баланс",
+
+        "topup_invoice_created": (
+            "🧾 Счёт на пополнение сформирован\n\n"
+            "⭐ Количество звёзд: `{amount}`\n"
+            "💳 Счёт отправлен ниже"
+        ),
+
+        # ===== Payment Success =====
+        "topup_success": "✅ Баланс пополнен на {amount} ⭐",
+
+        # ===== History =====
+        "history_topup_stars": "Пополнение через Telegram Stars",
+
+        # ===== Transfer =====
+        "transfer_intro": (
+            "✨ Быстро. Лёгко. Без границ.\n\n"
+            "🔁 Отправляйте игровую валюту другому пользователю — новые возможности уже ждут!"
+        ),
+
+        "btn_transfer_by_id": "🆔 Перевести по ID",
+
+        "transfer_enter_id": (
+            "💳 Перевод игровой валюты\n\n"
+            "Введите Telegram ID пользователя, которому хотите перевести средства."
+        ),
+
+        "error_invalid_id": "🚫 Ошибка\n\nВведите числовой Telegram ID",
+        "error_user_not_found": "🚫 Пользователь не найден\n\nПопробуйте ещё раз",
+
+        "transfer_enter_amount": (
+            "🔁 Перевод баланса\n\n"
+            "👤 Получатель ID: `{id}`\n\n"
+            "💰 Ваш баланс: `{balance}` персиков\n\n"
+            "Введите сумму для перевода персиков:"
+        ),
+
+        "transfer_success": (
+            "✅ Перевод выполнен\n\n"
+            "💰 Отправлено: {amount} персиков"
+        ),
+
+        "transfer_received": (
+            "💸 Вы получили перевод:\n\n"
+            "От: {name} (`{id}`)\n"
+            "Сумма: `{amount}` персиков"
+        ),
+
+        # Выбор валюты для конвертации
+        "convert_choose": (
+            "✨ Обменивайте Stars или Персики и открывайте новые возможности!\n\n"
+            "🔄 Выберите, какую игровую валюту хотите обменять"
+        ),
+
+        # Кнопки выбора валюты
+        "convert_peaches_button": "Персики",
+        "convert_stars_button": "Telegram Stars",
+
+        # Конвертация Stars → Персики
+        "convert_stars_to_peaches": (
+            "⭐ Telegram Stars → Персики | Конвертация\n\n"
+            "Курс: 1 ⭐ Telegram Stars = {rate} персиков\n\n"
+            "Введите количество ⭐ Telegram Stars:"
+        ),
+
+        # Конвертация Персики → Stars
+        "convert_peaches_to_stars": (
+            "Персики → ⭐ Telegram Stars | Конвертация\n\n"
+            "Курс: 1 ⭐ Telegram Stars = {rate} персиков\n\n"
+            "Введите количество персиков:"
+        ),
+
+        # Ошибки ввода
+        "convert_invalid_number": "🚫 Ошибка\n\nВведите число.",
+        "convert_invalid_amount": "🚫 Ошибка\n\nСумма должна быть больше 0.",
+        "convert_not_enough_stars": "🚫 Недостаточно ⭐ STARS\n\nВаш баланс: {balance} ⭐ STARS",
+        "convert_not_enough_peaches": "🚫 Недостаточно персиков\n\nВаш баланс: {balance}",
+
+        # Подтверждение обмена
+        "convert_confirm": (
+            "🔄 Подтверждение обмена\n\n"
+            "Отдаёте: {amount}\n"
+            "Получите: {result}\n\n"
+            "Курс: 1 ⭐ STARS = {rate}"
+        ),
+
+        # Успешный обмен
+        "convert_success": (
+            "✅ Обмен успешно выполнён!\n\n"
+            "🔄 Направление: {direction}\n"
+            "📤 Списано: {amount}\n"
+            "📥 Получено: {result}"
+        ),
+
+        # Кнопки
+        "confirm": "Подтвердить",
+        "cancel": "Отмена"
+
+
     },
 
     "en": {

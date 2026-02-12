@@ -475,6 +475,113 @@ TEXTS = {
             "✅ **Promo code `{code}` applied!**\n"
             "💰 Your subscription discount is now `{discount}%`"
         ),
+
+        # ===== Balance =====
+        "btn_topup_stars": "💳 Top up",
+        "btn_transfer_balance": "💰 Transfer",
+        "btn_convert": "💎 Exchange",
+
+        "balance_title": "💰 Your balance:",
+        "balance_peaches": "🍑 Peaches: {amount}",
+        "balance_stars": "⭐️ Telegram Stars: {stars}",
+        "balance_hint": "✨ Keep accumulating — new opportunities await!",
+
+        "topup_choose": "Choose an action:",
+        "topup_stars_text": (
+            "⭐️ Enter how many stars you want to add to your balance\n\n"
+            "🔢 Enter numbers only, e.g.: `150`\n\n"
+            "✨ Instant top-up — unlock new possibilities!"
+        ),
+
+        # ===== Errors =====
+        "error_only_number": "🚫 Enter numbers only, no text",
+        "error_positive": "🚫 Amount must be greater than 0",
+
+        # ===== Invoice =====
+        "invoice_label": "{amount} ⭐",
+        "invoice_title": "Balance Top-up",
+        "invoice_description": "{amount} ⭐ to balance",
+
+        "topup_invoice_created": (
+            "🧾 Invoice generated\n\n"
+            "⭐ Number of stars: `{amount}`\n"
+            "💳 Invoice sent below"
+        ),
+
+        # ===== Payment Success =====
+        "topup_success": "✅ Balance topped up by {amount} ⭐",
+
+        # ===== History =====
+        "history_topup_stars": "Top-up via Telegram Stars",
+
+        # ===== Transfer =====
+        "transfer_intro": (
+            "✨ Fast. Easy. Without borders.\n\n"
+            "🔁 Send game currency to another user — new opportunities await!"
+        ),
+
+        "btn_transfer_by_id": "🆔 Transfer by ID",
+
+        "transfer_enter_id": (
+            "💳 Transfer game currency\n\n"
+            "Enter the Telegram ID of the user to receive funds."
+        ),
+
+        "error_invalid_id": "🚫 Error\n\nEnter numeric Telegram ID",
+        "error_user_not_found": "🚫 User not found\n\nTry again",
+
+        "transfer_enter_amount": (
+            "🔁 Balance transfer\n\n"
+            "👤 Recipient ID: `{id}`\n\n"
+            "💰 Your balance: `{balance}` peaches\n\n"
+            "Enter the amount to transfer:"
+        ),
+
+        "transfer_success": "✅ Transfer completed\n\n💰 Sent: {amount} peaches",
+        "transfer_received": "💸 You received a transfer:\n\nFrom: {name} (`{id}`)\nAmount: `{amount}` peaches",
+
+        # ===== Currency exchange =====
+        "convert_choose": (
+            "✨ Exchange Stars or Peaches and unlock new opportunities!\n\n"
+            "🔄 Choose which currency you want to exchange"
+        ),
+
+        "convert_peaches_button": "Peaches",
+        "convert_stars_button": "Telegram Stars",
+
+        "convert_stars_to_peaches": (
+            "⭐ Telegram Stars → Peaches | Exchange\n\n"
+            "Rate: 1 ⭐ Telegram Star = {rate} peaches\n\n"
+            "Enter the number of ⭐ Telegram Stars:"
+        ),
+
+        "convert_peaches_to_stars": (
+            "Peaches → ⭐ Telegram Stars | Exchange\n\n"
+            "Rate: 1 ⭐ Telegram Star = {rate} peaches\n\n"
+            "Enter the number of peaches:"
+        ),
+
+        "convert_invalid_number": "🚫 Error\n\nEnter a number.",
+        "convert_invalid_amount": "🚫 Error\n\nAmount must be greater than 0.",
+        "convert_not_enough_stars": "🚫 Not enough ⭐ STARS\n\nYour balance: {balance} ⭐ STARS",
+        "convert_not_enough_peaches": "🚫 Not enough peaches\n\nYour balance: {balance}",
+
+        "convert_confirm": (
+            "🔄 Exchange confirmation\n\n"
+            "You give: {amount}\n"
+            "You get: {result}\n\n"
+            "Rate: 1 ⭐ STARS = {rate}"
+        ),
+
+        "convert_success": (
+            "✅ Exchange successful!\n\n"
+            "🔄 Direction: {direction}\n"
+            "📤 Deducted: {amount}\n"
+            "📥 Received: {result}"
+        ),
+
+        "confirm": "Confirm",
+        "cancel": "Cancel",
     },
 
     "zh": {
@@ -642,6 +749,113 @@ TEXTS = {
             "✅ **优惠码 `{code}` 已成功使用！**\n"
             "💰 当前订阅折扣为 `{discount}%`"
         ),
+
+        # ===== Balance =====
+        "btn_topup_stars": "💳 充值",
+        "btn_transfer_balance": "💰 转账",
+        "btn_convert": "💎 兑换",
+
+        "balance_title": "💰 您的余额：",
+        "balance_peaches": "🍑 桃子: {amount}",
+        "balance_stars": "⭐️ Telegram 星星: {stars}",
+        "balance_hint": "✨ 继续累积 — 新的机会在前方！",
+
+        "topup_choose": "选择操作：",
+        "topup_stars_text": (
+            "⭐️ 输入您想充值的星星数量\n\n"
+            "🔢 仅输入数字，例如: `150`\n\n"
+            "✨ 即时充值 — 开启新可能！"
+        ),
+
+        # ===== Errors =====
+        "error_only_number": "🚫 只允许输入数字，不要输入文字",
+        "error_positive": "🚫 金额必须大于0",
+
+        # ===== Invoice =====
+        "invoice_label": "{amount} ⭐",
+        "invoice_title": "余额充值",
+        "invoice_description": "余额充值 {amount} ⭐",
+
+        "topup_invoice_created": (
+            "🧾 账单已生成\n\n"
+            "⭐ 星星数量: `{amount}`\n"
+            "💳 账单已发送"
+        ),
+
+        # ===== Payment Success =====
+        "topup_success": "✅ 余额已充值 {amount} ⭐",
+
+        # ===== History =====
+        "history_topup_stars": "通过 Telegram 星星充值",
+
+        # ===== Transfer =====
+        "transfer_intro": (
+            "✨ 快速. 简单. 无国界。\n\n"
+            "🔁 向其他用户发送游戏货币 — 新机会等着你！"
+        ),
+
+        "btn_transfer_by_id": "🆔 通过ID转账",
+
+        "transfer_enter_id": (
+            "💳 游戏货币转账\n\n"
+            "输入接收用户的 Telegram ID。"
+        ),
+
+        "error_invalid_id": "🚫 错误\n\n请输入数字 Telegram ID",
+        "error_user_not_found": "🚫 用户未找到\n\n请重试",
+
+        "transfer_enter_amount": (
+            "🔁 转账\n\n"
+            "👤 收款人 ID: `{id}`\n\n"
+            "💰 您的余额: `{balance}` 桃子\n\n"
+            "请输入转账金额："
+        ),
+
+        "transfer_success": "✅ 转账完成\n\n💰 已发送: {amount} 桃子",
+        "transfer_received": "💸 您收到转账:\n\n来自: {name} (`{id}`)\n金额: `{amount}` 桃子",
+
+        # ===== Currency exchange =====
+        "convert_choose": (
+            "✨ 兑换 Stars 或 桃子，开启新机会！\n\n"
+            "🔄 选择要兑换的货币"
+        ),
+
+        "convert_peaches_button": "桃子",
+        "convert_stars_button": "Telegram 星星",
+
+        "convert_stars_to_peaches": (
+            "⭐ Telegram 星星 → 桃子 | 兑换\n\n"
+            "汇率: 1 ⭐ Telegram 星星 = {rate} 桃子\n\n"
+            "输入 ⭐ Telegram 星星 数量："
+        ),
+
+        "convert_peaches_to_stars": (
+            "桃子 → ⭐ Telegram 星星 | 兑换\n\n"
+            "汇率: 1 ⭐ Telegram 星星 = {rate} 桃子\n\n"
+            "输入桃子数量："
+        ),
+
+        "convert_invalid_number": "🚫 错误\n\n请输入数字。",
+        "convert_invalid_amount": "🚫 错误\n\n金额必须大于0。",
+        "convert_not_enough_stars": "🚫 ⭐ 星星不足\n\n您的余额: {balance} ⭐ 星星",
+        "convert_not_enough_peaches": "🚫 桃子不足\n\n您的余额: {balance}",
+
+        "convert_confirm": (
+            "🔄 兑换确认\n\n"
+            "您支付: {amount}\n"
+            "您获得: {result}\n\n"
+            "汇率: 1 ⭐ 星星 = {rate}"
+        ),
+
+        "convert_success": (
+            "✅ 兑换成功！\n\n"
+            "🔄 方向: {direction}\n"
+            "📤 扣除: {amount}\n"
+            "📥 获得: {result}"
+        ),
+
+        "confirm": "确认",
+        "cancel": "取消",
     }
 }
 

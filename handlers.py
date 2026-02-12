@@ -1861,11 +1861,6 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
 
 
 
-
-
-
-
-
 # ------------------------------
 # Админ меню
 # ------------------------------

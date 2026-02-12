@@ -1568,7 +1568,7 @@ async def convert_stars_to_peaches(call: CallbackQuery, state: FSMContext):
     kb.button(text=t(user, "back"), callback_data="convert_peaches")
     kb.adjust(1)
 
-    caption = t(user, "convert_stars_to_peaches").format(rate=STAR_TO_RUB_RATE)
+    caption = t(user, "convert_stars_to_peaches", rate=STAR_TO_RUB_RATE)
 
     await call.message.edit_caption(
         caption=caption,
@@ -1597,7 +1597,7 @@ async def convert_peaches_to_stars(call: CallbackQuery, state: FSMContext):
     kb.button(text=t(user, "back"), callback_data="convert_peaches")
     kb.adjust(1)
 
-    caption = t(user, "convert_peaches_to_stars").format(rate=STAR_TO_RUB_RATE)
+    caption = t(user, "convert_peaches_to_stars", rate=STAR_TO_RUB_RATE)
 
     await call.message.edit_caption(
         caption=caption,
@@ -1828,12 +1828,6 @@ async def enter_promo_code(message: Message, state: FSMContext, bot: Bot):
     )
 
     await state.clear()
-
-
-
-
-
-
 
 
 

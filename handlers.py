@@ -463,6 +463,10 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
     user = await get_user(chat_id)
     if not user:
         return
+    
+    # Получаем количество рефералов
+    with Session() as session:
+        referrals_count = session.query(User).filter_by(referrer_id=user.id).count()
 
     now = now_local()
 
@@ -491,6 +495,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         t(user, "profile", name=user.full_name) + "\n\n" +
         t(user, "telegram_id", id=user.telegram_id) + "\n\n" +
         t(user, "balance", amount=amount, stars=stars) + "\n\n" +
+        t(user, "referrals_count", count=referrals_count) + "\n\n" +
         sub_text +
         t(user, "subscription_status", status=status) + "\n\n" +
         time_left_text + "\n\n" +
@@ -1778,6 +1783,11 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
 
 
 
+
+
+
+
+
 @router.callback_query(F.data == "withdraw_balance")
 async def withdraw_start(call: CallbackQuery, state: FSMContext):
     await state.clear()
@@ -1957,7 +1967,7 @@ async def get_amount(message: Message, state: FSMContext):
 
     kb = InlineKeyboardBuilder()
     kb.button(text="✏️ Редактировать", callback_data="withdraw_balance")
-    kb.button(text="✅ Отправить", callback_data="confirm_withdraw")
+    kb.button(text="Отправить", callback_data="confirm_withdraw")
     kb.button(text="Назад", callback_data="withdraw_balance")
     kb.adjust(1)
 

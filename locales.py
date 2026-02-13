@@ -1,4 +1,5 @@
 TEXTS = {
+    
     "ru": {
         # RU
 
@@ -59,6 +60,7 @@ TEXTS = {
         "balance": "💰 Баланс: `{amount} персиков`, ⭐ `{stars}`",
 
         "sub_link": "🔗 **Ваша ссылка для подключения:** `{link}`\n\n",
+        "referrals_count": "🤝 Приглашено друзей: {count}",
 
         "subscription_status": "✅ **Статус подписки:** `{status}`",
         "subscription_left": "⏳ **До конца подписки:** `{time}`",
@@ -351,6 +353,8 @@ TEXTS = {
 
         "balance": "💰 Balance: `{amount} peaches`, ⭐ `{stars}`",
 
+        "referrals_count": "🤝 Friends invited: {count}",
+
         "sub_link": "🔗 **Your connection link:** `{link}`\n\n",
 
         "subscription_status": "✅ **Subscription status:** `{status}`",
@@ -623,6 +627,8 @@ TEXTS = {
 
         "balance": "💰 余额: `{amount} 个桃子`, ⭐ `{stars}`",
 
+        "referrals_count": "🤝 邀请的朋友数量: {count}",
+
         "sub_link": "🔗 **您的连接链接：** `{link}`\n\n",
 
         "subscription_status": "✅ **订阅状态：** `{status}`",
@@ -857,6 +863,7 @@ TEXTS = {
         "confirm": "确认",
         "cancel": "取消",
     }
+
 }
 
 

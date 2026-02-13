@@ -112,7 +112,7 @@ TEXTS = {
             "💰 **Пример:** друг пополнил 500₽ → ваш бонус **200 ₽**\n\n"
             "💸 **Вывод от 1000 ₽** на удобный способ оплаты\n\n"
             "🔗 **Ваша реферальная ссылка:**\n"
-            "🤝 Приглашено друзей: {count}\n",
+            "🤝 Приглашено друзей: `{count}`\n"
             "`{link}`\n\n"
             "✨ Делитесь ссылкой — зарабатывайте легко!"
         ),
@@ -405,7 +405,7 @@ TEXTS = {
             "💰 **Example:** your friend tops up 500₽ → your reward is **200 ₽**\n\n"
             "💸 **Payout from 1000 ₽** to a convenient payment method\n\n"
             "🔗 **Your referral link:**\n"
-            "🤝 Friends invited: {count}\n",
+            "🤝 Friends invited: `{count}`\n"
             "`{link}`\n\n"
             "✨ Share the link and earn easily!"
         ),
@@ -680,7 +680,7 @@ TEXTS = {
             "💰 **示例：** 好友充值 500₽ → 您可获得 **200 ₽**\n\n"
             "💸 **1000 ₽ 起即可提现**，支持多种支付方式\n\n"
             "🔗 **您的推荐链接：**\n"
-            "🤝 邀请的朋友数量: {count}\n",
+            "🤝 邀请的朋友数量: `{count}`\n"
             "`{link}`\n\n"
             "✨ 分享链接，轻松赚钱！"
         ),

@@ -83,6 +83,14 @@ class TransferBalance(StatesGroup):
     waiting_for_user_id = State()
     waiting_for_amount = State()
 
+class WithdrawState(StatesGroup):
+    choosing_type = State()
+    choosing_payment = State()
+    entering_card = State()
+    entering_amount = State()
+    confirming = State()
+    decline_reason = State()
+
 USERS_PER_PAGE = 7
 
 blocked_users = []
@@ -1089,6 +1097,7 @@ async def topup_balance_handler(call: CallbackQuery, state: FSMContext):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=t(user, "btn_topup_stars"), callback_data="topup_stars")],
+            [InlineKeyboardButton(text="💸 Вывод", callback_data="withdraw_balance")],
             [InlineKeyboardButton(text=t(user, "btn_transfer_balance"), callback_data="transfer_balance")],
             [InlineKeyboardButton(text=t(user, "btn_convert"), callback_data="convert_peaches")],
             [InlineKeyboardButton(text=t(user, "back"), callback_data="back_to_menu")]
@@ -1740,6 +1749,216 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
 
     await state.clear()
     await call.answer()
+
+
+@router.callback_query(F.data == "withdraw_balance")
+async def withdraw_start(call: CallbackQuery, state: FSMContext):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⭐ Звезды", callback_data="withdraw_stars")],
+            [InlineKeyboardButton(text="🍑 Персики", callback_data="withdraw_amount")],
+            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
+        ]
+    )
+
+    await state.set_state(WithdrawState.choosing_type)
+
+    await call.message.edit_caption(
+        caption="Что хотите вывести?",
+        reply_markup=keyboard
+    )
+
+
+@router.callback_query(F.data.in_(["withdraw_stars", "withdraw_amount"]))
+async def choose_type(call: CallbackQuery, state: FSMContext):
+    withdraw_type = call.data.replace("withdraw_", "")
+
+    await state.update_data(withdraw_type=withdraw_type)
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💳 Через карту", callback_data="withdraw_card")]
+        ]
+    )
+
+    await state.set_state(WithdrawState.choosing_payment)
+
+    await call.message.edit_caption(
+        caption="Выберите способ выплаты:",
+        reply_markup=keyboard
+    )
+
+
+@router.callback_query(F.data == "withdraw_card")
+async def withdraw_card(call: CallbackQuery, state: FSMContext):
+    await state.set_state(WithdrawState.entering_card)
+
+    await call.message.edit_caption(
+        caption="Введите номер карты для перевода:"
+    )
+
+
+@router.message(WithdrawState.entering_card)
+async def get_card(message: Message, state: FSMContext):
+    await state.update_data(card_number=message.text)
+    await state.set_state(WithdrawState.entering_amount)
+
+    await message.answer("Введите сумму для вывода:")
+
+
+@router.message(WithdrawState.entering_amount)
+async def get_amount(message: Message, state: FSMContext):
+    if not message.text.isdigit():
+        return await message.answer("Введите число!")
+
+    amount = int(message.text)
+
+    data = await state.get_data()
+    withdraw_type = data["withdraw_type"]
+
+    user = await get_user(message.from_user.id)
+    balance, stars = await get_user_balance(user.id)
+
+    if withdraw_type == "stars" and amount > stars:
+        return await message.answer("Недостаточно звезд!")
+
+    if withdraw_type == "amount" and amount > balance:
+        return await message.answer("Недостаточно персиков!")
+
+    await state.update_data(amount=amount)
+
+    text = (
+        f"Подтвердите вывод:\n\n"
+        f"Тип: {'⭐ Звезды' if withdraw_type=='stars' else '🍑 Персики'}\n"
+        f"Сумма: {amount}\n"
+        f"Карта: {data['card_number']}\n\n"
+        f"Все верно?"
+    )
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Подтвердить", callback_data="confirm_withdraw")],
+            [InlineKeyboardButton(text="Отмена", callback_data="topup_balance")]
+        ]
+    )
+
+    await state.set_state(WithdrawState.confirming)
+    await message.answer(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "confirm_withdraw")
+async def confirm_withdraw(call: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    user = await get_user(call.from_user.id)
+
+    ADMIN_ID = 1799274098
+
+    text = (
+        f"📥 Новая заявка на вывод\n\n"
+        f"👤 Пользователь: {user.full_name}\n"
+        f"🆔 ID: {user.telegram_id}\n"
+        f"💳 Карта: {data['card_number']}\n"
+        f"💰 Сумма: {data['amount']}\n"
+        f"📦 Тип: {'Звезды' if data['withdraw_type']=='stars' else 'Баланс'}"
+    )
+
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Подтвердить",
+                    callback_data=f"admin_confirm_{user.telegram_id}_{data['withdraw_type']}_{data['amount']}"
+                ),
+                InlineKeyboardButton(
+                    text="Отклонить",
+                    callback_data=f"admin_decline_{user.telegram_id}_{data['withdraw_type']}_{data['amount']}"
+                )
+            ]
+        ]
+    )
+
+    await call.bot.send_message(ADMIN_ID, text, reply_markup=keyboard)
+
+    await call.message.edit_text("✅ Заявка отправлена администратору.")
+    await state.clear()
+
+
+@router.callback_query(F.data.startswith("admin_confirm_"))
+async def admin_confirm(call: CallbackQuery):
+    parts = call.data.split("_")
+
+    user_id = int(parts[2])
+    withdraw_type = parts[3]   # stars / amount
+    amount = int(parts[4])
+
+    with Session() as session:
+        balance = session.query(UserBalance).filter_by(user_id=user_id).first()
+
+        if not balance:
+            return await call.answer("Баланс не найден", show_alert=True)
+
+        # Проверка достаточности средств
+        if withdraw_type == "stars":
+            if balance.stars < amount:
+                return await call.answer("Недостаточно звезд!", show_alert=True)
+            balance.stars -= amount
+        else:
+            if balance.amount < amount:
+                return await call.answer("Недостаточно средств!", show_alert=True)
+            balance.amount -= amount
+
+        # Запись в историю
+        history = UserBalanceHistory(
+            user_id=user_id,
+            change=-amount if withdraw_type == "amount" else 0,
+            stars_change=-amount if withdraw_type == "stars" else 0,
+            reason="Вывод средств"
+        )
+
+        session.add(history)
+        session.commit()
+
+    user = await get_user(user_id)
+
+    await call.bot.send_message(
+        user.telegram_id,
+        f"✅ Ваша заявка на вывод {amount} "
+        f"{'⭐' if withdraw_type=='stars' else '🍑'} одобрена!"
+    )
+
+    await call.message.edit_text("Заявка подтверждена ✅")
+
+
+@router.callback_query(F.data.startswith("admin_decline_"))
+async def admin_decline(call: CallbackQuery, state: FSMContext):
+    user_id = int(call.data.split("_")[-1])
+
+    await state.update_data(decline_user=user_id)
+    await state.set_state(WithdrawState.decline_reason)
+
+    await call.message.answer("Введите причину отказа:")
+
+
+@router.message(WithdrawState.decline_reason)
+async def decline_reason(message: Message, state: FSMContext):
+    data = await state.get_data()
+    user_id = data["decline_user"]
+
+    user = await get_user(user_id)
+
+    await message.bot.send_message(
+        user.telegram_id,
+        f"❌ Ваша заявка отклонена.\nПричина: {message.text}"
+    )
+
+    await message.answer("Заявка отклонена.")
+    await state.clear()
+
+
+
+
+
+
 
 
 # ------------------------------

@@ -466,10 +466,6 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
     if not user:
         return
     
-    # Получаем количество рефералов
-    with Session() as session:
-        referrals_count = session.query(User).filter_by(referrer_id=user.id).count()
-
     now = now_local()
 
     if not user.subscription_end or user.subscription_end < now:
@@ -497,7 +493,6 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         t(user, "profile", name=user.full_name) + "\n\n" +
         t(user, "telegram_id", id=user.telegram_id) + "\n\n" +
         t(user, "balance", amount=amount, stars=stars) + "\n\n" +
-        t(user, "referrals_count", count=referrals_count) + "\n\n" +
         sub_text +
         t(user, "subscription_status", status=status) + "\n\n" +
         time_left_text + "\n\n" +
@@ -845,6 +840,10 @@ async def referral_program(callback: CallbackQuery):
     if not user:
         await callback.answer("🛑 Profile error")
         return
+    
+    # Получаем количество рефералов
+    with Session() as session:
+        referrals_count = session.query(User).filter_by(referrer_id=user.id).count()
 
     await callback.answer()
 
@@ -853,7 +852,8 @@ async def referral_program(callback: CallbackQuery):
     text = t(
         user,
         "referral_text",
-        link=referral_link
+        link=referral_link,
+        count=referrals_count
     )
 
     builder = InlineKeyboardBuilder()
@@ -1770,6 +1770,11 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
 
     await state.clear()
     await call.answer()
+
+
+
+
+
 
 
 

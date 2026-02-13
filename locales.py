@@ -60,7 +60,6 @@ TEXTS = {
         "balance": "💰 Баланс: `{amount} персиков`, ⭐ `{stars}`",
 
         "sub_link": "🔗 **Ваша ссылка для подключения:** `{link}`\n\n",
-        "referrals_count": "🤝 Приглашено друзей: {count}",
 
         "subscription_status": "✅ **Статус подписки:** `{status}`",
         "subscription_left": "⏳ **До конца подписки:** `{time}`",
@@ -113,6 +112,7 @@ TEXTS = {
             "💰 **Пример:** друг пополнил 500₽ → ваш бонус **200 ₽**\n\n"
             "💸 **Вывод от 1000 ₽** на удобный способ оплаты\n\n"
             "🔗 **Ваша реферальная ссылка:**\n"
+            "🤝 Приглашено друзей: {count}\n",
             "`{link}`\n\n"
             "✨ Делитесь ссылкой — зарабатывайте легко!"
         ),
@@ -353,8 +353,6 @@ TEXTS = {
 
         "balance": "💰 Balance: `{amount} peaches`, ⭐ `{stars}`",
 
-        "referrals_count": "🤝 Friends invited: {count}",
-
         "sub_link": "🔗 **Your connection link:** `{link}`\n\n",
 
         "subscription_status": "✅ **Subscription status:** `{status}`",
@@ -407,6 +405,7 @@ TEXTS = {
             "💰 **Example:** your friend tops up 500₽ → your reward is **200 ₽**\n\n"
             "💸 **Payout from 1000 ₽** to a convenient payment method\n\n"
             "🔗 **Your referral link:**\n"
+            "🤝 Friends invited: {count}\n",
             "`{link}`\n\n"
             "✨ Share the link and earn easily!"
         ),
@@ -627,8 +626,6 @@ TEXTS = {
 
         "balance": "💰 余额: `{amount} 个桃子`, ⭐ `{stars}`",
 
-        "referrals_count": "🤝 邀请的朋友数量: {count}",
-
         "sub_link": "🔗 **您的连接链接：** `{link}`\n\n",
 
         "subscription_status": "✅ **订阅状态：** `{status}`",
@@ -683,6 +680,7 @@ TEXTS = {
             "💰 **示例：** 好友充值 500₽ → 您可获得 **200 ₽**\n\n"
             "💸 **1000 ₽ 起即可提现**，支持多种支付方式\n\n"
             "🔗 **您的推荐链接：**\n"
+            "🤝 邀请的朋友数量: {count}\n",
             "`{link}`\n\n"
             "✨ 分享链接，轻松赚钱！"
         ),

@@ -1909,9 +1909,12 @@ async def get_amount(message: Message, state: FSMContext):
     kb.button(text="Назад", callback_data="withdraw_balance")
     kb.adjust(1)
 
+    # ✅ используем main_message_id из FSM
+    main_message_id = data["main_message_id"]
+
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
-        message_id=message.message_id - 1,
+        message_id=main_message_id,
         caption=preview,
         reply_markup=kb.as_markup()
     )
@@ -2182,6 +2185,11 @@ async def decline_send(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text("✅ Причина отправлена пользователю.")
     await state.clear()
+
+
+
+
+
 
 
 

@@ -87,9 +87,26 @@ class WithdrawState(StatesGroup):
     choosing_type = State()
     choosing_payment = State()
     entering_card = State()
+    entering_name = State()
     entering_amount = State()
-    confirming = State()
+    preview = State()
     decline_reason = State()
+
+class ComplaintState(StatesGroup):
+    write = State()
+    preview = State()
+
+class AdminDeclineStates(StatesGroup):
+    WRITE_REASON = State()
+    PREVIEW = State()
+    EDIT_MENU = State()
+    FIND_TEXT = State()
+    EDIT_FRAGMENT = State()
+
+
+
+
+
 
 USERS_PER_PAGE = 7
 
@@ -1751,99 +1768,149 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
     await call.answer()
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 @router.callback_query(F.data == "withdraw_balance")
 async def withdraw_start(call: CallbackQuery, state: FSMContext):
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ Звезды", callback_data="withdraw_stars")],
-            [InlineKeyboardButton(text="🍑 Персики", callback_data="withdraw_amount")],
-            [InlineKeyboardButton(text="Назад", callback_data="topup_balance")]
-        ]
+    await state.clear()
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="⭐ Звезды", callback_data="withdraw_stars")
+    kb.button(text="🍑 Персики", callback_data="withdraw_amount")
+    kb.button(text="Назад", callback_data="topup_balance")
+    kb.adjust(1)
+
+    await call.message.edit_caption(
+        caption="Что хотите вывести?",
+        reply_markup=kb.as_markup()
     )
 
     await state.set_state(WithdrawState.choosing_type)
 
-    await call.message.edit_caption(
-        caption="Что хотите вывести?",
-        reply_markup=keyboard
-    )
-
 
 @router.callback_query(F.data.in_(["withdraw_stars", "withdraw_amount"]))
 async def choose_type(call: CallbackQuery, state: FSMContext):
-    withdraw_type = call.data.replace("withdraw_", "")
+    await state.update_data(withdraw_type=call.data.replace("withdraw_", ""))
 
-    await state.update_data(withdraw_type=withdraw_type)
+    kb = InlineKeyboardBuilder()
+    kb.button(text="💳 Через карту", callback_data="withdraw_card")
+    kb.button(text="Назад", callback_data="withdraw_balance")
+    kb.adjust(1)
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Через карту", callback_data="withdraw_card")]
-        ]
+    await call.message.edit_caption(
+        caption="Выберите способ выплаты:",
+        reply_markup=kb.as_markup()
     )
 
     await state.set_state(WithdrawState.choosing_payment)
 
-    await call.message.edit_caption(
-        caption="Выберите способ выплаты:",
-        reply_markup=keyboard
-    )
-
 
 @router.callback_query(F.data == "withdraw_card")
 async def withdraw_card(call: CallbackQuery, state: FSMContext):
-    await state.set_state(WithdrawState.entering_card)
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Назад", callback_data="withdraw_balance")
+    kb.adjust(1)
 
     await call.message.edit_caption(
-        caption="Введите номер карты для перевода:"
+        caption="Введите номер карты:",
+        reply_markup=kb.as_markup()
     )
+
+    await state.set_state(WithdrawState.entering_card)
 
 
 @router.message(WithdrawState.entering_card)
 async def get_card(message: Message, state: FSMContext):
     await state.update_data(card_number=message.text)
-    await state.set_state(WithdrawState.entering_amount)
 
-    await message.answer("Введите сумму для вывода:")
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Назад", callback_data="withdraw_card")
+    kb.adjust(1)
+
+    await message.bot.edit_message_caption(
+        chat_id=message.chat.id,
+        message_id=message.message_id - 1,
+        caption="Введите Имя и Фамилию владельца карты:",
+        reply_markup=kb.as_markup()
+    )
+
+    await message.delete()
+    await state.set_state(WithdrawState.entering_name)
+
+
+@router.message(WithdrawState.entering_name)
+async def get_name(message: Message, state: FSMContext):
+    await state.update_data(card_holder=message.text)
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Назад", callback_data="withdraw_card")
+    kb.adjust(1)
+
+    await message.bot.edit_message_caption(
+        chat_id=message.chat.id,
+        message_id=message.message_id - 1,
+        caption="Введите сумму для вывода:",
+        reply_markup=kb.as_markup()
+    )
+
+    await message.delete()
+    await state.set_state(WithdrawState.entering_amount)
 
 
 @router.message(WithdrawState.entering_amount)
 async def get_amount(message: Message, state: FSMContext):
     if not message.text.isdigit():
-        return await message.answer("Введите число!")
+        return await message.delete()
 
     amount = int(message.text)
-
     data = await state.get_data()
-    withdraw_type = data["withdraw_type"]
 
     user = await get_user(message.from_user.id)
     balance, stars = await get_user_balance(user.id)
 
-    if withdraw_type == "stars" and amount > stars:
-        return await message.answer("Недостаточно звезд!")
+    if data["withdraw_type"] == "stars" and amount > stars:
+        return await message.delete()
 
-    if withdraw_type == "amount" and amount > balance:
-        return await message.answer("Недостаточно персиков!")
+    if data["withdraw_type"] == "amount" and amount > balance:
+        return await message.delete()
 
     await state.update_data(amount=amount)
 
-    text = (
-        f"Подтвердите вывод:\n\n"
-        f"Тип: {'⭐ Звезды' if withdraw_type=='stars' else '🍑 Персики'}\n"
+    preview = (
+        f"📋 Проверьте данные:\n\n"
+        f"Тип: {'⭐ Звезды' if data['withdraw_type']=='stars' else '🍑 Персики'}\n"
         f"Сумма: {amount}\n"
-        f"Карта: {data['card_number']}\n\n"
+        f"Карта: {data['card_number']}\n"
+        f"ФИО: {data['card_holder']}\n\n"
         f"Все верно?"
     )
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Подтвердить", callback_data="confirm_withdraw")],
-            [InlineKeyboardButton(text="Отмена", callback_data="topup_balance")]
-        ]
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✏️ Редактировать", callback_data="withdraw_balance")
+    kb.button(text="✅ Отправить", callback_data="confirm_withdraw")
+    kb.button(text="Назад", callback_data="withdraw_balance")
+    kb.adjust(1)
+
+    await message.bot.edit_message_caption(
+        chat_id=message.chat.id,
+        message_id=message.message_id - 1,
+        caption=preview,
+        reply_markup=kb.as_markup()
     )
 
-    await state.set_state(WithdrawState.confirming)
-    await message.answer(text, reply_markup=keyboard)
+    await message.delete()
+    await state.set_state(WithdrawState.preview)
 
 
 @router.callback_query(F.data == "confirm_withdraw")
@@ -1854,105 +1921,262 @@ async def confirm_withdraw(call: CallbackQuery, state: FSMContext):
     ADMIN_ID = 1799274098
 
     text = (
-        f"📥 Новая заявка на вывод\n\n"
-        f"👤 Пользователь: {user.full_name}\n"
-        f"🆔 ID: {user.telegram_id}\n"
-        f"💳 Карта: {data['card_number']}\n"
-        f"💰 Сумма: {data['amount']}\n"
-        f"📦 Тип: {'Звезды' if data['withdraw_type']=='stars' else 'Баланс'}"
+        f"📥 Новая заявка\n\n"
+        f"👤 {user.full_name}\n"
+        f"🆔 {user.telegram_id}\n"
+        f"💳 {data['card_number']}\n"
+        f"👤 ФИО: {data['card_holder']}\n"
+        f"💰 {data['amount']}\n"
+        f"📦 {data['withdraw_type']}"
     )
 
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="Подтвердить",
-                    callback_data=f"admin_confirm_{user.telegram_id}_{data['withdraw_type']}_{data['amount']}"
-                ),
-                InlineKeyboardButton(
-                    text="Отклонить",
-                    callback_data=f"admin_decline_{user.telegram_id}_{data['withdraw_type']}_{data['amount']}"
-                )
-            ]
-        ]
+    kb = InlineKeyboardBuilder()
+    kb.button(
+        text="Подтвердить",
+        callback_data=f"admin_confirm_{user.telegram_id}_{data['withdraw_type']}_{data['amount']}"
     )
+    kb.button(
+        text="Отклонить",
+        callback_data=f"admin_decline_{user.telegram_id}"
+    )
+    kb.adjust(2)
 
-    await call.bot.send_message(ADMIN_ID, text, reply_markup=keyboard)
+    await call.bot.send_message(ADMIN_ID, text, reply_markup=kb.as_markup())
 
-    await call.message.edit_text("✅ Заявка отправлена администратору.")
+    await call.message.edit_caption("✅ Заявка отправлена.")
     await state.clear()
-
-
-@router.callback_query(F.data.startswith("admin_confirm_"))
-async def admin_confirm(call: CallbackQuery):
-    parts = call.data.split("_")
-
-    user_id = int(parts[2])
-    withdraw_type = parts[3]   # stars / amount
-    amount = int(parts[4])
-
-    with Session() as session:
-        balance = session.query(UserBalance).filter_by(user_id=user_id).first()
-
-        if not balance:
-            return await call.answer("Баланс не найден", show_alert=True)
-
-        # Проверка достаточности средств
-        if withdraw_type == "stars":
-            if balance.stars < amount:
-                return await call.answer("Недостаточно звезд!", show_alert=True)
-            balance.stars -= amount
-        else:
-            if balance.amount < amount:
-                return await call.answer("Недостаточно средств!", show_alert=True)
-            balance.amount -= amount
-
-        # Запись в историю
-        history = UserBalanceHistory(
-            user_id=user_id,
-            change=-amount if withdraw_type == "amount" else 0,
-            stars_change=-amount if withdraw_type == "stars" else 0,
-            reason="Вывод средств"
-        )
-
-        session.add(history)
-        session.commit()
-
-    user = await get_user(user_id)
-
-    await call.bot.send_message(
-        user.telegram_id,
-        f"✅ Ваша заявка на вывод {amount} "
-        f"{'⭐' if withdraw_type=='stars' else '🍑'} одобрена!"
-    )
-
-    await call.message.edit_text("Заявка подтверждена ✅")
 
 
 @router.callback_query(F.data.startswith("admin_decline_"))
-async def admin_decline(call: CallbackQuery, state: FSMContext):
-    user_id = int(call.data.split("_")[-1])
+async def admin_decline_start(call: CallbackQuery, state: FSMContext):
+    telegram_id = int(call.data.split("_")[2])
 
-    await state.update_data(decline_user=user_id)
-    await state.set_state(WithdrawState.decline_reason)
-
-    await call.message.answer("Введите причину отказа:")
-
-
-@router.message(WithdrawState.decline_reason)
-async def decline_reason(message: Message, state: FSMContext):
-    data = await state.get_data()
-    user_id = data["decline_user"]
-
-    user = await get_user(user_id)
-
-    await message.bot.send_message(
-        user.telegram_id,
-        f"❌ Ваша заявка отклонена.\nПричина: {message.text}"
+    await state.clear()
+    await state.update_data(
+        target_user=telegram_id,
+        main_message_id=call.message.message_id,
+        composed_text="",
+        current_style=None
     )
 
-    await message.answer("Заявка отклонена.")
+    await call.message.edit_text(
+        "✏️ Введите причину отклонения заявки:",
+        reply_markup=InlineKeyboardBuilder()
+        .button(text="Назад", callback_data="admin_menu")
+        .adjust(1)
+        .as_markup()
+    )
+
+    await state.set_state(AdminDeclineStates.WRITE_REASON)
+
+
+@router.message(AdminDeclineStates.WRITE_REASON)
+async def admin_write_reason(message: Message, state: FSMContext):
+    data = await state.get_data()
+
+    await state.update_data(composed_text=message.text)
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✏️ Редактировать", callback_data="decline_edit_menu")
+    kb.button(text="Отправить", callback_data="decline_send")
+    kb.button(text="Назад", callback_data="admin_menu")
+    kb.adjust(1, 1, 1)
+
+    await message.bot.edit_message_text(
+        chat_id=message.chat.id,
+        message_id=data["main_message_id"],
+        text=f"📋 Предпросмотр причины:\n\n{message.text}",
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
+    )
+
+    await message.delete()
+    await state.set_state(AdminDeclineStates.PREVIEW)
+
+
+@router.callback_query(F.data == "decline_edit_menu")
+async def decline_edit_menu(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔍 Найти текст", callback_data="decline_find_text")
+    kb.button(text="Назад", callback_data="decline_back_preview")
+    kb.adjust(1, 1)
+
+    await callback.message.edit_text(
+        f"📝 Текущий текст:\n\n{data['composed_text']}",
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
+    )
+
+    await state.set_state(AdminDeclineStates.EDIT_MENU)
+
+
+@router.callback_query(F.data == "decline_find_text")
+async def decline_find_text(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+
+    text = (
+        "✏️ Введите фрагмент для редактирования:\n\n"
+        f"{data['composed_text']}"
+    )
+
+    await callback.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardBuilder()
+        .button(text="Назад", callback_data="decline_edit_menu")
+        .adjust(1)
+        .as_markup(),
+        parse_mode="HTML"
+    )
+
+    await state.set_state(AdminDeclineStates.FIND_TEXT)
+
+
+@router.message(AdminDeclineStates.FIND_TEXT)
+async def process_decline_find(message: Message, state: FSMContext):
+    data = await state.get_data()
+    full_text = data["composed_text"]
+    fragment = message.text
+
+    if fragment not in full_text:
+        await message.answer("❌ Фрагмент не найден.")
+        return
+
+    await state.update_data(
+        edit_fragment=fragment,
+        edit_fragment_edited=fragment,
+        current_style=None
+    )
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="B", callback_data="decline_format_bold")
+    kb.button(text="I", callback_data="decline_format_italic")
+    kb.button(text="U", callback_data="decline_format_underline")
+    kb.button(text="S", callback_data="decline_format_strike")
+    kb.button(text="`", callback_data="decline_format_mono")
+    kb.button(text="»", callback_data="decline_format_quote")
+    kb.button(text="Сохранить", callback_data="decline_save_fragment")
+    kb.button(text="Назад", callback_data="decline_edit_menu")
+    kb.adjust(3, 3, 1, 1)
+
+    await message.bot.edit_message_text(
+        chat_id=message.chat.id,
+        message_id=data["main_message_id"],
+        text=f"✏️ Редактируем:\n\n{fragment}",
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
+    )
+
+    await message.delete()
+    await state.set_state(AdminDeclineStates.EDIT_FRAGMENT)
+
+
+@router.callback_query(F.data.startswith("decline_format_"))
+async def decline_format(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+
+    data = await state.get_data()
+    fragment = data["edit_fragment_edited"]
+    current_style = data.get("current_style")
+
+    action = callback.data.split("_")[2]
+
+    tags = {
+        "bold": ("<b>", "</b>"),
+        "italic": ("<i>", "</i>"),
+        "underline": ("<u>", "</u>"),
+        "strike": ("<s>", "</s>"),
+        "mono": ("<code>", "</code>"),
+        "quote": ("<blockquote>", "</blockquote>")
+    }
+
+    if current_style:
+        start, end = tags[current_style]
+        fragment = fragment.replace(start, "").replace(end, "")
+
+    start, end = tags[action]
+    fragment = f"{start}{fragment}{end}"
+
+    await state.update_data(
+        edit_fragment_edited=fragment,
+        current_style=action
+    )
+
+    await callback.message.edit_text(
+        f"✏️ Редактируем:\n\n{fragment}",
+        reply_markup=callback.message.reply_markup,
+        parse_mode="HTML"
+    )
+
+
+@router.callback_query(F.data == "decline_save_fragment")
+async def decline_save_fragment(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+
+    full = data["composed_text"]
+    old = data["edit_fragment"]
+    new = data["edit_fragment_edited"]
+
+    full = full.replace(old, new, 1)
+
+    await state.update_data(
+        composed_text=full,
+        current_style=None
+    )
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="🔍 Найти ещё", callback_data="decline_find_text")
+    kb.button(text="Назад к предпросмотру", callback_data="decline_back_preview")
+    kb.adjust(1, 1)
+
+    await callback.message.edit_text(
+        f"📝 Текущий текст:\n\n{full}",
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
+    )
+
+    await state.set_state(AdminDeclineStates.EDIT_MENU)
+
+
+@router.callback_query(F.data == "decline_back_preview")
+async def decline_back_preview(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✏️ Редактировать", callback_data="decline_edit_menu")
+    kb.button(text="Отправить", callback_data="decline_send")
+    kb.button(text="Назад", callback_data="admin_menu")
+    kb.adjust(1, 1, 1)
+
+    await callback.message.edit_text(
+        f"📋 Предпросмотр причины:\n\n{data['composed_text']}",
+        reply_markup=kb.as_markup(),
+        parse_mode="HTML"
+    )
+
+    await state.set_state(AdminDeclineStates.PREVIEW)
+
+
+@router.callback_query(F.data == "decline_send")
+async def decline_send(callback: CallbackQuery, state: FSMContext):
+    await callback.answer()
+    data = await state.get_data()
+
+    await callback.bot.send_message(
+        data["target_user"],
+        f"❌ Ваша заявка на вывод отклонена.\n\nПричина:\n{data['composed_text']}",
+        parse_mode="HTML"
+    )
+
+    await callback.message.edit_text("✅ Причина отправлена пользователю.")
     await state.clear()
+
+
 
 
 

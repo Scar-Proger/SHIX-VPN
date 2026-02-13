@@ -1822,16 +1822,20 @@ async def withdraw_card(call: CallbackQuery, state: FSMContext):
     kb.button(text="Назад", callback_data="withdraw_balance")
     kb.adjust(1)
 
-    await call.message.edit_caption(
+    msg = await call.message.edit_caption(
         caption="Введите номер карты:",
         reply_markup=kb.as_markup()
     )
 
+    await state.update_data(main_message_id=call.message.message_id)
     await state.set_state(WithdrawState.entering_card)
 
 
 @router.message(WithdrawState.entering_card)
 async def get_card(message: Message, state: FSMContext):
+    data = await state.get_data()
+    main_message_id = data["main_message_id"]
+
     await state.update_data(card_number=message.text)
 
     kb = InlineKeyboardBuilder()
@@ -1840,7 +1844,7 @@ async def get_card(message: Message, state: FSMContext):
 
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
-        message_id=message.message_id - 1,
+        message_id=main_message_id,
         caption="Введите Имя и Фамилию владельца карты:",
         reply_markup=kb.as_markup()
     )
@@ -1851,6 +1855,9 @@ async def get_card(message: Message, state: FSMContext):
 
 @router.message(WithdrawState.entering_name)
 async def get_name(message: Message, state: FSMContext):
+    data = await state.get_data()
+    main_message_id = data["main_message_id"]
+
     await state.update_data(card_holder=message.text)
 
     kb = InlineKeyboardBuilder()
@@ -1859,7 +1866,7 @@ async def get_name(message: Message, state: FSMContext):
 
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
-        message_id=message.message_id - 1,
+        message_id=main_message_id,
         caption="Введите сумму для вывода:",
         reply_markup=kb.as_markup()
     )
@@ -2175,6 +2182,11 @@ async def decline_send(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text("✅ Причина отправлена пользователю.")
     await state.clear()
+
+
+
+
+
 
 
 

@@ -220,7 +220,7 @@ async def check_channel_membership():
         except Exception as e:
             logger.error(f"❌ Ошибка проверки подписки на канал: {e}")
 
-        await asyncio.sleep(300)  # ✅ раз в 5 минут
+        await asyncio.sleep(100)  # ✅ раз в 5 минут
 
 
 async def notify_admins_user_left(user):

@@ -155,9 +155,6 @@ async def safe_edit_caption(
         raise
 
 
-    
-
-
 
 
 

@@ -1978,10 +1978,26 @@ async def confirm_withdraw(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     user = await get_user(call.from_user.id)
 
-    ADMIN_ID = 1799274098
     withdraw_type_display = "⭐ Звезды" if data['withdraw_type'] == "stars" else "🍑 Персики"
 
-    text = (
+    # 1️⃣ Обновляем caption фото — убираем кнопки
+    caption_text = (
+        f"Тип: {withdraw_type_display}\n"
+        f"Сумма: {data['amount']}\n"
+        f"Карта: {data['card_number']}\n"
+        f"ФИО: {data['card_holder']}"
+    )
+
+    await call.bot.edit_message_caption(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        caption=caption_text,
+        reply_markup=None  # убираем кнопки
+    )
+
+    # 2️⃣ Отправляем заявку админу
+    ADMIN_ID = 1799274098
+    admin_text = (
         f"📥 Новая заявка\n\n"
         f"👤 {user.full_name}\n"
         f"🆔 {user.telegram_id}\n"
@@ -2000,12 +2016,14 @@ async def confirm_withdraw(call: CallbackQuery, state: FSMContext):
         text="Отклонить",
         callback_data=f"admin_decline_{user.telegram_id}"
     )
-    kb.adjust(2)
+    kb.adjust(1)
 
-    await call.bot.send_message(ADMIN_ID, text, reply_markup=kb.as_markup())
+    await call.bot.send_message(ADMIN_ID, admin_text, reply_markup=kb.as_markup())
 
+    # 3️⃣ Отправляем пользователю уведомление
     await call.message.reply("✅ Ваша заявка отправлена на проверку.")
 
+    # 4️⃣ Очищаем состояние
     await state.clear()
 
 
@@ -2237,12 +2255,6 @@ async def decline_send(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text("✅ Причина отправлена пользователю.")
     await state.clear()
-
-
-
-
-
-
 
 
 

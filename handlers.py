@@ -160,6 +160,11 @@ async def safe_edit_caption(
 
 
 
+
+
+
+
+
 # ------------------------------
 # Получение промокода из БД
 # ------------------------------
@@ -396,7 +401,7 @@ async def ensure_user(
     telegram_id: int,
     full_name: str = "",
     username: str | None = None,
-    referrer_id: int | None = None
+    referrer_telegram_id: int | None = None
 ) -> User:
     """
     Создаёт пользователя, если его нет, создаёт профиль, уведомляет админов и реферера.
@@ -416,7 +421,7 @@ async def ensure_user(
         full_name=full_name,
         username=username,
         is_admin=telegram_id in config.ADMINS,
-        referrer_id=referrer_id,
+        referrer_telegram_id=referrer_telegram_id,
         language="ru"
     )
     user = await get_user(telegram_id)
@@ -438,9 +443,9 @@ async def ensure_user(
     await notify_admins_user_joined(bot, user)
 
     # 4️⃣ Уведомляем реферера
-    if referrer_id:
+    if referrer_telegram_id:
         await bot.send_message(
-            referrer_id,
+            referrer_telegram_id,
             t(
                 user,
                 "referral_notify",

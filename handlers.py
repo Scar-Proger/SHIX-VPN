@@ -1979,6 +1979,7 @@ async def confirm_withdraw(call: CallbackQuery, state: FSMContext):
     user = await get_user(call.from_user.id)
 
     ADMIN_ID = 1799274098
+    withdraw_type_display = "⭐ Звезды" if data['withdraw_type'] == "stars" else "🍑 Персики"
 
     text = (
         f"📥 Новая заявка\n\n"
@@ -1987,7 +1988,7 @@ async def confirm_withdraw(call: CallbackQuery, state: FSMContext):
         f"💳 {data['card_number']}\n"
         f"👤 ФИО: {data['card_holder']}\n"
         f"💰 {data['amount']}\n"
-        f"📦 {data['withdraw_type']}"
+        f"📦 {withdraw_type_display}"
     )
 
     kb = InlineKeyboardBuilder()
@@ -2003,9 +2004,7 @@ async def confirm_withdraw(call: CallbackQuery, state: FSMContext):
 
     await call.bot.send_message(ADMIN_ID, text, reply_markup=kb.as_markup())
 
-    # ✅ редактируем caption на фото, не удаляем фото
-    main_message_id = data["main_message_id"]
-    await call.message.edit_caption("✅ Заявка отправлена.", reply_markup=None)
+    await call.message.reply("✅ Ваша заявка отправлена на проверку.")
 
     await state.clear()
 
@@ -2238,6 +2237,11 @@ async def decline_send(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text("✅ Причина отправлена пользователю.")
     await state.clear()
+
+
+
+
+
 
 
 

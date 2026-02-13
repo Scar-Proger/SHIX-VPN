@@ -159,12 +159,6 @@ async def safe_edit_caption(
 
 
 
-
-
-
-
-
-
 # ------------------------------
 # Получение промокода из БД
 # ------------------------------
@@ -274,7 +268,7 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
         pass
 
     # Получаем referrer_id, если есть (можно хранить в БД или передавать через callback)
-    referrer_id = None
+    referrer_telegram_id = None
 
     # Создаём или получаем пользователя с правильными данными
     user = await ensure_user(
@@ -282,7 +276,7 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
         telegram_id,
         full_name=full_name,
         username=username,
-        referrer_id=referrer_id
+        referrer_telegram_id=referrer_telegram_id
     )
 
     # Показываем меню

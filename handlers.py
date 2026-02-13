@@ -612,11 +612,11 @@ async def start_cmd(message: Message, bot: Bot):
     # -------------------------------
     # Получаем реферера (если есть)
     # -------------------------------
-    referrer_id = None
+    referrer_telegram_id = None
     if message.text and " " in message.text:
         arg = message.text.split(" ", 1)[1]
         if arg.isdigit():
-            referrer_id = int(arg)
+            referrer_telegram_id = int(arg)
 
     # ===============================
     # Проверяем и создаём пользователя
@@ -640,7 +640,7 @@ async def start_cmd(message: Message, bot: Bot):
             telegram_id,
             full_name=message.from_user.full_name,
             username=message.from_user.username,
-            referrer_id=referrer_id
+            referrer_telegram_id=referrer_telegram_id
         )
 
         # 🔔 Уведомляем админов только для нового пользователя
@@ -659,9 +659,9 @@ async def start_cmd(message: Message, bot: Bot):
         # -------------------------------
         # Уведомляем реферера
         # -------------------------------
-        if referrer_id:
+        if referrer_telegram_id:
             await bot.send_message(
-                referrer_id,
+                referrer_telegram_id,
                 t(
                     user,
                     "referral_notify",
@@ -1768,6 +1768,11 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
 
     await state.clear()
     await call.answer()
+
+
+
+
+
 
 
 

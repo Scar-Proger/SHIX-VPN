@@ -203,10 +203,19 @@ async def create_user(
     full_name: str,
     username: str = None,
     is_admin: bool = False,
-    referrer_id: int = None,
+    referrer_telegram_id: int = None,  # передаём Telegram ID реферера
     language: str = "ru"
 ):
     with Session() as session:
+        # ---------------------------
+        # Находим реферера в базе (по Telegram ID)
+        # ---------------------------
+        referrer_id_db = None
+        if referrer_telegram_id:
+            referrer = session.query(User).filter_by(telegram_id=referrer_telegram_id).first()
+            if referrer:
+                referrer_id_db = referrer.id
+
         # ---------------------------
         # Создаём пользователя
         # ---------------------------
@@ -217,7 +226,7 @@ async def create_user(
             sub_id=generate_sub_id(),
             subscription_end=now_local() + timedelta(days=50*365),
             is_admin=is_admin,
-            referrer_id=referrer_id,
+            referrer_id=referrer_id_db,
             referrals_count=0,
             language=language
         )
@@ -230,14 +239,23 @@ async def create_user(
         # ---------------------------
         balance = UserBalance(
             user_id=user.id,
-            amount=0,   # начальный баланс персиков
-            stars=0     # начальный баланс звёзд
+            amount=0,
+            stars=0
         )
         session.add(balance)
         session.commit()
         session.refresh(balance)
 
         logger.info(f"✅ Новый пользователь создан: {telegram_id} с балансом 0 и звёздами 0")
+
+        # ---------------------------
+        # Обновляем рефереру количество рефералов
+        # ---------------------------
+        if referrer_id_db:
+            referrer.referrals_count = session.query(User).filter_by(referrer_id=referrer_id_db).count()
+            session.commit()
+            logger.info(f"🔹 Обновлён счётчик рефералов для {referrer_telegram_id}: {referrer.referrals_count}")
+
         return user
 
 async def delete_user_profile(telegram_id: int):

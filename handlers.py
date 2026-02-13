@@ -458,6 +458,8 @@ async def ensure_user(
     return user
 
 
+
+
 # =========================================================
 # UX
 # =========================================================
@@ -640,9 +642,6 @@ async def start_cmd(message: Message, bot: Bot):
             referrer_telegram_id=referrer_telegram_id
         )
 
-        # 🔔 Уведомляем админов только для нового пользователя
-        await notify_admins_user_joined(bot, user)
-
         # -------------------------------
         # Welcome
         # -------------------------------
@@ -652,21 +651,6 @@ async def start_cmd(message: Message, bot: Bot):
             caption=t(user, "welcome", bot_name=(await bot.get_me()).full_name),
             parse_mode="Markdown"
         )
-
-        # -------------------------------
-        # Уведомляем реферера
-        # -------------------------------
-        if referrer_telegram_id:
-            await bot.send_message(
-                referrer_telegram_id,
-                t(
-                    user,
-                    "referral_notify",
-                    name=message.from_user.username or message.from_user.full_name or "Пользователь",
-                    id=telegram_id
-                ),
-                parse_mode="Markdown"
-            )
 
         # Показываем меню с переданным message_id
         await show_menu(bot, chat_id=telegram_id, message_id=msg.message_id)

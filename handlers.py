@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+import re
 import asyncio
 from database import now_local
 from aiogram.exceptions import (
@@ -1816,6 +1817,7 @@ async def choose_type(call: CallbackQuery, state: FSMContext):
     await state.set_state(WithdrawState.choosing_payment)
 
 
+# --- Ввод номера карты ---
 @router.callback_query(F.data == "withdraw_card")
 async def withdraw_card(call: CallbackQuery, state: FSMContext):
     kb = InlineKeyboardBuilder()
@@ -1827,34 +1829,19 @@ async def withdraw_card(call: CallbackQuery, state: FSMContext):
         reply_markup=kb.as_markup()
     )
 
-    await state.update_data(main_message_id=call.message.message_id)
+    # Сохраняем ID сообщения бота
+    await state.update_data(main_message_id=msg.message_id)
     await state.set_state(WithdrawState.entering_card)
 
 
-@router.message(WithdrawState.entering_card)
-async def get_card(message: Message, state: FSMContext):
-    data = await state.get_data()
-    main_message_id = data["main_message_id"]
-
-    await state.update_data(card_number=message.text)
-
-    kb = InlineKeyboardBuilder()
-    kb.button(text="Назад", callback_data="withdraw_card")
-    kb.adjust(1)
-
-    await message.bot.edit_message_caption(
-        chat_id=message.chat.id,
-        message_id=main_message_id,
-        caption="Введите Имя и Фамилию владельца карты:",
-        reply_markup=kb.as_markup()
-    )
-
-    await message.delete()
-    await state.set_state(WithdrawState.entering_name)
-
-
+# --- Ввод ФИО ---
 @router.message(WithdrawState.entering_name)
 async def get_name(message: Message, state: FSMContext):
+    # Проверка: только буквы и пробелы
+    if not re.fullmatch(r"[A-Za-zА-Яа-яЁё\s]+", message.text):
+        await message.answer("❌ ФИО должно содержать только буквы и пробелы.")
+        return await message.delete()
+
     data = await state.get_data()
     main_message_id = data["main_message_id"]
 
@@ -1864,6 +1851,7 @@ async def get_name(message: Message, state: FSMContext):
     kb.button(text="Назад", callback_data="withdraw_card")
     kb.adjust(1)
 
+    # Редактируем caption на фото
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
         message_id=main_message_id,
@@ -1875,24 +1863,34 @@ async def get_name(message: Message, state: FSMContext):
     await state.set_state(WithdrawState.entering_amount)
 
 
+# --- Ввод суммы ---
 @router.message(WithdrawState.entering_amount)
 async def get_amount(message: Message, state: FSMContext):
+    # Проверка: только цифры
     if not message.text.isdigit():
+        await message.answer("❌ Введите корректное число.")
         return await message.delete()
 
     amount = int(message.text)
-    data = await state.get_data()
+    if amount < 1:
+        await message.answer("❌ Сумма должна быть не меньше 1.")
+        return await message.delete()
 
+    data = await state.get_data()
     user = await get_user(message.from_user.id)
     balance, stars = await get_user_balance(user.id)
 
+    # Проверка баланса
     if data["withdraw_type"] == "stars" and amount > stars:
+        await message.answer(f"❌ У вас недостаточно звезд. Доступно: {stars}")
         return await message.delete()
 
     if data["withdraw_type"] == "amount" and amount > balance:
+        await message.answer(f"❌ У вас недостаточно 🍑 Персиков. Доступно: {balance}")
         return await message.delete()
 
     await state.update_data(amount=amount)
+    main_message_id = data["main_message_id"]
 
     preview = (
         f"📋 Проверьте данные:\n\n"
@@ -1909,9 +1907,7 @@ async def get_amount(message: Message, state: FSMContext):
     kb.button(text="Назад", callback_data="withdraw_balance")
     kb.adjust(1)
 
-    # ✅ используем main_message_id из FSM
-    main_message_id = data["main_message_id"]
-
+    # Редактируем caption на фото, фото остаётся
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
         message_id=main_message_id,
@@ -1923,6 +1919,7 @@ async def get_amount(message: Message, state: FSMContext):
     await state.set_state(WithdrawState.preview)
 
 
+# --- Подтверждение заявки ---
 @router.callback_query(F.data == "confirm_withdraw")
 async def confirm_withdraw(call: CallbackQuery, state: FSMContext):
     data = await state.get_data()
@@ -1953,7 +1950,10 @@ async def confirm_withdraw(call: CallbackQuery, state: FSMContext):
 
     await call.bot.send_message(ADMIN_ID, text, reply_markup=kb.as_markup())
 
-    await call.message.edit_caption("✅ Заявка отправлена.")
+    # ✅ редактируем caption на фото, не удаляем фото
+    main_message_id = data["main_message_id"]
+    await call.message.edit_caption("✅ Заявка отправлена.", reply_markup=None)
+
     await state.clear()
 
 
@@ -2185,11 +2185,6 @@ async def decline_send(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text("✅ Причина отправлена пользователю.")
     await state.clear()
-
-
-
-
-
 
 
 

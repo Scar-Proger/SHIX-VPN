@@ -105,10 +105,6 @@ class AdminDeclineStates(StatesGroup):
     EDIT_FRAGMENT = State()
 
 
-
-
-
-
 USERS_PER_PAGE = 7
 
 blocked_users = []
@@ -1817,7 +1813,6 @@ async def choose_type(call: CallbackQuery, state: FSMContext):
     await state.set_state(WithdrawState.choosing_payment)
 
 
-# --- Ввод номера карты ---
 @router.callback_query(F.data == "withdraw_card")
 async def withdraw_card(call: CallbackQuery, state: FSMContext):
     kb = InlineKeyboardBuilder()
@@ -1834,24 +1829,67 @@ async def withdraw_card(call: CallbackQuery, state: FSMContext):
     await state.set_state(WithdrawState.entering_card)
 
 
-# --- Ввод ФИО ---
-@router.message(WithdrawState.entering_name)
-async def get_name(message: Message, state: FSMContext):
-    # Проверка: только буквы и пробелы
-    if not re.fullmatch(r"[A-Za-zА-Яа-яЁё\s]+", message.text):
-        await message.answer("❌ ФИО должно содержать только буквы и пробелы.")
+# --- Ввод карты ---
+@router.message(WithdrawState.entering_card)
+async def get_card(message: Message, state: FSMContext):
+    # Проверка: только цифры и длина от 13 до 19
+    if not message.text.isdigit() or not (13 <= len(message.text) <= 19):
+        # Ошибка через caption
+        data = await state.get_data()
+        main_message_id = data.get("main_message_id", message.message_id)
+        kb = InlineKeyboardBuilder().button(text="Назад", callback_data="withdraw_balance").adjust(1)
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=main_message_id,
+            caption="❌ Некорректный номер карты. Введите 13-19 цифр.",
+            reply_markup=kb.as_markup()
+        )
         return await message.delete()
 
     data = await state.get_data()
     main_message_id = data["main_message_id"]
 
+    await state.update_data(card_number=message.text)
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Назад", callback_data="withdraw_card")
+    kb.adjust(1)
+
+    await message.bot.edit_message_caption(
+        chat_id=message.chat.id,
+        message_id=main_message_id,
+        caption="Введите Имя и Фамилию владельца карты:",
+        reply_markup=kb.as_markup()
+    )
+
+    await message.delete()
+    await state.set_state(WithdrawState.entering_name)
+
+
+# --- Ввод ФИО ---
+@router.message(WithdrawState.entering_name)
+async def get_name(message: Message, state: FSMContext):
+    # Только буквы и пробелы
+    if not re.fullmatch(r"[A-Za-zА-Яа-яЁё\s]+", message.text):
+        data = await state.get_data()
+        main_message_id = data.get("main_message_id", message.message_id)
+        kb = InlineKeyboardBuilder().button(text="Назад", callback_data="withdraw_card").adjust(1)
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=main_message_id,
+            caption="❌ ФИО должно содержать только буквы и пробелы.",
+            reply_markup=kb.as_markup()
+        )
+        return await message.delete()
+
+    data = await state.get_data()
+    main_message_id = data["main_message_id"]
     await state.update_data(card_holder=message.text)
 
     kb = InlineKeyboardBuilder()
     kb.button(text="Назад", callback_data="withdraw_card")
     kb.adjust(1)
 
-    # Редактируем caption на фото
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
         message_id=main_message_id,
@@ -1866,32 +1904,48 @@ async def get_name(message: Message, state: FSMContext):
 # --- Ввод суммы ---
 @router.message(WithdrawState.entering_amount)
 async def get_amount(message: Message, state: FSMContext):
-    # Проверка: только цифры
-    if not message.text.isdigit():
-        await message.answer("❌ Введите корректное число.")
+    data = await state.get_data()
+    main_message_id = data["main_message_id"]
+
+    # Проверка: только цифры >= 1
+    if not message.text.isdigit() or int(message.text) < 1:
+        kb = InlineKeyboardBuilder().button(text="Назад", callback_data="withdraw_card").adjust(1)
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=main_message_id,
+            caption="❌ Введите корректное число >= 1.",
+            reply_markup=kb.as_markup()
+        )
         return await message.delete()
 
     amount = int(message.text)
-    if amount < 1:
-        await message.answer("❌ Сумма должна быть не меньше 1.")
-        return await message.delete()
-
-    data = await state.get_data()
     user = await get_user(message.from_user.id)
     balance, stars = await get_user_balance(user.id)
 
     # Проверка баланса
     if data["withdraw_type"] == "stars" and amount > stars:
-        await message.answer(f"❌ У вас недостаточно звезд. Доступно: {stars}")
+        kb = InlineKeyboardBuilder().button(text="Назад", callback_data="withdraw_card").adjust(1)
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=main_message_id,
+            caption=f"❌ Недостаточно звезд. Доступно: {stars}",
+            reply_markup=kb.as_markup()
+        )
         return await message.delete()
 
     if data["withdraw_type"] == "amount" and amount > balance:
-        await message.answer(f"❌ У вас недостаточно 🍑 Персиков. Доступно: {balance}")
+        kb = InlineKeyboardBuilder().button(text="Назад", callback_data="withdraw_card").adjust(1)
+        await message.bot.edit_message_caption(
+            chat_id=message.chat.id,
+            message_id=main_message_id,
+            caption=f"❌ Недостаточно 🍑 Персиков. Доступно: {balance}",
+            reply_markup=kb.as_markup()
+        )
         return await message.delete()
 
     await state.update_data(amount=amount)
-    main_message_id = data["main_message_id"]
 
+    # Предпросмотр
     preview = (
         f"📋 Проверьте данные:\n\n"
         f"Тип: {'⭐ Звезды' if data['withdraw_type']=='stars' else '🍑 Персики'}\n"
@@ -1907,7 +1961,6 @@ async def get_amount(message: Message, state: FSMContext):
     kb.button(text="Назад", callback_data="withdraw_balance")
     kb.adjust(1)
 
-    # Редактируем caption на фото, фото остаётся
     await message.bot.edit_message_caption(
         chat_id=message.chat.id,
         message_id=main_message_id,
@@ -2185,6 +2238,15 @@ async def decline_send(callback: CallbackQuery, state: FSMContext):
 
     await callback.message.edit_text("✅ Причина отправлена пользователю.")
     await state.clear()
+
+
+
+
+
+
+
+
+
 
 
 

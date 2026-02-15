@@ -141,7 +141,7 @@ async def check_subscriptions():
         except Exception as e:
             logger.warning(f"Критическая ошибка в задаче проверки подписок: {e}")
 
-        await asyncio.sleep(600)
+        await asyncio.sleep(300)
 
 
 async def check_channel_membership():
@@ -203,7 +203,22 @@ async def check_channel_membership():
                     # 🔔 уведомляем админов
                     await notify_admins_bot_blocked(user)
 
-                    # доступ отключаем МОЛЧА
+                    if user.vless_profile_data:
+                        try:
+                            data = json.loads(user.vless_profile_data)
+                            rw_uuid = data.get("uuid")
+
+                            if rw_uuid:
+                                deleted = await delete_client_by_id(rw_uuid)
+                                if deleted:
+                                    logger.info(f"✅ RW пользователь удалён: {rw_uuid}")
+                                else:
+                                    logger.warning(f"⚠️ RW пользователь не удалён: {rw_uuid}")
+
+                        except (json.JSONDecodeError, TypeError) as e:
+                            logger.error(f"❌ Ошибка vless_profile_data у {user.telegram_id}: {e}")
+
+                    # 2️⃣ чистим БД
                     with Session() as session:
                         db_user = session.query(User).filter_by(
                             telegram_id=user.telegram_id
@@ -220,7 +235,7 @@ async def check_channel_membership():
         except Exception as e:
             logger.error(f"❌ Ошибка проверки подписки на канал: {e}")
 
-        await asyncio.sleep(100)  # ✅ раз в 5 минут
+        await asyncio.sleep(100)
 
 
 async def notify_admins_user_left(user):
@@ -296,6 +311,10 @@ async def start_bot():
 
     logger.info("🤖 Бот запущен!")
     await dp.start_polling(bot)
+
+
+
+
 
 
 # =================================================

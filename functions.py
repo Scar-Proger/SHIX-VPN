@@ -130,7 +130,8 @@ class RemnawaveWrapper:
                 {
                     "expireAt": expire_at,
                     "enabled": True,
-                    "trafficLimitBytes": 0,
+                    "trafficLimitBytes": 1073741824,  # 1 GB
+                    "trafficLimitStrategy": "DAY",
                     "activeInternalSquads": [
                         config.REMNAWAVE_DEFAULT_SQUAD_ID
                     ],
@@ -157,7 +158,8 @@ class RemnawaveWrapper:
                 "username": f"user_{telegram_id}",
                 "expireAt": expire_at,
                 "enabled": True,
-                "trafficLimitBytes": 0,
+                "trafficLimitBytes": 1073741824,  # 1 GB
+                "trafficLimitStrategy": "DAY",
                 "note": f"tg:{telegram_id}",
             },
         ) as resp:

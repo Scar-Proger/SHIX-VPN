@@ -183,7 +183,7 @@ def t(user, key: str, **kwargs) -> str:
 
 def admin_channel_joined_text(user) -> str:
     username = f"@{user.username}" if user.username else "Без имени"
-    full_name = user.full_name or "Пользователь"
+    full_name = user.full_name or "Без имени"
 
     return (
         "✅ <b>Пользователь подписался на канал</b>\n\n"

@@ -57,7 +57,7 @@ def t(user, key: str, **kwargs) -> str:
 
 
 def admin_channel_left_text(user) -> str:
-    username = f"@{user.username}" if user.username else "—"
+    username = f"@{user.username}" if user.username else "Без имени"
     full_name = user.full_name or "Без имени"
 
     return (
@@ -69,7 +69,7 @@ def admin_channel_left_text(user) -> str:
 
 
 def admin_bot_blocked_text(user) -> str:
-    username = f"@{user.username}" if user.username else "—"
+    username = f"@{user.username}" if user.username else "Без имени"
     full_name = user.full_name or "Без имени"
 
     return (
@@ -311,6 +311,11 @@ async def start_bot():
 
     logger.info("🤖 Бот запущен!")
     await dp.start_polling(bot)
+
+
+
+
+
 
 
 

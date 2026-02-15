@@ -3349,13 +3349,16 @@ async def admin_send_message_target(callback: CallbackQuery, state: FSMContext):
         current_style=None
     )
 
-    await callback.message.edit_text(
+    # Отправляем сообщение и сохраняем его ID
+    msg = await callback.message.edit_text(
         "✏️ Введите текст рассылки (будет доступно форматирование после ввода):",
         reply_markup=InlineKeyboardBuilder()
         .button(text="Назад", callback_data="back_to_targets")
         .adjust(1)
         .as_markup()
     )
+
+    await state.update_data(main_message_id=msg.message_id)  # <-- важно!
 
     await state.set_state(AdminStates.COMPOSE_TEXT)
 

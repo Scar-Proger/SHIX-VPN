@@ -148,14 +148,14 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 Тарифы временно недоступны",
 
-        "tariff_1m": "49 ₽ — 1 месяц",
-        "tariff_3m": "143 ₽ — 3 месяца",
-        "tariff_6m": "299 ₽ — 6 месяцев",
-        "tariff_1y": "599 ₽ — 1 год",
-        "tariff_2y": "1199 ₽ — 2 года",
+        "tariff_1m": "50 ₽ — 1 месяц",
+        "tariff_3m": "150 ₽ — 3 месяца",
+        "tariff_6m": "300 ₽ — 6 месяцев",
+        "tariff_1y": "600 ₽ — 1 год",
+        "tariff_2y": "1200 ₽ — 2 года",
 
         "pay_tariff": "🧾 *Тариф:* {title}",
-        "pay_price": "💰 *Цена:* {price} ₽ / мес",
+        "pay_price": "💰 *Цена:* {price} ₽",
         "pay_period": "📆 *Срок:* {months} мес",
         "pay_total": "👉 *К оплате:* **{total} ₽**",
 
@@ -441,14 +441,14 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 Tariffs are temporarily unavailable",
 
-        "tariff_1m": "49 ₽ — 1 month",
-        "tariff_3m": "149 ₽ — 3 months",
-        "tariff_6m": "299 ₽ — 6 months",
-        "tariff_1y": "599 ₽ — 1 year",
-        "tariff_2y": "1199 ₽ — 2 years",
+        "tariff_1m": "50 ₽ — 1 month",
+        "tariff_3m": "150 ₽ — 3 months",
+        "tariff_6m": "300 ₽ — 6 months",
+        "tariff_1y": "600 ₽ — 1 year",
+        "tariff_2y": "1200 ₽ — 2 years",
 
         "pay_tariff": "🧾 *Tariff:* {title}",
-        "pay_price": "💰 *Price:* {price} ₽ / mo",
+        "pay_price": "💰 *Price:* {price} ₽",
         "pay_period": "📆 *Period:* {months} months",
         "pay_total": "👉 *Total:* **{total} ₽**",
 
@@ -716,14 +716,14 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 套餐暂时不可用。",
 
-        "tariff_1m": "49 ₽ — 1 个月",
-        "tariff_3m": "149 ₽ — 3 个月",
-        "tariff_6m": "299 ₽ — 6 个月",
-        "tariff_1y": "599 ₽ — 1 年",
-        "tariff_2y": "1199 ₽ — 2 年",
+        "tariff_1m": "50 ₽ — 1 个月",
+        "tariff_3m": "150 ₽ — 3 个月",
+        "tariff_6m": "300 ₽ — 6 个月",
+        "tariff_1y": "600 ₽ — 1 年",
+        "tariff_2y": "1200 ₽ — 2 年",
 
         "pay_tariff": "🧾 *套餐:* {title}",
-        "pay_price": "💰 *价格:* {price} ₽ / 月",
+        "pay_price": "💰 *价格:* {price} ₽",
         "pay_period": "📆 *期限:* {months} 个月",
         "pay_total": "👉 *应付金额:* **{total} ₽**",
 
@@ -866,9 +866,9 @@ TEXTS = {
 
 
 TARIFFS = {
-    "tariff_1m": {"price": 49, "months": 1},
-    "tariff_3m": {"price": 49, "months": 3},
-    "tariff_6m": {"price": 49, "months": 6},
-    "tariff_1y": {"price": 49, "months": 12},
-    "tariff_2y": {"price": 49, "months": 24},
+    "tariff_1m": {"price": 50, "months": 1},
+    "tariff_3m": {"price": 50, "months": 3},
+    "tariff_6m": {"price": 50, "months": 6},
+    "tariff_1y": {"price": 50, "months": 12},
+    "tariff_2y": {"price": 50, "months": 24},
 }

@@ -155,8 +155,8 @@ TEXTS = {
         "tariff_2y": "1200 ₽ — 2 года",
 
         "pay_tariff": "🧾 *Тариф:* {title}",
-        "pay_price": "💰 *Цена:* {price} ₽",
-        "pay_period": "📆 *Срок:* {months} мес",
+        "pay_price": "💰 *Цена:* {total} ₽",
+        "pay_period": "📆 *Срок:* {months} месяца",
         "pay_total": "👉 *К оплате:* **{total} ₽**",
 
         "payment_success": "✅ **Оплата прошла успешно!**\n\nПодписка продлена 🎉",
@@ -448,7 +448,7 @@ TEXTS = {
         "tariff_2y": "1200 ₽ — 2 years",
 
         "pay_tariff": "🧾 *Tariff:* {title}",
-        "pay_price": "💰 *Price:* {price} ₽",
+        "pay_price": "💰 *Price:* {total} ₽",
         "pay_period": "📆 *Period:* {months} months",
         "pay_total": "👉 *Total:* **{total} ₽**",
 
@@ -723,7 +723,7 @@ TEXTS = {
         "tariff_2y": "1200 ₽ — 2 年",
 
         "pay_tariff": "🧾 *套餐:* {title}",
-        "pay_price": "💰 *价格:* {price} ₽",
+        "pay_price": "💰 *价格:* {total} ₽",
         "pay_period": "📆 *期限:* {months} 个月",
         "pay_total": "👉 *应付金额:* **{total} ₽**",
 

@@ -156,7 +156,7 @@ TEXTS = {
 
         "pay_tariff": "🧾 *Тариф:* {title}",
         "pay_price": "💰 *Цена:* {total} ₽",
-        "pay_period": "📆 *Срок:* {months} месяца",
+        "pay_period": "📆 *Срок:* {months} мес",
         "pay_total": "👉 *К оплате:* **{total} ₽**",
 
         "payment_success": "✅ **Оплата прошла успешно!**\n\nПодписка продлена 🎉",

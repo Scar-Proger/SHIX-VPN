@@ -954,7 +954,7 @@ async def tariff_selected(callback: CallbackQuery):
 
     text = (
         f"{t(user, 'pay_tariff', title=title)}\n"
-        f"{t(user, 'pay_price', price=price)}\n"
+        f"{t(user, 'pay_price', total=total_amount)}\n"
         f"{t(user, 'pay_period', months=months)}\n\n"
         f"{t(user, 'pay_total', total=total_amount)}"
     )

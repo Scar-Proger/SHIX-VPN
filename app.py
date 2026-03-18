@@ -7,6 +7,7 @@ from datetime import timedelta
 import coloredlogs
 from fastapi import FastAPI
 from aiogram import Bot, Dispatcher
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from fastapi.staticfiles import StaticFiles
 import os

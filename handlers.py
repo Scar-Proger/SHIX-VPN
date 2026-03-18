@@ -1028,6 +1028,17 @@ async def check_payment(callback: CallbackQuery):
         caption = t(user, "payment_success")
         username = callback.from_user.username or "no_username"
         user_id = callback.from_user.id
+
+        kb = InlineKeyboardMarkup(
+           inline_keyboard=[
+              [
+                 InlineKeyboardButton(
+                    text="💬 Написать пользователю",
+                    url=f"tg://user?id={user_id}"
+                 )
+              ]
+           ]
+        ) 
       
         support_text = (
            "💰 Новая оплата\n\n"
@@ -1037,7 +1048,11 @@ async def check_payment(callback: CallbackQuery):
         )
   
         try:
-           await callback.bot.(config.ADMINS, support_text)
+           await callback.bot.send_message(
+              config.ADMINS,
+              support_text,
+              reply_markup=kb
+           ) 
         except:
            pass
     elif result == "PENDING":

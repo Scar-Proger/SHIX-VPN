@@ -1026,6 +1026,20 @@ async def check_payment(callback: CallbackQuery):
     # =========================================================
     if result == "CONFIRMED":
         caption = t(user, "payment_success")
+        username = callback.from_user.username or "no_username"
+        user_id = callback.from_user.id
+      
+        support_text = (
+           "💰 Новая оплата\n\n"
+           f"👤 Username: @{username}\n"
+           f"🆔 ID: {user_id}\n"
+           f"💳 TX: {tx_id}"
+        )
+  
+        try:
+           await callback.bot.(config.ADMINS, support_text)
+        except:
+           pass
     elif result == "PENDING":
         caption = t(user, "payment_pending", time=now.strftime('%d.%m.%Y %H:%M:%S'))
     elif result == "CANCELED":

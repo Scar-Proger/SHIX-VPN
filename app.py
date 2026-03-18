@@ -61,7 +61,7 @@ def admin_user_keyboard(user):
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="💬 Открыть чат",
+                    text="💬 Написать пользователю",
                     url=f"tg://user?id={user.telegram_id}"
                 )
             ]

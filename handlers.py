@@ -180,7 +180,17 @@ def t(user, key: str, **kwargs) -> str:
 
     return lang_dict[key].format(**kwargs)
 
-
+def admin_user_button(user_id):
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="💬 Написать пользователю",
+                    url=f"tg://user?id={user_id}"
+                )
+            ]
+        ]
+    )
 def admin_channel_joined_text(user) -> str:
     username = f"@{user.username}" if user.username else "Без имени"
     full_name = user.full_name or "Без имени"
@@ -239,7 +249,8 @@ async def notify_admins_user_joined(bot: Bot, user):
             await bot.send_message(
                 admin_id,
                 text,
-                parse_mode="HTML"
+                parse_mode="HTML",
+                reply_markup=admin_user_button(user.telegram_id)
             )
         except TelegramForbiddenError:
             pass

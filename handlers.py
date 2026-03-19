@@ -1036,50 +1036,53 @@ async def check_payment(callback: CallbackQuery):
     # ТЕКСТ ДЛЯ ПОЛЬЗОВАТЕЛЯ
     # =========================================================
     if result == "CONFIRMED":
-    caption = t(user, "payment_success")
+         caption = t(user, "payment_success")
 
-    username = callback.from_user.username
-    user_id = callback.from_user.id
+         username = callback.from_user.username
+         user_id = callback.from_user.id
 
-    # Текст админу
-    support_text = (
-        "💰 Новая оплата\n\n"
-        f"👤 Username: @{username}" if username else f"👤 ID: {user_id}\n"
-        f"🆔 ID: {user_id}\n"
-        f"💳 TX: {tx_id}"
-    )
-
-    # Кнопка (только если есть username)
-    kb = None
-    if username:
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [
-                    InlineKeyboardButton(
-                        text="💬 Написать пользователю",
-                        url=f"https://t.me/{username}"
-                    )
-                ]
-            ]
-        )
-
-    # Отправка админам (каждому отдельно!)
-    for admin_id in config.ADMINS:
-        try:
-            await callback.bot.send_message(
-                admin_id,
-                support_text,
-                reply_markup=kb
+         if username:
+            support_text = (
+                "💰 Новая оплата\n\n"
+                f"👤 Username: @{username}\n"
+                f"🆔 ID: {user_id}\n"
+                f"💳 TX: {tx_id}"
             )
-        except Exception as e:
-            # fallback без кнопки
+         else:
+            support_text = (
+                "💰 Новая оплата\n\n"
+                f"👤 ID: {user_id}\n"
+                f"💳 TX: {tx_id}"
+            )
+
+         kb = None
+         if username:
+            kb = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="💬 Написать пользователю",
+                            url=f"https://t.me/{username}"
+                        )
+                    ]
+                ]
+            )
+
+        for admin_id in config.ADMINS:
             try:
                 await callback.bot.send_message(
                     admin_id,
-                    support_text
+                    support_text,
+                    reply_markup=kb
                 )
-            except Exception as e2:
-                print(f"❌ Ошибка отправки админу {admin_id}: {e2}")
+            except Exception:
+                try:
+                    await callback.bot.send_message(
+                        admin_id,
+                        support_text
+                    )
+                except Exception as e2:
+                    print(f"❌ Ошибка отправки админу {admin_id}: {e2}")
     elif result == "PENDING":
         caption = t(user, "payment_pending", time=now.strftime('%d.%m.%Y %H:%M:%S'))
     elif result == "CANCELED":

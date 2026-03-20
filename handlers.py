@@ -412,13 +412,13 @@ async def ensure_user(
     user = await get_user(telegram_id)
     if user:
         return user
-    
+
     if not isinstance(full_name, str):
         logger.error(f"❌ full_name не строка: {type(full_name)} | {full_name}")
         full_name = ""
 
     # 1️⃣ Создаём пользователя
-    await create_user(
+    user = await create_user(
         telegram_id=telegram_id,
         full_name=full_name,
         username=username,
@@ -444,26 +444,26 @@ async def ensure_user(
     # 3️⃣ Уведомляем админов
     await notify_admins_user_joined(bot, user)
 
-    # 4️⃣ Уведомляем реферера
-    if referrer_telegram_id:
-        # Уведомляем реферера
-        await bot.send_message(
-            referrer_telegram_id,
-            t(
-                user,
-                "referral_notify",
-                name=username or full_name,
-                id=telegram_id
-            ),
-            parse_mode="Markdown"
-        )
-    
-        # Увеличиваем счетчик в БД
+    # 4️⃣ Уведомляем реферера и увеличиваем счётчик
+    if referrer_telegram_id and referrer_telegram_id != telegram_id:
         with Session() as session:
             referrer = session.query(User).filter_by(telegram_id=referrer_telegram_id).first()
             if referrer:
+                # Отправляем уведомление рефереру
+                await bot.send_message(
+                    referrer_telegram_id,
+                    t(
+                        user,
+                        "referral_notify",
+                        name=username or full_name,
+                        id=telegram_id
+                    ),
+                    parse_mode="Markdown"
+                )
+                # Увеличиваем счётчик
                 referrer.referrals_count = (referrer.referrals_count or 0) + 1
                 session.commit()
+                logger.info(f"🔹 Реферал {telegram_id} сохранён за {referrer_telegram_id}")
 
     return user
 
@@ -610,84 +610,61 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
 @router.message(Command("start"))
 async def start_cmd(message: Message, bot: Bot):
     telegram_id = message.from_user.id
+    full_name = message.from_user.full_name
+    username = message.from_user.username
 
-    # 🔒 Проверка подписки
+    # Проверка подписки
     if not await is_subscribed(bot, telegram_id):
         await send_subscribe_required(bot, message.chat.id)
         return
 
-    logger.info(f"ℹ️ /start от {telegram_id}")
-
-    # -------------------------------
-    # Получаем реферера (если есть)
-    # -------------------------------
+    # 🔹 Получаем реферера через deep link
     referrer_telegram_id = None
-    if message.text and " " in message.text:
-        arg = message.text.split(" ", 1)[1]
-        if arg.isdigit():
-            referrer_telegram_id = int(arg)
+    if message.text:
+        import re
+        m = re.match(r"^/start\s*(\d+)?", message.text)
+        if m and m.group(1):
+            referrer_telegram_id = int(m.group(1))
+            if referrer_telegram_id == telegram_id:
+                referrer_telegram_id = None
 
-    # ===============================
-    # Проверяем и создаём пользователя
-    # ===============================
+    # Проверяем пользователя
     user = await get_user(telegram_id)
     if not user:
-        # UX: стикер + ожидание
-        wait_sticker = await message.answer_sticker(
-            "CAACAgEAAxkBAAFBQzppd5A_4Wk22T_jJFOGCrkkcV8ZLwACXA4AAoI0egEaqUfk_mnHQTgE"
-        )
-        wait_msg = await message.answer(TEXTS["ru"]["creating_profile"])
-
-        await asyncio.sleep(2)
-
-        await wait_msg.delete()
-        await wait_sticker.delete()
-
-        # ✅ Создаём пользователя один раз
+        # Создаём пользователя с referrer
         user = await ensure_user(
             bot,
             telegram_id,
-            full_name=message.from_user.full_name,
-            username=message.from_user.username,
+            full_name=full_name,
+            username=username,
             referrer_telegram_id=referrer_telegram_id
         )
 
-        # -------------------------------
-        # Welcome
-        # -------------------------------
+        # Отправляем welcome + меню
         msg = await bot.send_photo(
             chat_id=telegram_id,
             photo=FSInputFile("assets/vpn_banner.jpg"),
             caption=t(user, "welcome", bot_name=(await bot.get_me()).full_name),
             parse_mode="Markdown"
         )
-
-        # Показываем меню с переданным message_id
         await show_menu(bot, chat_id=telegram_id, message_id=msg.message_id)
         return
 
-    # =====================================================
-    # Существующий пользователь — обновляем данные
-    # =====================================================
+    # Обновляем данные существующего пользователя
+    updated = False
     with Session() as session:
         db_user = session.query(User).filter_by(telegram_id=telegram_id).first()
-        if not db_user:
-            logger.error(f"❌ Пользователь не найден: {telegram_id}")
-            return
-
-        updated = False
-        if db_user.full_name != message.from_user.full_name:
-            db_user.full_name = message.from_user.full_name
+        if db_user.full_name != full_name:
+            db_user.full_name = full_name
             updated = True
-        if db_user.username != message.from_user.username:
-            db_user.username = message.from_user.username
+        if db_user.username != username:
+            db_user.username = username
             updated = True
         if updated:
             session.commit()
-            logger.info(f"🔄 Обновлены данные пользователя {telegram_id}")
 
     # Показываем меню
-    await show_menu(bot, telegram_id)
+    await show_menu(bot, chat_id=telegram_id)
 
 
 # ------------------------------

@@ -446,6 +446,7 @@ async def ensure_user(
 
     # 4️⃣ Уведомляем реферера
     if referrer_telegram_id:
+        # Уведомляем реферера
         await bot.send_message(
             referrer_telegram_id,
             t(
@@ -456,6 +457,13 @@ async def ensure_user(
             ),
             parse_mode="Markdown"
         )
+    
+        # Увеличиваем счетчик в БД
+        with Session() as session:
+            referrer = session.query(User).filter_by(telegram_id=referrer_telegram_id).first()
+            if referrer:
+                referrer.referrals_count = (referrer.referrals_count or 0) + 1
+                session.commit()
 
     return user
 

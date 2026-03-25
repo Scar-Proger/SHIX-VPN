@@ -7,7 +7,7 @@ TEXTS = {
         "sub_expire_soon": (
             "🎁 **Ваша тестовая подписка почти закончилась!**\n\n"
             "⏳ **Осталось всего 2 часа**\n\n"
-            "🔒 Продлите на **30 дней всего за 99 ₽** и пользуйтесь VPN без ограничений.\n\n"
+            "🔒 Продлите на **30 дней всего за 100 ₽** и пользуйтесь VPN без ограничений.\n\n"
             "⚡️ Нажмите **«Оформить сейчас»** ⬇️"
         ),
 
@@ -148,7 +148,7 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 Тарифы временно недоступны",
 
-        "tariff_1m": "50 ₽ — 1 месяц",
+        "tariff_1m": "100 ₽ — 1 месяц",
         "tariff_3m": "150 ₽ — 3 месяца",
         "tariff_6m": "300 ₽ — 6 месяцев",
         "tariff_1y": "600 ₽ — 1 год",
@@ -441,7 +441,7 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 Tariffs are temporarily unavailable",
 
-        "tariff_1m": "50 ₽ — 1 month",
+        "tariff_1m": "100 ₽ — 1 month",
         "tariff_3m": "150 ₽ — 3 months",
         "tariff_6m": "300 ₽ — 6 months",
         "tariff_1y": "600 ₽ — 1 year",
@@ -716,7 +716,7 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 套餐暂时不可用。",
 
-        "tariff_1m": "50 ₽ — 1 个月",
+        "tariff_1m": "100 ₽ — 1 个月",
         "tariff_3m": "150 ₽ — 3 个月",
         "tariff_6m": "300 ₽ — 6 个月",
         "tariff_1y": "600 ₽ — 1 年",
@@ -866,7 +866,7 @@ TEXTS = {
 
 
 TARIFFS = {
-    "tariff_1m": {"price": 50, "months": 1},
+    "tariff_1m": {"price": 100, "months": 1},
     "tariff_3m": {"price": 50, "months": 3},
     "tariff_6m": {"price": 50, "months": 6},
     "tariff_1y": {"price": 50, "months": 12},

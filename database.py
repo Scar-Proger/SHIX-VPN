@@ -224,7 +224,7 @@ async def create_user(
             full_name=full_name,
             username=username,
             sub_id=generate_sub_id(),
-            subscription_end=now_local() + timedelta(days=50*365),
+            subscription_end=now_local() + timedelta(days=2),
             is_admin=is_admin,
             referrer_id=referrer_id_db,
             referrals_count=0,

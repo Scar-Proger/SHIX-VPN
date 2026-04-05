@@ -614,12 +614,7 @@ async def start_cmd(message: Message, bot: Bot, state: FSMContext):
     full_name = message.from_user.full_name
     username = message.from_user.username
 
-    # Проверка подписки
-    if not await is_subscribed(bot, telegram_id):
-        await send_subscribe_required(bot, message.chat.id)
-        return
-
-    # 🔹 Получаем реферера через deep link
+    # 🔹 Получаем реферера через deep link (ПЕРЕНЕСЕНО ВЫШЕ)
     referrer_telegram_id = None
     if message.text:
         import re
@@ -629,7 +624,13 @@ async def start_cmd(message: Message, bot: Bot, state: FSMContext):
             if referrer_telegram_id == telegram_id:
                 referrer_telegram_id = None
 
+    # ✅ Сохраняем ДО проверки подписки (КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ)
     await state.update_data(referrer_telegram_id=referrer_telegram_id)
+
+    # Проверка подписки (ОСТАВИЛ КАК ЕСТЬ)
+    if not await is_subscribed(bot, telegram_id):
+        await send_subscribe_required(bot, message.chat.id)
+        return
 
     # Проверяем пользователя
     user = await get_user(telegram_id)

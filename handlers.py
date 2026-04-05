@@ -214,10 +214,7 @@ async def is_subscribed(bot: Bot, user_id: int) -> bool:
         return False
     
 
-# =========================================================
-# send_subscribe_required с передачей referrer_id
-# =========================================================
-async def send_subscribe_required(bot: Bot, chat_id: int, referrer_id: int | None = None):
+async def send_subscribe_required(bot: Bot, chat_id: int):
     kb = InlineKeyboardBuilder()
 
     kb.button(
@@ -225,18 +222,16 @@ async def send_subscribe_required(bot: Bot, chat_id: int, referrer_id: int | Non
         url=config.REQUIRED_CHANNEL_URL
     )
 
-    # передаем referrer_id в callback_data
-    cb_data = f"check_subscription:{referrer_id}" if referrer_id else "check_subscription"
     kb.button(
         text="✅ Я подписался",
-        callback_data=cb_data
+        callback_data="check_subscription"
     )
 
     kb.adjust(1)
 
     await bot.send_photo(
         chat_id=chat_id,
-        photo=FSInputFile("assets/vpn_banner.jpg"),
+        photo=FSInputFile("assets/vpn_banner.jpg"),  # путь к картинке
         caption=(
             "🔒 **Для использования бота необходимо подписаться на канал**\n\n"
             "После подписки нажмите кнопку ниже 👇"
@@ -263,36 +258,27 @@ async def notify_admins_user_joined(bot: Bot, user):
             logger.warning(f"Ошибка уведомления админа {admin_id}: {e}")
 
 
-# =========================================================
-# callback check_subscription с referrer_id
-# =========================================================
-@router.callback_query(F.data.startswith("check_subscription"))
+@router.callback_query(F.data == "check_subscription")
 async def check_subscription(callback: CallbackQuery, bot: Bot):
     telegram_id = callback.from_user.id
     full_name = callback.from_user.full_name
     username = callback.from_user.username
 
-    # 1️⃣ Проверяем подписку
+    # Проверяем подписку
     if not await is_subscribed(bot, telegram_id):
         await callback.answer("🚫 Вы ещё не подписались", show_alert=True)
         return
 
-    # 2️⃣ Удаляем сообщение с кнопкой
+    # Удаляем сообщение с кнопкой
     try:
         await callback.message.delete()
     except Exception:
         pass
 
-    # 3️⃣ Получаем referrer_id из callback_data
+    # Получаем referrer_id, если есть (можно хранить в БД или передавать через callback)
     referrer_telegram_id = None
-    if ":" in callback.data:
-        ref_id = callback.data.split(":")[1]
-        if ref_id.isdigit():
-            referrer_telegram_id = int(ref_id)
-            if referrer_telegram_id == telegram_id:
-                referrer_telegram_id = None
 
-    # 4️⃣ Создаём пользователя или получаем существующего
+    # Создаём или получаем пользователя с правильными данными
     user = await ensure_user(
         bot,
         telegram_id,
@@ -301,7 +287,7 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
         referrer_telegram_id=referrer_telegram_id
     )
 
-    # 5️⃣ Отправляем меню пользователю
+    # Показываем меню
     await show_menu(bot, chat_id=telegram_id)
 
 
@@ -482,6 +468,8 @@ async def ensure_user(
     return user
 
 
+
+
 # =========================================================
 # UX
 # =========================================================
@@ -625,29 +613,57 @@ async def start_cmd(message: Message, bot: Bot):
     full_name = message.from_user.full_name
     username = message.from_user.username
 
-    # Получаем referrer_id через deep link
-    referrer_telegram_id = None
-    args = message.get_args()
-    if args and args.isdigit():
-        referrer_telegram_id = int(args)
-        if referrer_telegram_id == telegram_id:
-            referrer_telegram_id = None
-
     # Проверка подписки
     if not await is_subscribed(bot, telegram_id):
-        await send_subscribe_required(bot, chat_id=telegram_id, referrer_id=referrer_telegram_id)
+        await send_subscribe_required(bot, message.chat.id)
         return
 
-    # Создаём или получаем пользователя
-    user = await ensure_user(
-        bot,
-        telegram_id,
-        full_name=full_name,
-        username=username,
-        referrer_telegram_id=referrer_telegram_id
-    )
+    # 🔹 Получаем реферера через deep link
+    referrer_telegram_id = None
+    if message.text:
+        import re
+        m = re.match(r"^/start\s*(\d+)?", message.text)
+        if m and m.group(1):
+            referrer_telegram_id = int(m.group(1))
+            if referrer_telegram_id == telegram_id:
+                referrer_telegram_id = None
 
-    # Отправляем меню пользователю
+    # Проверяем пользователя
+    user = await get_user(telegram_id)
+    if not user:
+        # Создаём пользователя с referrer
+        user = await ensure_user(
+            bot,
+            telegram_id,
+            full_name=full_name,
+            username=username,
+            referrer_telegram_id=referrer_telegram_id
+        )
+
+        # Отправляем welcome + меню
+        msg = await bot.send_photo(
+            chat_id=telegram_id,
+            photo=FSInputFile("assets/vpn_banner.jpg"),
+            caption=t(user, "welcome", bot_name=(await bot.get_me()).full_name),
+            parse_mode="Markdown"
+        )
+        await show_menu(bot, chat_id=telegram_id, message_id=msg.message_id)
+        return
+
+    # Обновляем данные существующего пользователя
+    updated = False
+    with Session() as session:
+        db_user = session.query(User).filter_by(telegram_id=telegram_id).first()
+        if db_user.full_name != full_name:
+            db_user.full_name = full_name
+            updated = True
+        if db_user.username != username:
+            db_user.username = username
+            updated = True
+        if updated:
+            session.commit()
+
+    # Показываем меню
     await show_menu(bot, chat_id=telegram_id)
 
 

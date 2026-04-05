@@ -259,7 +259,7 @@ async def notify_admins_user_joined(bot: Bot, user):
 
 
 @router.callback_query(F.data == "check_subscription")
-async def check_subscription(callback: CallbackQuery, bot: Bot):
+async def check_subscription(callback: CallbackQuery, bot: Bot, state: FSMContext):
     telegram_id = callback.from_user.id
     full_name = callback.from_user.full_name
     username = callback.from_user.username
@@ -275,8 +275,8 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
     except Exception:
         pass
 
-    # Получаем referrer_id, если есть (можно хранить в БД или передавать через callback)
-    referrer_telegram_id = None
+    data = await state.get_data()
+    referrer_telegram_id = data.get("referrer_telegram_id")
 
     # Создаём или получаем пользователя с правильными данными
     user = await ensure_user(
@@ -288,6 +288,7 @@ async def check_subscription(callback: CallbackQuery, bot: Bot):
     )
 
     # Показываем меню
+    await state.clear()
     await show_menu(bot, chat_id=telegram_id)
 
 
@@ -608,7 +609,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
 # /start
 # =========================================================
 @router.message(Command("start"))
-async def start_cmd(message: Message, bot: Bot):
+async def start_cmd(message: Message, bot: Bot, state: FSMContext):
     telegram_id = message.from_user.id
     full_name = message.from_user.full_name
     username = message.from_user.username
@@ -627,6 +628,8 @@ async def start_cmd(message: Message, bot: Bot):
             referrer_telegram_id = int(m.group(1))
             if referrer_telegram_id == telegram_id:
                 referrer_telegram_id = None
+
+    await state.update_data(referrer_telegram_id=referrer_telegram_id)
 
     # Проверяем пользователя
     user = await get_user(telegram_id)

@@ -20,10 +20,10 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup, LabeledPrice, Message, PreCheckoutQuery, CallbackQuery, InlineKeyboardButton, WebAppInfo
 
 from config import config
-from locales import TEXTS, TARIFFS
+from locales import TEXTS, TARIFFS, TARIFFS_PEACHES, TARIFFS_STARS
 from database import ( 
     get_user, create_user, apply_promo_code, create_or_update_promo_code, 
-    get_all_promocodes_list, delete_promocode,
+    get_all_promocodes_list, delete_promocode, update_subscription,
     get_all_users, get_or_create_payment, process_payment_result,
     User, PromoCode, Payment, UserBalance, UserBalanceHistory, Session, get_user_stats as db_user_stats
 )
@@ -866,7 +866,7 @@ async def connect_profile(callback: CallbackQuery):
         sub_url = profile_data.get("sub_url") or profile_data.get("subscriptionUrl")
 
     if not sub_url and user.sub_id:
-        sub_url = f"https://sub.shix-vpn.space/{user.sub_id}"
+        sub_url = f"{user.sub_id}"
 
     if not sub_url:
         await callback.answer(t(user, "connect_not_ready"))
@@ -906,11 +906,10 @@ async def renew_cb(callback: CallbackQuery):
     await callback.answer()
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=t(user, "tariff_1m"), callback_data="tariff_1m")],
-        [InlineKeyboardButton(text=t(user, "tariff_3m"), callback_data="tariff_3m")],
-        [InlineKeyboardButton(text=t(user, "tariff_6m"), callback_data="tariff_6m")],
-        [InlineKeyboardButton(text=t(user, "tariff_1y"), callback_data="tariff_1y")],
-        [InlineKeyboardButton(text=t(user, "tariff_2y"), callback_data="tariff_2y")],
+        [InlineKeyboardButton(text=t(user, "pay_sbp"), callback_data="pay_sbp")],
+        [InlineKeyboardButton(text=t(user, "pay_crypto"), callback_data="pay_crypto")],
+        [InlineKeyboardButton(text=t(user, "pay_stars"), callback_data="pay_stars")],
+        [InlineKeyboardButton(text=t(user, "pay_peaches"), callback_data="pay_peaches")],
         [InlineKeyboardButton(text=t(user, "back"), callback_data="back_to_menu")]
     ])
 
@@ -918,6 +917,80 @@ async def renew_cb(callback: CallbackQuery):
         chat_id=callback.from_user.id,
         message_id=callback.message.message_id,
         caption=t(user, "renew_text"),
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+
+@router.callback_query(F.data.in_(["pay_crypto"]))
+async def pay_other_cb(callback: CallbackQuery):
+    await callback.answer("🚧 Этот способ оплаты скоро будет доступен", show_alert=True)
+
+
+@router.callback_query(F.data == "pay_sbp")
+async def pay_sbp_cb(callback: CallbackQuery):
+    user = await get_user(callback.from_user.id)
+    await callback.answer()
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(user, "tariff_1m"), callback_data="tariff_1m")],
+        [InlineKeyboardButton(text=t(user, "tariff_3m"), callback_data="tariff_3m")],
+        [InlineKeyboardButton(text=t(user, "tariff_6m"), callback_data="tariff_6m")],
+        [InlineKeyboardButton(text=t(user, "tariff_1y"), callback_data="tariff_1y")],
+        [InlineKeyboardButton(text=t(user, "tariff_2y"), callback_data="tariff_2y")],
+        [InlineKeyboardButton(text=t(user, "back"), callback_data="renew_sub")]
+    ])
+
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption=t(user, "renew_sbp_text"),
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+
+@router.callback_query(F.data == "pay_peaches")
+async def pay_peaches_cb(callback: CallbackQuery):
+    user = await get_user(callback.from_user.id)
+    await callback.answer()
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(user, "peach_tariff_1m"), callback_data="peach_tariff_1m")],
+        [InlineKeyboardButton(text=t(user, "peach_tariff_3m"), callback_data="peach_tariff_3m")],
+        [InlineKeyboardButton(text=t(user, "peach_tariff_6m"), callback_data="peach_tariff_6m")],
+        [InlineKeyboardButton(text=t(user, "peach_tariff_1y"), callback_data="peach_tariff_1y")],
+        [InlineKeyboardButton(text=t(user, "peach_tariff_2y"), callback_data="peach_tariff_2y")],
+        [InlineKeyboardButton(text=t(user, "back"), callback_data="renew_sub")]
+    ])
+
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption="🍑 Оплата персиками\n\nВыберите тариф 👇",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+
+@router.callback_query(F.data == "pay_stars")
+async def pay_stars_cb(callback: CallbackQuery):
+    user = await get_user(callback.from_user.id)
+    await callback.answer()
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t(user, "stars_tariff_1m"), callback_data="stars_tariff_1m")],
+        [InlineKeyboardButton(text=t(user, "stars_tariff_3m"), callback_data="stars_tariff_3m")],
+        [InlineKeyboardButton(text=t(user, "stars_tariff_6m"), callback_data="stars_tariff_6m")],
+        [InlineKeyboardButton(text=t(user, "stars_tariff_1y"), callback_data="stars_tariff_1y")],
+        [InlineKeyboardButton(text=t(user, "stars_tariff_2y"), callback_data="stars_tariff_2y")],
+        [InlineKeyboardButton(text=t(user, "back"), callback_data="renew_sub")]
+    ])
+
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption="⭐ Оплата Telegram Stars\n\nВыберите тариф 👇",
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
@@ -980,6 +1053,86 @@ async def tariff_selected(callback: CallbackQuery):
         ]
     ])
 
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption=text,
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+
+@router.callback_query(F.data.startswith(("peach_tariff_", "stars_tariff_")))
+async def balance_tariff_preview(callback: CallbackQuery):
+    user = await get_user(callback.from_user.id)
+    await callback.answer()
+
+    # Определяем тип валюты
+    is_peach = callback.data.startswith("peach_")
+    tariff_type_key = callback.data  # полный ключ, например "peach_tariff_1m" или "stars_tariff_1m"
+
+    # Берём тариф из словаря
+    tariff_key_only = tariff_type_key.split("_", 1)[1]  # "tariff_1m" и т.д.
+    tariff = TARIFFS_PEACHES.get(tariff_key_only) if is_peach else TARIFFS_STARS.get(tariff_key_only)
+    if not tariff:
+        return
+
+    price = tariff["price"]
+    months = tariff["months"]
+    total = price * months
+
+    # Баланс пользователя
+    peaches, stars = await get_user_balance(user.id)
+
+    # Проверка, хватает ли средств
+    if is_peach and peaches < total:
+        await safe_edit_caption(
+            bot=callback.bot,
+            chat_id=callback.from_user.id,
+            message_id=callback.message.message_id,
+            caption=t(user, "error_not_enough_peaches").format(balance=peaches)
+        )
+        return
+
+    if not is_peach and stars < total:
+        await safe_edit_caption(
+            bot=callback.bot,
+            chat_id=callback.from_user.id,
+            message_id=callback.message.message_id,
+            caption=t(user, "error_not_enough_stars").format(balance=stars)
+        )
+        return
+
+    currency = "🍑 Персики" if is_peach else "⭐ Telegram Stars"
+    balance = peaches if is_peach else stars
+
+    tariff_text = t(user, tariff_type_key)  
+
+    text = t(user, "balance_tariff_preview_text", 
+            tariff=tariff_text,
+            currency=currency,
+            price=price,
+            months=months,
+            total=total,
+            balance=balance)
+
+    # Кнопки: подтвердить и назад
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(
+                text=t(user, "confirm"),
+                callback_data=f"confirm_{'peach' if is_peach else 'stars'}:{tariff_key_only}"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text=t(user, "back"),
+                callback_data="renew_sub"  # возвращаем на шаг выбора оплаты
+            )
+        ]
+    ])
+
+    # Обновляем сообщение
     await callback.bot.edit_message_caption(
         chat_id=callback.from_user.id,
         message_id=callback.message.message_id,
@@ -1078,6 +1231,100 @@ async def check_payment(callback: CallbackQuery):
         pass
 
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith(("confirm_peach:", "confirm_stars:")))
+async def confirm_balance_payment(callback: CallbackQuery):
+    user = await get_user(callback.from_user.id)
+    await callback.answer()
+
+    is_peach = callback.data.startswith("confirm_peach:")
+    tariff_key = callback.data.split(":", 1)[1]
+
+    # Получаем тариф
+    tariff = TARIFFS.get(tariff_key)
+    if not tariff:
+        return
+
+    price = tariff["price"]
+    months = tariff["months"]
+    total = price * months
+
+    # -------------------------
+    # Списание баланса
+    # -------------------------
+    with Session() as session:
+        balance = session.query(UserBalance).filter_by(user_id=user.id).first()
+
+        if is_peach:
+            if balance.amount < total:
+                await safe_edit_caption(
+                    bot=callback.bot,
+                    chat_id=callback.from_user.id,
+                    message_id=callback.message.message_id,
+                    caption=t(user, "error_not_enough_peaches").format(balance=balance.amount)
+                )
+                return
+            balance.amount -= total
+            history = UserBalanceHistory(
+                user_id=user.id,
+                change=-total,
+                reason="Списание за подписку (персики)"
+            )
+        else:
+            if balance.stars < total:
+                await safe_edit_caption(
+                    bot=callback.bot,
+                    chat_id=callback.from_user.id,
+                    message_id=callback.message.message_id,
+                    caption=t(user, "error_not_enough_stars").format(balance=balance.stars)
+                )
+                return
+            balance.stars -= total
+            history = UserBalanceHistory(
+                user_id=user.id,
+                stars_change=-total,
+                reason="Списание за подписку (Stars)"
+            )
+
+        session.add(history)
+        session.commit()
+
+    # -------------------------
+    # Продление подписки и синхронизация Remnawave
+    # -------------------------
+
+    # Получаем свежего пользователя из базы
+    with Session() as session:
+        user = session.query(User).filter_by(id=user.id).first()
+
+    if not user.vless_profile_id:
+        # Создаём профиль, если ещё нет
+        profile = await create_vless_profile(user.telegram_id)
+        if profile:
+            with Session() as session:
+                db_user = session.query(User).filter_by(id=user.id).first()
+                db_user.vless_profile_id = profile.get("uuid")
+                db_user.vless_profile_data = str(profile)
+                session.commit()
+    else:
+        # Обновляем дату окончания в Remnawave
+        await sync_remnawave_expire(user.telegram_id, user.subscription_end)
+
+    # -------------------------
+    # Редактируем сообщение
+    # -------------------------
+    await callback.bot.edit_message_caption(
+        chat_id=callback.from_user.id,
+        message_id=callback.message.message_id,
+        caption=t(user, "payment_success"),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=t(user, "btn_connect"), callback_data="connect")],
+            [InlineKeyboardButton(text=t(user, "back"), callback_data="renew_sub")]
+        ]),
+        parse_mode="Markdown"
+    )
+
 
 # ------------------------------
 # Пополнение баланса

@@ -136,30 +136,65 @@ TEXTS = {
         # ===== Renew =====
         "renew_text": (
             "🔥 *Быстрый и безопасный VPN*\n\n"
-            "• Безлимитный трафик\n"
-            "• Лёгкий вход в банковские приложения\n"
             "• Блокировка рекламы на YouTube\n"
-            "• До 5 устройств одновременно\n\n"
-            "⚡ Уже есть оплаченный VPN? Забудь о нём!\n"
-            "Мы компенсируем расходы и дадим доступ к нашему супер-скоростному VPN.\n\n"
-            "🚀 Подключайся и пользуйся только нашим VPN!"
+            "• Легкий доступ к банковским приложениям\n"
+            "• Подключение без ограничений по устройствам.\n\n"
+            "• Работает даже там, где другие VPN не справляются\n"
+            "• Высокая скорость и премиальная поддержка 24/7\n\n"
+            "⚡️Уже есть оплаченный VPN? Забудь о нём!\n"
+            "Мы компенсируем расходы и предоставим доступ к нашему сервису.\n\n"
+            "Подключайтесь и пользуйтесь стабильным интернетом каждый день 🚀"
+        ),
+
+        "pay_sbp": "💳 СБП",
+        "pay_crypto": "💰 Криптовалюта",
+        "pay_stars": "⭐ Telegram Stars",
+        "pay_peaches": "🍑 Персики",
+
+        # ===== Renew (SBP) =====
+        "renew_sbp_text": (
+            "💳 *Оплата через СБП — быстро и удобно*\n\n"
+            "⚡️ Мгновенное зачисление подписки после оплаты\n"
+            "🔒 Безопасные платежи напрямую через ваш банк\n"
+            "📲 Оплата в пару кликов — без карт и лишних форм\n\n"
+            "🎁 *Бонус для оплаты через СБП:*\n"
+            "— приоритетное подключение серверов\n"
+            "— ускоренная поддержка\n\n"
+            "👇 Выберите тариф и продолжайте пользоваться стабильным VPN без ограничений"
         ),
 
         # ===== Tariffs =====
         "renew_unavailable": "🚫 Тарифы временно недоступны",
 
-        "tariff_1m": "299 ₽/мес — 1 месяц",
-        "tariff_3m": "239 ₽/мес — 3 месяца",
-        "tariff_6m": "199 ₽/мес — 6 месяцев",
-        "tariff_1y": "179 ₽/мес — 1 год",
-        "tariff_2y": "149 ₽/мес — 2 года",
+        "tariff_1m": "100 ₽ — 1 месяц",
+        "tariff_3m": "150 ₽ — 3 месяца",
+        "tariff_6m": "300 ₽ — 6 месяцев",
+        "tariff_1y": "600 ₽ — 1 год",
+        "tariff_2y": "1200 ₽ — 2 года",
+
+        # ===== Tariffs (Peaches) =====
+        "peach_tariff_1m": "299 перс/мес — 1 месяц",
+        "peach_tariff_3m": "239 перс/мес — 3 месяца",
+        "peach_tariff_6m": "199 перс/мес — 6 месяцев",
+        "peach_tariff_1y": "179 перс/мес — 1 год",
+        "peach_tariff_2y": "149 перс/мес — 2 года",
+
+        # ===== Tariffs (Stars) =====
+        "stars_tariff_1m": "187 Stars/мес — 1 месяц",
+        "stars_tariff_3m": "149 Stars/мес — 3 месяца",
+        "stars_tariff_6m": "124 Stars/мес — 6 месяцев",
+        "stars_tariff_1y": "93 Stars/мес — 1 год",
+        "stars_tariff_2y": "112 Stars/мес — 2 года",
 
         "pay_tariff": "🧾 *Тариф:* {title}",
         "pay_price": "💰 *Цена:* {price} ₽ / мес",
         "pay_period": "📆 *Срок:* {months} мес",
         "pay_total": "👉 *К оплате:* **{total} ₽**",
 
-        "payment_success": "✅ **Оплата прошла успешно!**\n\nПодписка продлена 🎉",
+        "payment_success": (
+            "✅ **Подписка успешно продлена!**\n\n"
+            "Спасибо за оплату 💙"
+        ),
         "payment_pending": (
             "⏳ **Платёж ещё не завершён**\n\n"
             "Попробуйте проверить позже\n\n"
@@ -171,10 +206,22 @@ TEXTS = {
         "payment_check_error": "🚫 Ошибка проверки платежа",
         "payment_status_unknown": "⚠️ Не удалось определить статус платежа",
 
-
         "btn_pay": "💳 Оплатить",
         "btn_check_payment": "🔄 Проверить оплату",
         "btn_check_again": "🔄 Проверить ещё раз",
+
+        "balance_tariff_preview_text": (
+            "🧾 *Тариф:* {tariff}\n"
+            "💳 *Оплата:* {currency}\n"
+            "💰 *Цена за 1 мес:* {price}\n"
+            "📆 *Срок:* {months} мес\n"
+            "👉 *Итого к списанию:* **{total}**\n\n"
+            "💼 *Ваш баланс:* {balance}\n\n"
+            "✅ Подтвердить списание?"
+        ),
+
+        "error_not_enough_peaches": "🍑 Недостаточно персиков. Ваш баланс: {balance}",
+        "error_not_enough_stars": "⭐ Недостаточно Stars. Ваш баланс: {balance}",
 
         # ===== Promo =====
         "promo_enter": "🎁 Введите ваш промокод для активации:",
@@ -427,25 +474,38 @@ TEXTS = {
         "btn_connect_now": "🚀 Connect",
 
         # ===== Renew =====
-        "renew_text": (
+        "renew_text_en": (
             "🔥 *Fast & Secure VPN*\n\n"
-            "• Unlimited traffic\n"
-            "• Easy access to banking apps\n"
             "• Ad blocking on YouTube\n"
-            "• Up to 5 devices simultaneously\n\n"
-            "⚡ Already have a paid VPN? Forget about it!\n"
-            "We will compensate your expenses and give you access to our ultra-fast VPN.\n\n"
-            "🚀 Connect and use only our reliable VPN!"
+            "• Easy access to banking apps\n"
+            "• Unlimited device connections.\n\n"
+            "• Works even where other VPNs fail\n"
+            "• High speed and premium 24/7 support\n\n"
+            "⚡️Already paying for another VPN? Forget about it!\n"
+            "We’ll compensate your costs and give you access to our service.\n\n"
+            "Connect and enjoy stable internet every day 🚀"
+        ),
+
+        # ===== Renew (SBP) =====
+        "renew_sbp_text": (
+            "💳 *Pay via SBP — fast & convenient*\n\n"
+            "⚡️ Instant activation after payment\n"
+            "🔒 Secure payments directly through your bank\n"
+            "📲 Pay in a couple of taps — no cards, no extra forms\n\n"
+            "🎁 *Bonus for paying via SBP:*\n"
+            "— priority server connection\n"
+            "— fast-track support\n\n"
+            "👇 Choose a plan and enjoy stable VPN with no limits"
         ),
 
         # ===== Tariffs =====
         "renew_unavailable": "🚫 Tariffs are temporarily unavailable",
 
-        "tariff_1m": "299 ₽/mo — 1 month",
-        "tariff_3m": "239 ₽/mo — 3 months",
-        "tariff_6m": "199 ₽/mo — 6 months",
-        "tariff_1y": "179 ₽/mo — 1 year",
-        "tariff_2y": "149 ₽/mo — 2 years",
+        "tariff_1m": "100 ₽ — 1 month",
+        "tariff_3m": "150 ₽ — 3 months",
+        "tariff_6m": "300 ₽ — 6 months",
+        "tariff_1y": "600 ₽ — 1 year",
+        "tariff_2y": "1200 ₽ — 2 years",
 
         "pay_tariff": "🧾 *Tariff:* {title}",
         "pay_price": "💰 *Price:* {price} ₽ / mo",
@@ -702,25 +762,38 @@ TEXTS = {
         "btn_connect_now": "🚀 立即连接",
 
         # ===== Renew =====
-        "renew_text": (
+        "renew_text_zh": (
             "🔥 *快速且安全的 VPN*\n\n"
-            "• 无限流量\n"
-            "• 轻松访问银行应用\n"
             "• 屏蔽 YouTube 广告\n"
-            "• 最多支持 5 台设备同时使用\n\n"
-            "⚡ 已经有付费 VPN？忘掉它吧！\n"
-            "我们将补偿你的费用，并为你提供超高速 VPN 服务。\n\n"
-            "🚀 立即连接，只使用我们的安全 VPN！"
+            "• 轻松访问银行应用\n"
+            "• 设备连接数量不限。\n\n"
+            "• 即使在其他 VPN 无法使用的地方也能正常工作\n"
+            "• 高速连接与 7×24 小时尊享客服支持\n\n"
+            "⚡️已经在为其他 VPN 付费？忘掉它吧！\n"
+            "我们将补偿你的费用，并为你提供我们的服务。\n\n"
+            "立即连接，每天畅享稳定的网络 🚀"
+        ),
+
+        # ===== Renew (SBP) =====
+        "renew_sbp_text": (
+            "💳 *通过 SBP 支付 — 快速又便捷*\n\n"
+            "⚡️ 支付完成后立即开通订阅\n"
+            "🔒 直接通过您的银行完成安全支付\n"
+            "📲 几步即可完成支付 — 无需银行卡和繁琐表单\n\n"
+            "🎁 *使用 SBP 支付的专属福利：*\n"
+            "— 优先连接服务器\n"
+            "— 加速客服支持\n\n"
+            "👇 选择合适的套餐，畅享稳定不限速的 VPN"
         ),
 
         # ===== Tariffs =====
         "renew_unavailable": "🚫 套餐暂时不可用。",
 
-        "tariff_1m": "299 ₽/月 — 1 个月",
-        "tariff_3m": "239 ₽/月 — 3 个月",
-        "tariff_6m": "199 ₽/月 — 6 个月",
-        "tariff_1y": "179 ₽/月 — 1 年",
-        "tariff_2y": "149 ₽/月 — 2 年",
+        "tariff_1m": "100 ₽ — 1 个月",
+        "tariff_3m": "150 ₽ — 3 个月",
+        "tariff_6m": "300 ₽ — 6 个月",
+        "tariff_1y": "600 ₽ — 1 年",
+        "tariff_2y": "1200 ₽ — 2 年",
 
         "pay_tariff": "🧾 *套餐:* {title}",
         "pay_price": "💰 *价格:* {price} ₽ / 月",
@@ -866,9 +939,30 @@ TEXTS = {
 
 
 TARIFFS = {
+    "tariff_1m": {"price": 100, "months": 1},
+    "tariff_3m": {"price": 50, "months": 3},
+    "tariff_6m": {"price": 50, "months": 6},
+    "tariff_1y": {"price": 50, "months": 12},
+    "tariff_2y": {"price": 50, "months": 24},
+}
+
+
+TARIFFS_PEACHES = {
     "tariff_1m": {"price": 299, "months": 1},
     "tariff_3m": {"price": 239, "months": 3},
     "tariff_6m": {"price": 199, "months": 6},
     "tariff_1y": {"price": 179, "months": 12},
     "tariff_2y": {"price": 149, "months": 24},
 }
+
+
+TARIFFS_STARS = {
+    "tariff_1m": {"price": 187, "months": 1},
+    "tariff_3m": {"price": 149, "months": 3},
+    "tariff_6m": {"price": 124, "months": 6},
+    "tariff_1y": {"price": 112, "months": 12},
+    "tariff_2y": {"price": 93, "months": 24},
+}
+
+
+

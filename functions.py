@@ -115,7 +115,7 @@ class RemnawaveWrapper:
     async def create_user(self, telegram_id: int) -> Optional[Dict]:
         await self._ensure_session()
 
-        expire_at = (datetime.now(timezone.utc) + timedelta(days=50*365)).isoformat()
+        expire_at = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
 
         existing_user = await self.find_user_by_telegram_id(telegram_id)
 

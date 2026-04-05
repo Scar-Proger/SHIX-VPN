@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 import os
 from functions import delete_client_by_id
 from config import config
+from aiohttp import ClientError
 from handlers import setup_handlers
 from database import (
     now_local,
@@ -46,6 +47,21 @@ app.mount(
 # -------------------- AIROGRAM -------------------
 bot: Bot | None = None
 dp: Dispatcher | None = None
+
+SEM_LIMIT = 15  # можно 10–30 (оптимально)
+BATCH_SIZE = 35
+
+async def safe_get_chat_member(bot, user_id):
+    for _ in range(3):  # 3 попытки
+        try:
+            return await bot.get_chat_member(
+                chat_id=config.REQUIRED_CHANNEL_ID,
+                user_id=user_id
+            )
+        except ClientError:
+            await asyncio.sleep(1)
+        except Exception:
+            raise
 
 def t(user, key: str, **kwargs) -> str:
     lang = getattr(user, "language", "ru") or "ru"
@@ -159,77 +175,93 @@ async def check_subscriptions():
 # --------------------
 # Проверка одного пользователя
 # --------------------
-async def check_user_channel(user, bot):
-    try:
-        member = await bot.get_chat_member(
-            chat_id=config.REQUIRED_CHANNEL_ID,
-            user_id=user.telegram_id
-        )
+async def check_user_channel(user, bot, sem):
+    async with sem:
+        try:
+            member = await safe_get_chat_member(bot, user.telegram_id)
 
-        if member.status not in ("member", "administrator", "creator"):
-            logger.info(f"🚫 {user.telegram_id} вышел из канала")
-            await notify_admins_user_left(user)
+            if not member:
+                return  # если не удалось получить — пропускаем
 
-            # Удаляем профиль в Remnawave
+            if member.status not in ("member", "administrator", "creator"):
+                logger.info(f"🚫 {user.telegram_id} вышел из канала")
+
+                await notify_admins_user_left(user)
+
+                # --- удаление RW профиля ---
+                if user.vless_profile_data:
+                    try:
+                        data = json.loads(user.vless_profile_data)
+                        rw_uuid = data.get("uuid")
+
+                        if rw_uuid:
+                            await delete_client_by_id(rw_uuid)
+
+                    except Exception as e:
+                        logger.error(f"❌ RW ошибка {user.telegram_id}: {e}")
+
+                # --- удаление пользователя ---
+                await delete_user_completely(user.telegram_id)
+
+        except TelegramForbiddenError:
+            # пользователь заблокировал бота
+            logger.info(f"🚫 {user.telegram_id} заблокировал бота")
+
+            await notify_admins_bot_blocked(user)
+
             if user.vless_profile_data:
                 try:
                     data = json.loads(user.vless_profile_data)
                     rw_uuid = data.get("uuid")
-                    if rw_uuid:
-                        deleted = await delete_client_by_id(rw_uuid)
-                        if deleted:
-                            logger.info(f"✅ RW пользователь удалён: {rw_uuid}")
-                        else:
-                            logger.warning(f"⚠️ RW пользователь не удалён: {rw_uuid}")
-                except (json.JSONDecodeError, TypeError) as e:
-                    logger.error(f"❌ Ошибка vless_profile_data у {user.telegram_id}: {e}")
 
-            # Полное удаление пользователя из БД
+                    if rw_uuid:
+                        await delete_client_by_id(rw_uuid)
+
+                except Exception as e:
+                    logger.error(f"❌ RW ошибка {user.telegram_id}: {e}")
+
             await delete_user_completely(user.telegram_id)
 
-    except TelegramForbiddenError:
-        # Пользователь заблокировал бота
-        logger.info(f"🚫 {user.telegram_id} заблокировал бота")
-        await notify_admins_bot_blocked(user)
+        except TelegramBadRequest:
+            pass
 
-        if user.vless_profile_data:
-            try:
-                data = json.loads(user.vless_profile_data)
-                rw_uuid = data.get("uuid")
-                if rw_uuid:
-                    await delete_client_by_id(rw_uuid)
-            except (json.JSONDecodeError, TypeError) as e:
-                logger.error(f"❌ Ошибка vless_profile_data у {user.telegram_id}: {e}")
+        except Exception as e:
+            logger.error(f"❌ Ошибка пользователя {user.telegram_id}: {e}")
 
-        await delete_user_completely(user.telegram_id)
-
-    except TelegramBadRequest:
-        # Игнорируем мелкие ошибки Telegram
-        pass
-
-    except Exception as e:
-        logger.error(f"❌ Ошибка проверки пользователя {user.telegram_id}: {e}")
+        # 🔥 анти-спам Telegram
+        await asyncio.sleep(0.05)
 
 
 # --------------------
 # Проверка всех пользователей
 # --------------------
 async def check_channel_membership(bot):
+    sem = asyncio.Semaphore(SEM_LIMIT)
+
     while True:
         try:
             users = await get_all_users()
+
             if not users:
                 await asyncio.sleep(30)
                 continue
 
-            # Параллельная проверка всех пользователей
-            tasks = [asyncio.create_task(check_user_channel(user, bot)) for user in users]
-            await asyncio.gather(*tasks)
+            for i in range(0, len(users), BATCH_SIZE):
+                batch = users[i:i + BATCH_SIZE]
+
+                tasks = [
+                    asyncio.create_task(check_user_channel(user, bot, sem))
+                    for user in batch
+                ]
+
+                await asyncio.gather(*tasks)
+
+                # небольшая пауза между батчами
+                await asyncio.sleep(0.2)
 
         except Exception as e:
             logger.error(f"❌ Ошибка проверки подписки на канал: {e}")
 
-        # Повторяем проверку каждые 60 секунд
         await asyncio.sleep(60)
 
 
@@ -305,7 +337,7 @@ async def start_bot():
     setup_handlers(dp)
 
     asyncio.create_task(check_subscriptions())
-    asyncio.create_task(check_channel_membership())
+    asyncio.create_task(check_channel_membership(bot))
 
     logger.info("🤖 Бот запущен!")
     await dp.start_polling(bot)

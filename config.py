@@ -2,11 +2,10 @@ import os
 from pydantic import BaseModel
 from typing import List
 
-
 #7833570599:AAFUPOwN3AWmWExYiwmyKJlcjysbiXIR3zU
 #8067598636:AAHM-I14-dWlxNuBqOZIh3oYdHh3uLgrwYw тест
 class Config(BaseModel):
-    BOT_TOKEN: str = os.getenv("BOT_TOKEN", "8067598636:AAHM-I14-dWlxNuBqOZIh3oYdHh3uLgrwYw")
+    BOT_TOKEN: str = os.getenv("BOT_TOKEN", "7833570599:AAFUPOwN3AWmWExYiwmyKJlcjysbiXIR3zU")
     ADMINS: List[int] = [
         1799274098,
         6805707915, 

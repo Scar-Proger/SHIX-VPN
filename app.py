@@ -11,6 +11,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from fastapi.staticfiles import StaticFiles
 import os
+from aiohttp import ClientError, ServerDisconnectedError
 from functions import delete_client_by_id
 from config import config
 from handlers import setup_handlers
@@ -68,6 +69,26 @@ def admin_user_keyboard(user):
         ]
     )
     
+
+async def safe_get_chat_member(bot, chat_id, user_id, retries=3):
+    for attempt in range(retries):
+        try:
+            return await bot.get_chat_member(chat_id=chat_id, user_id=user_id)
+
+        except ServerDisconnectedError:
+            logger.warning(f"🔌 Telegram disconnected (attempt {attempt+1})")
+            await asyncio.sleep(1)
+
+        except ClientError as e:
+            logger.warning(f"🌐 Client error: {e}")
+            await asyncio.sleep(1)
+
+        except Exception as e:
+            logger.warning(f"⚠️ Unknown error get_chat_member: {e}")
+            return None
+
+    return None
+
 def admin_channel_left_text(user) -> str:
     username = f"@{user.username}" if user.username else "Без имени"
     full_name = user.full_name or "Без имени"
@@ -163,10 +184,14 @@ async def check_channel_membership():
 
             for user in users:
                 try:
-                    member = await bot.get_chat_member(
-                        chat_id=config.REQUIRED_CHANNEL_ID,
-                        user_id=user.telegram_id
+                    member = await safe_get_chat_member(
+                        bot,
+                        config.REQUIRED_CHANNEL_ID,
+                        user.telegram_id
                     )
+
+                    if not member:
+                        continue
 
                     if member.status not in ("member", "administrator", "creator"):
                         logger.info(f"🚫 {user.telegram_id} вышел из канала")
@@ -242,10 +267,11 @@ async def check_channel_membership():
                 except TelegramBadRequest:
                     continue
 
-                await asyncio.sleep(0.2)  # ⛔ защита от лимитов Telegram
+                await asyncio.sleep(0.3)  # ⛔ защита от лимитов Telegram
 
         except Exception as e:
-            logger.error(f"❌ Ошибка проверки подписки на канал: {e}")
+            logger.error(f"❌ Критическая ошибка цикла: {e}")
+            await asyncio.sleep(5)
 
         await asyncio.sleep(100)
 

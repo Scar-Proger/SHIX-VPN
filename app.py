@@ -156,98 +156,81 @@ async def check_subscriptions():
         await asyncio.sleep(300)
 
 
-async def check_channel_membership():
+# --------------------
+# Проверка одного пользователя
+# --------------------
+async def check_user_channel(user, bot):
+    try:
+        member = await bot.get_chat_member(
+            chat_id=config.REQUIRED_CHANNEL_ID,
+            user_id=user.telegram_id
+        )
+
+        if member.status not in ("member", "administrator", "creator"):
+            logger.info(f"🚫 {user.telegram_id} вышел из канала")
+            await notify_admins_user_left(user)
+
+            # Удаляем профиль в Remnawave
+            if user.vless_profile_data:
+                try:
+                    data = json.loads(user.vless_profile_data)
+                    rw_uuid = data.get("uuid")
+                    if rw_uuid:
+                        deleted = await delete_client_by_id(rw_uuid)
+                        if deleted:
+                            logger.info(f"✅ RW пользователь удалён: {rw_uuid}")
+                        else:
+                            logger.warning(f"⚠️ RW пользователь не удалён: {rw_uuid}")
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.error(f"❌ Ошибка vless_profile_data у {user.telegram_id}: {e}")
+
+            # Полное удаление пользователя из БД
+            await delete_user_completely(user.telegram_id)
+
+    except TelegramForbiddenError:
+        # Пользователь заблокировал бота
+        logger.info(f"🚫 {user.telegram_id} заблокировал бота")
+        await notify_admins_bot_blocked(user)
+
+        if user.vless_profile_data:
+            try:
+                data = json.loads(user.vless_profile_data)
+                rw_uuid = data.get("uuid")
+                if rw_uuid:
+                    await delete_client_by_id(rw_uuid)
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.error(f"❌ Ошибка vless_profile_data у {user.telegram_id}: {e}")
+
+        await delete_user_completely(user.telegram_id)
+
+    except TelegramBadRequest:
+        # Игнорируем мелкие ошибки Telegram
+        pass
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка проверки пользователя {user.telegram_id}: {e}")
+
+
+# --------------------
+# Проверка всех пользователей
+# --------------------
+async def check_channel_membership(bot):
     while True:
         try:
             users = await get_all_users()
+            if not users:
+                await asyncio.sleep(30)
+                continue
 
-            for user in users:
-                try:
-                    member = await bot.get_chat_member(
-                        chat_id=config.REQUIRED_CHANNEL_ID,
-                        user_id=user.telegram_id
-                    )
-
-                    if member.status not in ("member", "administrator", "creator"):
-                        logger.info(f"🚫 {user.telegram_id} вышел из канала")
-
-                        # 🔔 уведомляем админов
-                        await notify_admins_user_left(user)
-
-                        # 1️⃣ удаляем в Remnawave
-                        if user.vless_profile_data:
-                            try:
-                                data = json.loads(user.vless_profile_data)
-                                rw_uuid = data.get("uuid")
-
-                                if rw_uuid:
-                                    deleted = await delete_client_by_id(rw_uuid)
-                                    if deleted:
-                                        logger.info(f"✅ RW пользователь удалён: {rw_uuid}")
-                                    else:
-                                        logger.warning(f"⚠️ RW пользователь не удалён: {rw_uuid}")
-
-                            except (json.JSONDecodeError, TypeError) as e:
-                                logger.error(f"❌ Ошибка vless_profile_data у {user.telegram_id}: {e}")
-
-                        # 2️⃣ чистим БД
-                        with Session() as session:
-                            db_user = session.query(User).filter_by(
-                                telegram_id=user.telegram_id
-                            ).first()
-                            if db_user:
-                                await delete_user_completely(user.telegram_id)
-
-                        # 3️⃣ пробуем уведомить (МОЖЕТ УПАСТЬ)
-                        try:
-                            await bot.send_message(
-                                user.telegram_id,
-                                t(user, "channel_left")
-                            )
-
-                        except TelegramForbiddenError:
-                            pass  # пользователь заблокировал бота
-
-                except TelegramForbiddenError:
-                    # 🔥 пользователь заблокировал бота
-                    logger.info(f"🚫 {user.telegram_id} заблокировал бота")
-
-                    # 🔔 уведомляем админов
-                    await notify_admins_bot_blocked(user)
-
-                    if user.vless_profile_data:
-                        try:
-                            data = json.loads(user.vless_profile_data)
-                            rw_uuid = data.get("uuid")
-
-                            if rw_uuid:
-                                deleted = await delete_client_by_id(rw_uuid)
-                                if deleted:
-                                    logger.info(f"✅ RW пользователь удалён: {rw_uuid}")
-                                else:
-                                    logger.warning(f"⚠️ RW пользователь не удалён: {rw_uuid}")
-
-                        except (json.JSONDecodeError, TypeError) as e:
-                            logger.error(f"❌ Ошибка vless_profile_data у {user.telegram_id}: {e}")
-
-                    # 2️⃣ чистим БД
-                    with Session() as session:
-                        db_user = session.query(User).filter_by(
-                            telegram_id=user.telegram_id
-                        ).first()
-                        if db_user:
-                            await delete_user_completely(user.telegram_id)
-                    continue
-
-                except TelegramBadRequest:
-                    continue
-
-                await asyncio.sleep(0.2)  # ⛔ защита от лимитов Telegram
+            # Параллельная проверка всех пользователей
+            tasks = [asyncio.create_task(check_user_channel(user, bot)) for user in users]
+            await asyncio.gather(*tasks)
 
         except Exception as e:
             logger.error(f"❌ Ошибка проверки подписки на канал: {e}")
 
-        await asyncio.sleep(100)
+        # Повторяем проверку каждые 60 секунд
+        await asyncio.sleep(60)
 
 
 async def notify_admins_user_left(user):

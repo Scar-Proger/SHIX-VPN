@@ -2136,7 +2136,8 @@ async def get_card(message: Message, state: FSMContext):
         data = await state.get_data()
         main_message_id = data.get("main_message_id", message.message_id)
         kb = InlineKeyboardBuilder().button(text="Назад", callback_data="withdraw_balance").adjust(1)
-        await safe_edit_caption(
+        await safe_edit_caption (
+            message.bot,
             chat_id=message.chat.id,
             message_id=main_message_id,
             caption="❌ Некорректный номер карты. Введите 13-19 цифр.",
@@ -2154,6 +2155,7 @@ async def get_card(message: Message, state: FSMContext):
     kb.adjust(1)
 
     await safe_edit_caption (
+        message.bot,
         chat_id=message.chat.id,
         message_id=main_message_id,
         caption="Введите Имя и Фамилию владельца карты:",
@@ -2172,7 +2174,8 @@ async def get_name(message: Message, state: FSMContext):
         data = await state.get_data()
         main_message_id = data.get("main_message_id", message.message_id)
         kb = InlineKeyboardBuilder().button(text="Назад", callback_data="withdraw_card").adjust(1)
-        await safe_edit_caption(
+        await safe_edit_caption (
+            message.bot,
             chat_id=message.chat.id,
             message_id=main_message_id,
             caption="❌ ФИО должно содержать только буквы и пробелы.",
@@ -2189,6 +2192,7 @@ async def get_name(message: Message, state: FSMContext):
     kb.adjust(1)
 
     await safe_edit_caption (
+        message.bot,
         chat_id=message.chat.id,
         message_id=main_message_id,
         caption="Введите сумму для вывода:",
@@ -2209,6 +2213,7 @@ async def get_amount(message: Message, state: FSMContext):
     if not message.text.isdigit() or int(message.text) < 1:
         kb = InlineKeyboardBuilder().button(text="Назад", callback_data="withdraw_card").adjust(1)
         await safe_edit_caption (
+            message.bot,
             chat_id=message.chat.id,
             message_id=main_message_id,
             caption="❌ Введите корректное число >= 1.",
@@ -2224,6 +2229,7 @@ async def get_amount(message: Message, state: FSMContext):
     if data["withdraw_type"] == "stars" and amount > stars:
         kb = InlineKeyboardBuilder().button(text="Назад", callback_data="withdraw_card").adjust(1)
         await safe_edit_caption (
+            message.bot,
             chat_id=message.chat.id,
             message_id=main_message_id,
             caption=f"❌ Недостаточно звезд. Доступно: {stars}",
@@ -2234,6 +2240,7 @@ async def get_amount(message: Message, state: FSMContext):
     if data["withdraw_type"] == "amount" and amount > balance:
         kb = InlineKeyboardBuilder().button(text="Назад", callback_data="withdraw_card").adjust(1)
         await safe_edit_caption (
+            message.bot,
             chat_id=message.chat.id,
             message_id=main_message_id,
             caption=f"❌ Недостаточно 🍑 Персиков. Доступно: {balance}",

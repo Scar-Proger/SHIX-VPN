@@ -9,7 +9,8 @@ class Config(BaseModel):
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "8067598636:AAHM-I14-dWlxNuBqOZIh3oYdHh3uLgrwYw")
     ADMINS: List[int] = [
         1799274098,
-        6805707915
+        6805707915, 
+        7859739054 
     ]
 
     PLATEGA_BASE_URL: str = os.getenv("PLATEGA_BASE_URL", "https://app.platega.io")

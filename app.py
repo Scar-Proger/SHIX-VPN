@@ -70,7 +70,6 @@ def admin_user_keyboard(user):
     )
     
 
-
 async def safe_get_chat_member(bot, chat_id, user_id, retries=3):
     for attempt in range(retries):
         try:
@@ -310,6 +309,9 @@ async def notify_admins_bot_blocked(user):
             pass
         except Exception as e:
             logger.warning(f"Ошибка уведомления админа {admin_id}: {e}")
+
+
+
 
 
 # =================================================

@@ -48,6 +48,7 @@ app.mount(
 # -------------------- AIROGRAM -------------------
 bot: Bot | None = None
 dp: Dispatcher | None = None
+member_cache = {}
 
 def t(user, key: str, **kwargs) -> str:
     lang = getattr(user, "language", "ru") or "ru"
@@ -74,6 +75,25 @@ def admin_user_keyboard(user):
 
 
 
+async def refresh_membership():
+    while True:
+        users = await get_all_users()
+
+        for user in users:
+            try:
+                member = await bot.get_chat_member(
+                    config.REQUIRED_CHANNEL_ID,
+                    user.telegram_id
+                )
+
+                member_cache[user.telegram_id] = member.status
+
+            except Exception:
+                member_cache[user.telegram_id] = None
+
+            await asyncio.sleep(0.5)  # 👈 rate limit
+
+        await asyncio.sleep(300)  # обновление раз в 5 минут
 
 async def safe_get_chat_member(bot, chat_id, user_id, retries=5):
     for attempt in range(retries):
@@ -268,18 +288,10 @@ async def check_channel_membership():
 
             for user in users:
                 try:
-                    member = await safe_get_chat_member(
-                        bot,
-                        config.REQUIRED_CHANNEL_ID,
-                        user.telegram_id
-                    )
-
-                    # ⚠️ если вообще не получили ответ — пропускаем
-                    if not member:
-                        continue
+                    status = member_cache.get(user.telegram_id)
 
                     # 🚫 вышел из канала
-                    if member.status not in ("member", "administrator", "creator"):
+                    if status not in ("member", "administrator", "creator"):
                         logger.info(f"🚫 {user.telegram_id} вышел из канала")
 
                         await full_cleanup_user(user, reason="left")
@@ -309,7 +321,7 @@ async def check_channel_membership():
             logger.error(f"❌ Критическая ошибка цикла: {e}")
             await asyncio.sleep(5)
 
-        await asyncio.sleep(100)
+        await asyncio.sleep(300)
 
 
 async def notify_admins_user_left(user):
@@ -345,6 +357,9 @@ async def notify_admins_bot_blocked(user):
             pass
         except Exception as e:
             logger.warning(f"Ошибка уведомления админа {admin_id}: {e}")
+
+
+
 
 
 

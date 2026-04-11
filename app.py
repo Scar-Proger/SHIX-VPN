@@ -8,6 +8,7 @@ import coloredlogs
 from fastapi import FastAPI
 from aiogram import Bot, Dispatcher
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from fastapi.staticfiles import StaticFiles
 import os
@@ -349,6 +350,12 @@ async def notify_admins_bot_blocked(user):
 
 
 
+
+
+
+
+
+
 # =================================================
 # ADMIN STATUS
 # =================================================
@@ -377,7 +384,15 @@ async def update_admins_status():
 async def start_bot():
     global bot, dp
 
-    bot = Bot(token=config.BOT_TOKEN)
+    session = AiohttpSession(
+        timeout=60,
+        connector_kwargs={"family": 2}  # 🔥 только IPv4
+    )
+
+    bot = Bot(
+        token=config.BOT_TOKEN,
+        session=session
+    )
     dp = Dispatcher()
 
     await init_db()

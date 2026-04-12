@@ -1,5 +1,6 @@
 import logging
 import re
+import unicodedata
 
 from database import Session, User, create_user
 from functions import RemnawaveWrapper
@@ -7,14 +8,26 @@ from functions import RemnawaveWrapper
 logger = logging.getLogger(__name__)
 
 
-# =========================================================
-# PARSER (из твоего текста)
-# =========================================================
-def parse_users(text: str):
-    """
-    • Name ├ @username └ 123456
-    """
+# =========================
+# CLEAN TEXT (ВАЖНО)
+# =========================
+def clean_text(text: str) -> str:
+    if not text:
+        return "Unknown"
 
+    # нормализация unicode
+    text = unicodedata.normalize("NFKC", text)
+
+    # убираем NULL байты и мусор
+    text = text.replace("\x00", "")
+
+    return text.strip()
+
+
+# =========================
+# PARSER
+# =========================
+def parse_users(text: str):
     pattern = re.compile(
         r"•\s*(.*?)\s*├\s*(@[\w\d_]+|Без имени)\s*└\s*(\d+)"
     )
@@ -22,32 +35,30 @@ def parse_users(text: str):
     users = []
 
     for match in pattern.finditer(text):
-        full_name = match.group(1).strip()
-
+        full_name = clean_text(match.group(1))
         username_raw = match.group(2).strip()
-        username = None if username_raw == "Без имени" else username_raw.replace("@", "")
 
-        telegram_id = int(match.group(3))
+        username = None
+        if username_raw != "Без имени":
+            username = username_raw.replace("@", "")
 
         users.append({
             "full_name": full_name,
             "username": username,
-            "telegram_id": telegram_id
+            "telegram_id": int(match.group(3))
         })
 
     return users
 
 
-# =========================================================
-# MAIN SYNC (MySQL + Remnawave)
-# =========================================================
+# =========================
+# MYSQL + RW SYNC
+# =========================
 async def ensure_user_exists(telegram_id: int, full_name: str = None, username: str = None):
 
-    full_name = full_name or "Unknown"
+    full_name = clean_text(full_name or "Unknown")
 
-    # -------------------------
-    # MYSQL
-    # -------------------------
+    # ---------------- MYSQL ----------------
     with Session() as session:
         user = session.query(User).filter_by(telegram_id=telegram_id).first()
 
@@ -62,19 +73,15 @@ async def ensure_user_exists(telegram_id: int, full_name: str = None, username: 
         else:
             logger.info(f"✅ MYSQL EXISTS | {user.full_name} | @{user.username} | {telegram_id}")
 
-    # -------------------------
-    # REMNAWAVE
-    # -------------------------
+    # ---------------- REMNAWAVE ----------------
     api = RemnawaveWrapper()
 
     try:
         rw_user = await api.find_user_by_telegram_id(telegram_id)
 
-        note = f"{full_name} | @{username or 'no_username'} | tg:{telegram_id}"
+        note = clean_text(f"{full_name} | @{username or 'no_username'} | tg:{telegram_id}")
 
         if rw_user and rw_user.get("uuid"):
-            logger.info(f"✅ RW EXISTS | {telegram_id}")
-
             await api.update_user(
                 rw_user["uuid"],
                 {
@@ -84,6 +91,7 @@ async def ensure_user_exists(telegram_id: int, full_name: str = None, username: 
                 }
             )
 
+            logger.info(f"✅ RW EXISTS | {telegram_id}")
             return True
 
         logger.info(f"🆕 RW CREATE | {telegram_id}")
@@ -108,14 +116,10 @@ async def ensure_user_exists(telegram_id: int, full_name: str = None, username: 
         await api.close()
 
 
-# =========================================================
-# RUN BULK FROM TEXT
-# =========================================================
+# =========================
+# BULK SYNC
+# =========================
 async def sync_from_text(text: str):
-    """
-    ВСТАВЛЯЕШЬ ТЕКСТ И ОНО ВСЁ ДЕЛАЕТ САМО
-    """
-
     users = parse_users(text)
 
     logger.info(f"🚀 найдено пользователей: {len(users)}")

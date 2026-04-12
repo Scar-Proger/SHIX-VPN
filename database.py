@@ -403,9 +403,6 @@ async def get_all_promocodes_list():
 
 
 
-
-
-
 async def create_payment(
     user_id: int,
     transaction_id: str,

@@ -14,48 +14,38 @@ from typing import Literal
 import logging
 import secrets
 import os
-from urllib.parse import quote_plus
 
 
 logger = logging.getLogger(__name__)
 
 PaymentResult = Literal["CONFIRMED", "PENDING", "CANCELED", "NOT_FOUND", "ERROR"]
 
-# ==================================================
-# Пути проекта и SSL-сертификат
-# ==================================================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CA_PATH = os.path.join(BASE_DIR, "certs", "timeweb-root.crt")
+DATABASE_URL = os.getenv("MYSQL_URL")
 
-if not os.path.exists(CA_PATH):
-    raise RuntimeError(f"❌ CA certificate not found: {CA_PATH}")
+if not DATABASE_URL:
+    raise RuntimeError("❌ MYSQL_URL not set in environment")
 
-# ==================================================
-# Настройки MySQL (MyJino / Timeweb / Cloud)
-# ==================================================
-DB_HOST = "78df91fc76d0aaa3e2e1071b.twc1.net"
-DB_NAME = "default_db"
-DB_USER = "gen_user"
-DB_PASSWORD = quote_plus("71VWf@$={n!=l8")
-
-DATABASE_URL = (
-    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}"
-    f"@{DB_HOST}:3306/{DB_NAME}?charset=utf8mb4"
-)
+# Иногда Railway даёт mysql:// → SQLAlchemy хочет mysql+pymysql://
+DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://")
 
 # ==================================================
-# SQLAlchemy setup (ВАЖНО: SSL через CA)
+# SQLAlchemy
 # ==================================================
 engine = create_engine(
     DATABASE_URL,
     echo=False,
     pool_pre_ping=True,
     pool_recycle=3600,
-    connect_args={
-        "ssl": {
-            "ca": CA_PATH
-        }
-    }
+)
+
+# ==================================================
+# SQLAlchemy
+# ==================================================
+engine = create_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=3600,
 )
 
 Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)

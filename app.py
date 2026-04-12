@@ -24,7 +24,6 @@ from database import (
     delete_user_completely
 )
 
-from sync_user import sync_from_text
 
 from btn import subscription_action_keyboard
 from locales import TEXTS
@@ -351,23 +350,6 @@ async def start_bot():
 
     asyncio.create_task(check_subscriptions())
     asyncio.create_task(check_channel_membership())
-
-    # 🔥 ТВОЙ ТЕКСТ
-    text = """
-    • Rare 🌙NEN🌙 ├ @Nikitas1k └ 5172115568
-    • Матвей ├ @qer1337 └ 7565116548
-    • Матвей ├ @qer1337 └ 7565116548
-    • Вадим Ильмакачев ├ Без имени └ 8533340013
-    • Без имени ├ @D1amonddddddd └ 8597501978
-    • Mops ├ @yamopss └ 1657903588
-    • #геткид ├ @getKlD └ 6109872847
-    • Arsennisaev ├ @arsenisaevas └ 8166287562
-    • Максим ├ @i26c4u └ 728517421
-    • Алина ├ @amo_RALKA └ 1251360683
-    """
-
-    # 🔥 ЗАПУСК СИНХРОНИЗАЦИИ
-    asyncio.create_task(sync_from_text(text))
 
     logger.info("🤖 Бот запущен!")
     await dp.start_polling(bot)

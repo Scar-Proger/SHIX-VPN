@@ -288,29 +288,34 @@ async def sync_remnawave_expire(telegram_id: int, new_end: datetime) -> bool:
         rw_user = await api.find_user_by_telegram_id(telegram_id)
 
         if not rw_user:
-            logger.error(f"❌ sync_expire: RW user not found tg={telegram_id}")
+            logger.error(f"[Remnawave] Пользователь не найден tg={telegram_id}")
             return False
 
         if "uuid" not in rw_user:
-            logger.error(f"❌ sync_expire: RW user without uuid tg={telegram_id}")
+            logger.error(f"[Remnawave] У пользователя нет uuid tg={telegram_id}")
             return False
 
         expire_at = new_end.astimezone(timezone.utc).isoformat()
 
         updated = await api.update_user(
             rw_user["uuid"],
-            {"expireAt": expire_at}
+            {
+                "expireAt": expire_at,
+                "trafficLimitBytes": 0,
+                "trafficLimitStrategy": "NO_RESET"
+            }
         )
 
         if not updated:
             logger.error(
-                f"❌ sync_expire: failed to update expireAt tg={telegram_id}"
+                f"[Remnawave] Не удалось обновить пользователя tg={telegram_id}"
             )
             return False
 
         logger.info(
-            f"✅ Remnawave expire updated tg={telegram_id} → {expire_at}"
+            f"✅ [Remnawave] подписка обновлена успешно tg={telegram_id} → {expire_at}"
         )
+        logger.info(f"♾️ [Remnawave] Пользователь переведён на БЕЗЛИМИТ")
         return True
 
     finally:

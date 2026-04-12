@@ -401,8 +401,6 @@ async def get_all_promocodes_list():
     
 
 
-
-
 async def create_payment(
     user_id: int,
     transaction_id: str,
@@ -525,7 +523,5 @@ async def get_or_create_payment(user_id: int, amount: int, months: int) -> Payme
         session.refresh(new_payment)
         return new_payment
   
-
-
 
 

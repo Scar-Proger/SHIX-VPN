@@ -15,38 +15,9 @@ import logging
 import secrets
 import os
 
-
 logger = logging.getLogger(__name__)
 
 PaymentResult = Literal["CONFIRMED", "PENDING", "CANCELED", "NOT_FOUND", "ERROR"]
-
-DATABASE_URL = os.getenv("MYSQL_URL")
-
-if not DATABASE_URL:
-    raise RuntimeError("❌ MYSQL_URL not set in environment")
-
-# Иногда Railway даёт mysql:// → SQLAlchemy хочет mysql+pymysql://
-DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://")
-
-# ==================================================
-# SQLAlchemy
-# ==================================================
-engine = create_engine(
-    DATABASE_URL,
-    echo=False,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-)
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from datetime import datetime, timedelta
-import logging
-import secrets
-import os
-
-logger = logging.getLogger(__name__)
-
 
 # ==================================================
 # DATABASE (Railway)

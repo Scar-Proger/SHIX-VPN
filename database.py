@@ -38,6 +38,29 @@ engine = create_engine(
     pool_recycle=3600,
 )
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
+from datetime import datetime, timedelta
+import logging
+import secrets
+import os
+
+logger = logging.getLogger(__name__)
+
+
+# ==================================================
+# DATABASE (Railway)
+# ==================================================
+DATABASE_URL = os.getenv("MYSQL_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError("❌ MYSQL_URL not set in environment")
+
+# fix для SQLAlchemy
+DATABASE_URL = DATABASE_URL.replace("mysql://", "mysql+pymysql://")
+
+print("DB:", DATABASE_URL)
+
 # ==================================================
 # SQLAlchemy
 # ==================================================
@@ -52,7 +75,7 @@ Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
 # ==================================================
-# Утилиты
+# Utils
 # ==================================================
 def generate_sub_id() -> str:
     return secrets.token_urlsafe(12).replace("-", "").replace("_", "")

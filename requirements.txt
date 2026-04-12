@@ -8,3 +8,4 @@ uvicorn
 coloredlogs
 typing-extensions
 pymysql
+cryptography

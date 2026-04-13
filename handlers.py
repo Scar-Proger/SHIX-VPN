@@ -810,12 +810,18 @@ async def help_msg(callback: CallbackQuery):
 # ------------------------------
 # Обновить подписки и профили 
 # ------------------------------
-@router.callback_query(F.data == "reload")
-async def reload_all(callback: CallbackQuery):
-    await callback.answer("⏳ Обновление началось...", show_alert=False)
+@router.message(Command("reload"))
+async def reload_all(message: Message):
+    if message.from_user.id not in config.ADMINS:
+        return
 
+    # Сообщаем о старте
+    msg = await message.answer("⏳ Обновление началось...")
+
+    # Запускаем синхронизацию
     success, failed, total = await sync_all_users()
 
+    # Формируем ответ
     text = (
         f"🔄 Обновление завершено\n\n"
         f"👥 Всего пользователей: {total}\n"
@@ -823,7 +829,8 @@ async def reload_all(callback: CallbackQuery):
         f"❌ Ошибки: {failed}"
     )
 
-    await callback.message.answer(text)
+    # Редактируем сообщение
+    await msg.edit_text(text)
 
 
 # ------------------------------
@@ -2058,6 +2065,10 @@ async def confirm_convert(call: CallbackQuery, state: FSMContext):
 
     await state.clear()
     await call.answer()
+
+
+
+
 
 
 

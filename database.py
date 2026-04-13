@@ -309,6 +309,8 @@ async def sync_from_remnawave_to_db():
     failed = 0
 
     try:
+        await api._ensure_session()
+
         # =========================
         # 1. ГРУЗИМ ВСЕХ RW ЮЗЕРОВ
         # =========================
@@ -322,39 +324,56 @@ async def sync_from_remnawave_to_db():
                 api._url("/users/"),
                 params={"start": start, "size": size}
             ) as resp:
+
+                if resp.status != 200:
+                    logger.error(f"❌ RW users fetch error: {resp.status}")
+                    break
+
                 data = await resp.json()
-                users = data.get("response", {}).get("users", [])
-                total = data.get("response", {}).get("total", 0)
+                response = data.get("response", {})
+
+                users = response.get("users", [])
+                total = response.get("total", 0)
 
                 for u in users:
                     tg_id = None
 
-                    if u.get("note", "").startswith("tg:"):
-                        tg_id = int(u["note"].replace("tg:", ""))
-                    elif u.get("username", "").startswith("user_"):
-                        tg_id = int(u["username"].replace("user_", ""))
+                    note = u.get("note") or ""
+                    username = u.get("username") or ""
+
+                    if note.startswith("tg:"):
+                        try:
+                            tg_id = int(note.replace("tg:", ""))
+                        except:
+                            pass
+
+                    elif username.startswith("user_"):
+                        try:
+                            tg_id = int(username.replace("user_", ""))
+                        except:
+                            pass
 
                     if tg_id:
                         rw_map[tg_id] = u
 
                 start += size
-                if start >= total:
+                if start >= total or not users:
                     break
 
         # =========================
         # 2. ГРУЗИМ БД
         # =========================
         with Session() as session:
-            users = session.query(User).all()
+            db_users = session.query(User).all()
 
         # =========================
-        # 3. СИНХРА
+        # 3. СИНХРОНИЗАЦИЯ
         # =========================
-        for user in users:
+        for user in db_users:
             try:
                 rw_user = rw_map.get(user.telegram_id)
 
-                # ❌ нет в RW → удаляем
+                # ❌ НЕТ В REMNAWAVE → УДАЛЯЕМ ИЗ MYSQL
                 if not rw_user:
                     with Session() as session:
                         db_user = session.query(User).get(user.id)
@@ -365,16 +384,17 @@ async def sync_from_remnawave_to_db():
                     deleted += 1
                     continue
 
-                # ✅ есть → обновляем
+                # ✅ ЕСТЬ → ОБНОВЛЯЕМ ПОДПИСКУ
                 expire_at = rw_user.get("expireAt")
 
                 if expire_at:
                     expire_dt = datetime.fromisoformat(
                         expire_at.replace("Z", "+00:00")
-                    ) + timedelta(hours=3)
+                    )
 
                     with Session() as session:
                         db_user = session.query(User).get(user.id)
+
                         if db_user:
                             db_user.subscription_end = expire_dt
                             db_user.vless_profile_id = rw_user.get("uuid")

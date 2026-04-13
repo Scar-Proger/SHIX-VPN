@@ -186,6 +186,12 @@ async def get_all_users():
 
 
 
+
+
+
+
+
+
 async def create_user(
     telegram_id: int,
     full_name: str,
@@ -234,7 +240,6 @@ async def create_user(
 
                 if ref:
                     referrer_id_db = ref.id
-                    ref.referrals_count += 1  # 👈 сразу инкремент
 
             # =========================
             # USER

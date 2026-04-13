@@ -847,12 +847,11 @@ async def referral_program(callback: CallbackQuery):
     if not user:
         await callback.answer("🛑 Profile error")
         return
-    
-    # Получаем количество рефералов
-    with Session() as session:
-        referrals_count = session.query(User).filter_by(referrer_id=user.id).count()
 
-    await callback.answer()
+    with Session() as session:
+        referrals_count = session.query(User).filter(
+            User.referrer_id == user.id
+        ).count()
 
     referral_link = f"https://t.me/MegaShixVPN_bot?start={user.telegram_id}"
 
@@ -866,14 +865,14 @@ async def referral_program(callback: CallbackQuery):
     builder = InlineKeyboardBuilder()
     builder.button(text=t(user, "back"), callback_data="back_to_menu")
 
-    await callback.bot.edit_message_caption(
-        chat_id=callback.from_user.id,
-        message_id=callback.message.message_id,
+    await callback.answer()
+
+    await callback.message.edit_caption(
         caption=text,
         reply_markup=builder.as_markup(),
         parse_mode="Markdown"
     )
-
+    
 
 # ------------------------------
 # Помощь по подключению

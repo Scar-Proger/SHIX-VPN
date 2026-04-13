@@ -497,10 +497,11 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         time_left = format_time_left(user.subscription_end, user)
         time_left_text = t(user, "subscription_left", time=time_left)
 
-        sub_text = (
-            t(user, "sub_link", link=user.sub_id)
+        sub_link = (
+            f"https://panel.shix-vpn.space/{user.sub_id}"
             if user.sub_id else ""
         )
+        sub_text = t(user, "sub_link", link=sub_link) if sub_link else ""
 
     amount, stars = await get_user_balance(user.id)
 

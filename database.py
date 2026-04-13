@@ -8,12 +8,10 @@ from sqlalchemy import (
     BigInteger,
     func
 )
-import asyncio
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime, timedelta
 from typing import Literal
 import logging
-import secrets
 import os
 
 logger = logging.getLogger(__name__)
@@ -49,8 +47,6 @@ Base = declarative_base()
 # ==================================================
 # Utils
 # ==================================================
-def generate_sub_id() -> str:
-    return secrets.token_urlsafe(12).replace("-", "").replace("_", "")
 
 def now_local():
     return datetime.utcnow() + timedelta(hours=3)
@@ -183,66 +179,120 @@ async def init_db():
 async def get_user(telegram_id: int):
     with Session() as session:
         return session.query(User).filter_by(telegram_id=telegram_id).first()
+    
+async def get_all_users():
+    with Session() as session:
+        return session.query(User).all()
+
+
 
 async def create_user(
     telegram_id: int,
     full_name: str,
     username: str = None,
     is_admin: bool = False,
-    referrer_telegram_id: int = None,  # передаём Telegram ID реферера
+    referrer_telegram_id: int = None,
     language: str = "ru"
 ):
-    with Session() as session:
-        # ---------------------------
-        # Находим реферера в базе (по Telegram ID)
-        # ---------------------------
-        referrer_id_db = None
-        if referrer_telegram_id:
-            referrer = session.query(User).filter_by(telegram_id=referrer_telegram_id).first()
-            if referrer:
-                referrer_id_db = referrer.id
+    from functions import RemnawaveWrapper
 
-        # ---------------------------
-        # Создаём пользователя
-        # ---------------------------
-        user = User(
-            telegram_id=telegram_id,
-            full_name=full_name,
-            username=username,
-            sub_id=generate_sub_id(),
-            subscription_end=now_local() + timedelta(days=2),
-            is_admin=is_admin,
-            referrer_id=referrer_id_db,
-            referrals_count=0,
-            language=language
-        )
-        session.add(user)
-        session.commit()
-        session.refresh(user)  # 🔥 ВАЖНО
+    api = RemnawaveWrapper()
 
-        # ---------------------------
-        # Создаём баланс пользователя (персики + звёзды)
-        # ---------------------------
-        balance = UserBalance(
-            user_id=user.id,
-            amount=0,
-            stars=0
-        )
-        session.add(balance)
-        session.commit()
-        session.refresh(balance)
+    try:
+        await api._ensure_session()
 
-        logger.info(f"✅ Новый пользователь создан: {telegram_id} с балансом 0 и звёздами 0")
+        # =========================
+        # 1. Remnawave user create
+        # =========================
+        rw_user = await api.create_user(telegram_id)
 
-        # ---------------------------
-        # Обновляем рефереру количество рефералов
-        # ---------------------------
-        if referrer_id_db:
-            referrer.referrals_count = session.query(User).filter_by(referrer_id=referrer_id_db).count()
+        if not rw_user:
+            logger.error(f"❌ RW create failed tg={telegram_id}")
+            return None
+
+        sub_url = rw_user.get("subscriptionUrl")
+        rw_uuid = rw_user.get("uuid")
+
+        if not sub_url or not rw_uuid:
+            logger.error(f"❌ RW invalid data tg={telegram_id}")
+            return None
+
+        short_uuid = sub_url.rstrip("/").split("/")[-1]
+
+        # =========================
+        # 2. DB session
+        # =========================
+        with Session() as session:
+
+            # ---------------------------
+            # реферер (НЕ ТРОГАЕМ ЛОГИКУ)
+            # ---------------------------
+            referrer_id_db = None
+            if referrer_telegram_id:
+                referrer = session.query(User).filter_by(
+                    telegram_id=referrer_telegram_id
+                ).first()
+                if referrer:
+                    referrer_id_db = referrer.id
+
+            # ---------------------------
+            # создаём пользователя (ВАША ЛОГИКА + FIX)
+            # ---------------------------
+            user = User(
+                telegram_id=telegram_id,
+                full_name=full_name,
+                username=username,
+                sub_id=short_uuid,  # 🔥 FIX: теперь не None
+                subscription_end=now_local() + timedelta(days=2),
+                is_admin=is_admin,
+                referrer_id=referrer_id_db,
+                referrals_count=0,
+                language=language,
+
+                # 🔥 FIX: синхронизация с Remnawave
+                vless_profile_id=rw_uuid,
+                vless_profile_data=sub_url
+            )
+
+            session.add(user)
             session.commit()
-            logger.info(f"🔹 Обновлён счётчик рефералов для {referrer_telegram_id}: {referrer.referrals_count}")
+            session.refresh(user)
 
-        return user
+            # ---------------------------
+            # баланс (НЕ ТРОГАЕМ)
+            # ---------------------------
+            balance = UserBalance(
+                user_id=user.id,
+                amount=0,
+                stars=0
+            )
+
+            session.add(balance)
+            session.commit()
+
+            # ---------------------------
+            # реферальная система (НЕ ТРОГАЕМ)
+            # ---------------------------
+            if referrer_id_db:
+                referrer.referrals_count = session.query(User).filter_by(
+                    referrer_id=referrer_id_db
+                ).count()
+                session.commit()
+
+                logger.info(
+                    f"🔹 Ref updated tg={referrer_telegram_id} "
+                    f"count={referrer.referrals_count}"
+                )
+
+            logger.info(
+                f"✅ USER CREATED tg={telegram_id} "
+                f"sub_id={short_uuid}"
+            )
+
+            return user
+
+    finally:
+        await api.close()
 
 async def delete_user_profile(telegram_id: int):
     with Session() as session:
@@ -298,47 +348,37 @@ async def sync_shortuuid_to_mysql():
                 rw_user = await api.find_user_by_telegram_id(user.telegram_id)
 
                 if not rw_user:
-                    logger.warning(f"❌ RW user not found tg={user.telegram_id}")
                     failed += 1
                     continue
 
-                uuid = rw_user.get("uuid")
-                if not uuid:
+                sub_url = rw_user.get("subscriptionUrl")
+
+                if not sub_url:
                     failed += 1
                     continue
 
-                # ----------------------------
-                # 1. берем shortUuid / subscriptionUrl
-                # ----------------------------
-                sub_url = rw_user.get("subscriptionUrl") or ""
-
-                # пример:
-                # https://panel.shix-vpn.space/api/users/8fb99fb9-...
-                short_uuid = sub_url.split("/")[-1] if sub_url else None
+                # =========================
+                # EXTRACT shortUuid
+                # =========================
+                short_uuid = sub_url.rstrip("/").split("/")[-1]
 
                 if not short_uuid:
-                    logger.warning(f"❌ no shortUuid tg={user.telegram_id}")
                     failed += 1
                     continue
 
-                # ----------------------------
-                # 2. сохраняем в MySQL
-                # ----------------------------
                 db_user = session.query(User).get(user.id)
 
                 if db_user:
                     db_user.sub_id = short_uuid
-                    db_user.vless_profile_id = uuid
+                    db_user.vless_profile_id = rw_user.get("uuid")
                     db_user.vless_profile_data = sub_url
-                    db_user.registration_date = datetime.utcnow()
 
                     session.commit()
 
                     success += 1
-                    logger.info(f"✅ updated tg={user.telegram_id}")
 
             except Exception as e:
-                logger.error(f"❌ sync error tg={user.telegram_id}: {e}")
+                logger.error(f"sync error tg={user.telegram_id}: {e}")
                 failed += 1
 
     finally:

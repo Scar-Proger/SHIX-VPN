@@ -212,16 +212,21 @@ async def check_channel_membership():
                         await notify_admins_user_left(user)
 
                         # 3. удаление клиента
-                        if user.vless_profile_data:
-                            try:
-                                data = json.loads(user.vless_profile_data)
-                                rw_uuid = data.get("uuid")
+                        user_id = user.vless_profile_id
 
-                                if rw_uuid:
-                                    await delete_client_by_id(rw_uuid)
+                        if user_id:
+                            try:
+                                logger.info(f"🗑 [RW DELETE] tg={telegram_id} uuid={user_id}")
+
+                                result = await delete_client_by_id(user_id)
+
+                                logger.info(f"✅ [RW DELETE RESULT] tg={telegram_id} result={result}")
 
                             except Exception as e:
-                                logger.error(f"❌ RW error {telegram_id}: {e}")
+                                logger.error(f"❌ RW DELETE FAILED tg={telegram_id}: {e}")
+                        else:
+                            logger.warning(f"⚠️ RW UUID EMPTY tg={telegram_id}")
+                            
 
                         # 4. удаление из БД (отдельная короткая сессия)
                         await delete_user_completely(telegram_id)

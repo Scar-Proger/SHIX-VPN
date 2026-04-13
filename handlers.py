@@ -826,16 +826,30 @@ async def reload_all(message: Message):
 
     msg = await message.answer("⏳ Синхронизация с Remnawave...")
 
-    success, deleted, failed = await sync_shortuuid_to_mysql()
+    success, skipped, failed = await sync_shortuuid_to_mysql()
 
     text = (
         f"🔄 Синхронизация завершена\n\n"
         f"✅ Обновлено: {success}\n"
-        f"🗑 Удалено: {deleted}\n"
+        f"⚠️ Пропущено: {skipped}\n"
         f"❌ Ошибки: {failed}"
     )
 
     await msg.edit_text(text)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # ------------------------------
 # Реферальная программа

@@ -202,7 +202,7 @@ async def create_user(
         await api._ensure_session()
 
         # =========================
-        # 1. Remnawave user create
+        # 1. RW create
         # =========================
         rw_user = await api.create_user(telegram_id)
 
@@ -217,7 +217,14 @@ async def create_user(
             logger.error(f"❌ RW invalid data tg={telegram_id}")
             return None
 
-        short_uuid = sub_url.rstrip("/").split("/")[-1]
+        # =========================
+        # 🔥 FIX: всегда чистый short id
+        # =========================
+        short_uuid = sub_url.rstrip("/").split("/")[-1] if sub_url else None
+
+        if not short_uuid:
+            logger.error(f"❌ Cannot parse short_uuid tg={telegram_id}")
+            return None
 
         # =========================
         # 2. DB session
@@ -225,7 +232,7 @@ async def create_user(
         with Session() as session:
 
             # ---------------------------
-            # реферер (НЕ ТРОГАЕМ ЛОГИКУ)
+            # реферер
             # ---------------------------
             referrer_id_db = None
             if referrer_telegram_id:
@@ -236,22 +243,25 @@ async def create_user(
                     referrer_id_db = referrer.id
 
             # ---------------------------
-            # создаём пользователя (ВАША ЛОГИКА + FIX)
+            # USER CREATE
             # ---------------------------
             user = User(
                 telegram_id=telegram_id,
                 full_name=full_name,
                 username=username,
-                sub_id=short_uuid,  # 🔥 FIX: теперь не None
+
+                # 🔥 ВАЖНО: теперь ТОЛЬКО ID
+                sub_id=short_uuid,
+
                 subscription_end=now_local() + timedelta(days=2),
                 is_admin=is_admin,
                 referrer_id=referrer_id_db,
                 referrals_count=0,
                 language=language,
 
-                # 🔥 FIX: синхронизация с Remnawave
+                # 🔥 ВАЖНО: тоже только ID, НЕ ссылка
                 vless_profile_id=rw_uuid,
-                vless_profile_data=sub_url
+                vless_profile_data=short_uuid
             )
 
             session.add(user)
@@ -259,7 +269,7 @@ async def create_user(
             session.refresh(user)
 
             # ---------------------------
-            # баланс (НЕ ТРОГАЕМ)
+            # баланс
             # ---------------------------
             balance = UserBalance(
                 user_id=user.id,
@@ -271,7 +281,7 @@ async def create_user(
             session.commit()
 
             # ---------------------------
-            # реферальная система (НЕ ТРОГАЕМ)
+            # рефералка
             # ---------------------------
             if referrer_id_db:
                 referrer.referrals_count = session.query(User).filter_by(
@@ -279,14 +289,8 @@ async def create_user(
                 ).count()
                 session.commit()
 
-                logger.info(
-                    f"🔹 Ref updated tg={referrer_telegram_id} "
-                    f"count={referrer.referrals_count}"
-                )
-
             logger.info(
-                f"✅ USER CREATED tg={telegram_id} "
-                f"sub_id={short_uuid}"
+                f"✅ USER CREATED tg={telegram_id} sub_id={short_uuid}"
             )
 
             return user
@@ -319,13 +323,6 @@ async def update_subscription(telegram_id: int, months: int):
         session.commit()
         logger.info(f"✅ Подписка продлена: {telegram_id}")
         return True
-
-
-
-
-
-
-
 
 
 

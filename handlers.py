@@ -498,7 +498,7 @@ async def show_menu(bot: Bot, chat_id: int, message_id: int = None):
         time_left_text = t(user, "subscription_left", time=time_left)
 
         sub_link = (
-            f"https://panel.shix-vpn.space/{user.sub_id}"
+            f"https://sub.shix-vpn.space/{user.sub_id}"
             if user.sub_id else ""
         )
         sub_text = t(user, "sub_link", link=sub_link) if sub_link else ""

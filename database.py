@@ -298,10 +298,6 @@ async def update_subscription(telegram_id: int, months: int):
 
 
 
-
-
-
-
 async def sync_shortuuid_to_mysql():
     from functions import RemnawaveWrapper
 

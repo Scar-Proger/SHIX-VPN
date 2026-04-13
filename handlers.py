@@ -408,10 +408,7 @@ async def ensure_user(
     username: str | None = None,
     referrer_telegram_id: int | None = None
 ) -> User:
-    """
-    Создаёт пользователя, если его нет, создаёт профиль, уведомляет админов и реферера.
-    Возвращает объект пользователя.
-    """
+
     user = await get_user(telegram_id)
     if user:
         return user
@@ -420,7 +417,7 @@ async def ensure_user(
         logger.error(f"❌ full_name не строка: {type(full_name)} | {full_name}")
         full_name = ""
 
-    # 1️⃣ Создаём пользователя
+    # ✅ СОЗДАЁМ ТОЛЬКО ОДИН РАЗ
     user = await create_user(
         telegram_id=telegram_id,
         full_name=full_name,
@@ -429,30 +426,24 @@ async def ensure_user(
         referrer_telegram_id=referrer_telegram_id,
         language="ru"
     )
+
     user = await get_user(telegram_id)
 
-    # 2️⃣ Создаём профиль Remnawave
-    profile_data = await create_vless_profile(telegram_id)
-    if profile_data:
-        sub_url = profile_data.get("sub_url")
-        with Session() as session:
-            db_user = session.query(User).filter_by(id=user.id).first()
-            db_user.vless_profile_data = json.dumps(profile_data)
-            db_user.sub_id = sub_url
-            session.commit()
-        logger.info(f"✅ Профиль создан для {telegram_id}")
-    else:
-        logger.error(f"❌ Не удалось создать профиль для {telegram_id}")
-
-    # 3️⃣ Уведомляем админов
+    # =========================
+    # 🔔 Админы
+    # =========================
     await notify_admins_user_joined(bot, user)
 
-    # 4️⃣ Уведомляем реферера и увеличиваем счётчик
+    # =========================
+    # 👥 Рефералка
+    # =========================
     if referrer_telegram_id and referrer_telegram_id != telegram_id:
         with Session() as session:
-            referrer = session.query(User).filter_by(telegram_id=referrer_telegram_id).first()
+            referrer = session.query(User).filter_by(
+                telegram_id=referrer_telegram_id
+            ).first()
+
             if referrer:
-                # Отправляем уведомление рефереру
                 await bot.send_message(
                     referrer_telegram_id,
                     t(
@@ -463,14 +454,10 @@ async def ensure_user(
                     ),
                     parse_mode="Markdown"
                 )
-                # Увеличиваем счётчик
-                referrer.referrals_count = (referrer.referrals_count or 0) + 1
-                session.commit()
+
                 logger.info(f"🔹 Реферал {telegram_id} сохранён за {referrer_telegram_id}")
 
     return user
-
-
 
 
 # =========================================================

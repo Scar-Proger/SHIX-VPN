@@ -299,57 +299,100 @@ async def delete_user_completely(telegram_id: int):
             session.commit()
             logger.info(f"🗑 Пользователь полностью удалён из БД: {telegram_id}")
 
-async def sync_all_users():
-    from functions import sync_remnawave_expire
-    from functions import create_vless_profile
+async def sync_from_remnawave_to_db():
+    from functions import RemnawaveWrapper
+
+    api = RemnawaveWrapper()
 
     success = 0
+    deleted = 0
     failed = 0
 
-    with Session() as session:
-        users = session.query(User).all()
+    try:
+        # =========================
+        # 1. ГРУЗИМ ВСЕХ RW ЮЗЕРОВ
+        # =========================
+        rw_map = {}
 
-    for user in users:
-        try:
-            # -------------------------
-            # Если нет профиля — создаём
-            # -------------------------
-            if not user.vless_profile_id:
-                profile = await create_vless_profile(user.telegram_id)
+        start = 0
+        size = 200
 
-                if profile:
+        while True:
+            async with api.session.get(
+                api._url("/users/"),
+                params={"start": start, "size": size}
+            ) as resp:
+                data = await resp.json()
+                users = data.get("response", {}).get("users", [])
+                total = data.get("response", {}).get("total", 0)
+
+                for u in users:
+                    tg_id = None
+
+                    if u.get("note", "").startswith("tg:"):
+                        tg_id = int(u["note"].replace("tg:", ""))
+                    elif u.get("username", "").startswith("user_"):
+                        tg_id = int(u["username"].replace("user_", ""))
+
+                    if tg_id:
+                        rw_map[tg_id] = u
+
+                start += size
+                if start >= total:
+                    break
+
+        # =========================
+        # 2. ГРУЗИМ БД
+        # =========================
+        with Session() as session:
+            users = session.query(User).all()
+
+        # =========================
+        # 3. СИНХРА
+        # =========================
+        for user in users:
+            try:
+                rw_user = rw_map.get(user.telegram_id)
+
+                # ❌ нет в RW → удаляем
+                if not rw_user:
                     with Session() as session:
                         db_user = session.query(User).get(user.id)
-                        db_user.vless_profile_id = profile.get("uuid")
-                        db_user.vless_profile_data = profile.get("sub_url")
-                        session.commit()
-                else:
-                    failed += 1
+                        if db_user:
+                            session.delete(db_user)
+                            session.commit()
+
+                    deleted += 1
                     continue
 
-            # -------------------------
-            # Синхронизация expire
-            # -------------------------
-            if user.subscription_end:
-                ok = await sync_remnawave_expire(
-                    telegram_id=user.telegram_id,
-                    new_end=user.subscription_end
-                )
+                # ✅ есть → обновляем
+                expire_at = rw_user.get("expireAt")
 
-                if ok:
+                if expire_at:
+                    expire_dt = datetime.fromisoformat(
+                        expire_at.replace("Z", "+00:00")
+                    ) + timedelta(hours=3)
+
+                    with Session() as session:
+                        db_user = session.query(User).get(user.id)
+                        if db_user:
+                            db_user.subscription_end = expire_dt
+                            db_user.vless_profile_id = rw_user.get("uuid")
+                            db_user.vless_profile_data = rw_user.get("subscriptionUrl")
+                            session.commit()
+
                     success += 1
                 else:
                     failed += 1
-            else:
+
+            except Exception as e:
+                logger.error(f"❌ sync error {user.telegram_id}: {e}")
                 failed += 1
 
-        except Exception as e:
-            logger.error(f"❌ Ошибка sync user {user.telegram_id}: {e}")
-            failed += 1
+    finally:
+        await api.close()
 
-        await asyncio.sleep(0.3)
-
-    return success, failed, len(users)
+    return success, deleted, failed
 
 # ==================================================
 # Промокоды

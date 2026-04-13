@@ -282,6 +282,8 @@ async def get_online_users():
     finally:
         await api.close()
 
+
+
 async def sync_remnawave_expire(telegram_id: int, new_end: datetime) -> bool:
     api = RemnawaveWrapper()
     try:

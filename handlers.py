@@ -2,12 +2,13 @@ import os
 import logging
 import json
 import re
-import asyncio
 from database import now_local
 from aiogram.exceptions import (
     TelegramForbiddenError,
     TelegramBadRequest,
 )
+
+
 
 from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire
@@ -24,7 +25,7 @@ from config import config
 from locales import TEXTS, TARIFFS, TARIFFS_PEACHES, TARIFFS_STARS
 from database import ( 
     get_user, create_user, apply_promo_code, create_or_update_promo_code, 
-    get_all_promocodes_list, delete_promocode, sync_all_users,
+    get_all_promocodes_list, delete_promocode, sync_from_remnawave_to_db,
     get_all_users, get_or_create_payment, process_payment_result,
     User, PromoCode, Payment, UserBalance, UserBalanceHistory, Session, get_user_stats as db_user_stats
 )
@@ -815,23 +816,18 @@ async def reload_all(message: Message):
     if message.from_user.id not in config.ADMINS:
         return
 
-    # Сообщаем о старте
-    msg = await message.answer("⏳ Обновление началось...")
+    msg = await message.answer("⏳ Синхронизация с Remnawave...")
 
-    # Запускаем синхронизацию
-    success, failed, total = await sync_all_users()
+    success, deleted, failed = await sync_from_remnawave_to_db()
 
-    # Формируем ответ
     text = (
-        f"🔄 Обновление завершено\n\n"
-        f"👥 Всего пользователей: {total}\n"
-        f"✅ Успешно: {success}\n"
+        f"🔄 Синхронизация завершена\n\n"
+        f"✅ Обновлено: {success}\n"
+        f"🗑 Удалено: {deleted}\n"
         f"❌ Ошибки: {failed}"
     )
 
-    # Редактируем сообщение
     await msg.edit_text(text)
-
 
 # ------------------------------
 # Реферальная программа

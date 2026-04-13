@@ -270,15 +270,82 @@ async def update_subscription(telegram_id: int, months: int):
         logger.info(f"✅ Подписка продлена: {telegram_id}")
         return True
 
-async def get_all_users(with_subscription: bool = None):
-    with Session() as session:
-        query = session.query(User)
-        if with_subscription is not None:
-            if with_subscription:
-                query = query.filter(User.subscription_end > now_local())
-            else:
-                query = query.filter(User.subscription_end <= now_local())
-        return query.all()
+
+
+
+
+
+
+
+
+
+async def sync_shortuuid_to_mysql():
+    from functions import RemnawaveWrapper
+
+    api = RemnawaveWrapper()
+
+    success = 0
+    failed = 0
+
+    try:
+        await api._ensure_session()
+
+        with Session() as session:
+            users = session.query(User).all()
+
+        for user in users:
+            try:
+                rw_user = await api.find_user_by_telegram_id(user.telegram_id)
+
+                if not rw_user:
+                    logger.warning(f"❌ RW user not found tg={user.telegram_id}")
+                    failed += 1
+                    continue
+
+                uuid = rw_user.get("uuid")
+                if not uuid:
+                    failed += 1
+                    continue
+
+                # ----------------------------
+                # 1. берем shortUuid / subscriptionUrl
+                # ----------------------------
+                sub_url = rw_user.get("subscriptionUrl") or ""
+
+                # пример:
+                # https://panel.shix-vpn.space/api/users/8fb99fb9-...
+                short_uuid = sub_url.split("/")[-1] if sub_url else None
+
+                if not short_uuid:
+                    logger.warning(f"❌ no shortUuid tg={user.telegram_id}")
+                    failed += 1
+                    continue
+
+                # ----------------------------
+                # 2. сохраняем в MySQL
+                # ----------------------------
+                db_user = session.query(User).get(user.id)
+
+                if db_user:
+                    db_user.sub_id = short_uuid
+                    db_user.vless_profile_id = uuid
+                    db_user.vless_profile_data = sub_url
+                    db_user.registration_date = datetime.utcnow()
+
+                    session.commit()
+
+                    success += 1
+                    logger.info(f"✅ updated tg={user.telegram_id}")
+
+            except Exception as e:
+                logger.error(f"❌ sync error tg={user.telegram_id}: {e}")
+                failed += 1
+
+    finally:
+        await api.close()
+
+    return success, failed
+
 
 # ==================================================
 # Статистика

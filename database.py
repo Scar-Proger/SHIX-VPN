@@ -330,66 +330,105 @@ async def update_subscription(telegram_id: int, months: int):
 
 
 
+
+
+
+
+
+
+
 async def sync_shortuuid_to_mysql():
     from functions import RemnawaveWrapper
+
+    logger.info("🚀 [SYNC] sync_shortuuid_to_mysql STARTED")
 
     api = RemnawaveWrapper()
 
     success = 0
     failed = 0
+    skipped = 0
 
     try:
         await api._ensure_session()
+        logger.info("🌐 [SYNC] Remnawave session READY")
 
         with Session() as session:
-
             users = session.query(User).all()
 
+            logger.info(f"📦 [SYNC] Loaded users from DB: {len(users)}")
+
             for user in users:
+                logger.info(f"\n🔎 [SYNC] Processing tg_id={user.telegram_id}")
+
                 try:
                     rw_user = await api.find_user_by_telegram_id(user.telegram_id)
 
                     if not rw_user:
+                        logger.warning(f"❌ [SYNC] RW user NOT FOUND tg_id={user.telegram_id}")
                         failed += 1
                         continue
 
-                    # 🔥 ВАЖНО: берём UUID напрямую (он точный)
+                    logger.info(f"✅ [SYNC] RW user FOUND tg_id={user.telegram_id}")
+                    logger.debug(f"🧾 [SYNC] RW RAW DATA: {rw_user}")
+
+                    short_uuid = rw_user.get("shortUuid")
+                    subscription_url = rw_user.get("subscriptionUrl")
                     rw_uuid = rw_user.get("uuid")
-                    sub_url = rw_user.get("subscriptionUrl")
+
+                    logger.info(
+                        f"📡 [SYNC] extracted -> "
+                        f"uuid={rw_uuid}, shortUuid={short_uuid}, sub={subscription_url}"
+                    )
 
                     if not rw_uuid:
+                        logger.error(f"💥 [SYNC] UUID missing tg_id={user.telegram_id}")
                         failed += 1
                         continue
 
-                    # 🔥 ПРАВИЛЬНЫЙ short_uuid
-                    if sub_url:
-                        short_uuid = sub_url.rstrip("/").split("/")[-1]
-                    else:
-                        short_uuid = None
-
-                    # 💥 ОБНОВЛЯЕМ ВСЕ ПОЛЯ ЯВНО
-                    user.vless_profile_id = rw_uuid
-                    user.vless_profile_data = sub_url
+                    # =========================
+                    # UPDATE FIELDS
+                    # =========================
+                    old_sub = user.sub_id
+                    old_uuid = user.vless_profile_id
 
                     if short_uuid:
                         user.sub_id = short_uuid
+                    elif subscription_url:
+                        user.sub_id = subscription_url.rstrip("/").split("/")[-1]
+                    else:
+                        logger.warning(f"⚠️ [SYNC] no subscription_url tg_id={user.telegram_id}")
+                        skipped += 1
+                        continue
 
-                    session.add(user)  # 🔥 важно для SQLAlchemy identity map
+                    user.vless_profile_id = rw_uuid
+                    user.vless_profile_data = subscription_url
+
+                    session.add(user)
+
+                    logger.info(
+                        f"💾 [SYNC] UPDATED tg_id={user.telegram_id} "
+                        f"sub_id: {old_sub} → {user.sub_id} | "
+                        f"uuid: {old_uuid} → {rw_uuid}"
+                    )
 
                     success += 1
 
                 except Exception as e:
-                    logger.error(f"sync error tg={user.telegram_id}: {e}")
+                    logger.exception(f"🔥 [SYNC] ERROR tg_id={user.telegram_id}: {e}")
                     failed += 1
 
-            # 💥 ОДИН КОМИТ В КОНЦЕ
             session.commit()
+            logger.info("💾 [SYNC] DB COMMIT DONE")
 
     finally:
         await api.close()
+        logger.info("🔌 [SYNC] Remnawave session CLOSED")
+
+    logger.info(
+        f"\n🏁 [SYNC DONE] success={success}, failed={failed}, skipped={skipped}"
+    )
 
     return success, failed
-
 
 
 

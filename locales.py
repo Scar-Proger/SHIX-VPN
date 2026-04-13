@@ -486,6 +486,11 @@ TEXTS = {
             "Connect and enjoy stable internet every day 🚀"
         ),
 
+        "pay_sbp": "💳 SBP",
+        "pay_crypto": "💰 Crypto",
+        "pay_stars": "⭐ Pay Stars",
+        "pay_peaches": "🍑 Peaches",
+
         # ===== Renew (SBP) =====
         "renew_sbp_text": (
             "💳 *Pay via SBP — fast & convenient*\n\n"
@@ -773,6 +778,11 @@ TEXTS = {
             "我们将补偿你的费用，并为你提供我们的服务。\n\n"
             "立即连接，每天畅享稳定的网络 🚀"
         ),
+
+        "pay_sbp": "💳 银行快捷支付（SBP）",
+        "pay_crypto": "💰 加密货币",
+        "pay_stars": "⭐ Telegram 星星支付",
+        "pay_peaches": "🍑 桃子支付",
 
         # ===== Renew (SBP) =====
         "renew_sbp_text": (

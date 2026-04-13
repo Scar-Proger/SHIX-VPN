@@ -326,9 +326,6 @@ async def update_subscription(telegram_id: int, months: int):
 
 
 
-
-
-
 async def sync_shortuuid_to_mysql():
     from functions import RemnawaveWrapper
 
@@ -340,51 +337,57 @@ async def sync_shortuuid_to_mysql():
     try:
         await api._ensure_session()
 
+        # 🔥 ОДНА ЖИВАЯ СЕССИЯ НА ВСЮ ОПЕРАЦИЮ
         with Session() as session:
+
             users = session.query(User).all()
 
-        for user in users:
-            try:
-                rw_user = await api.find_user_by_telegram_id(user.telegram_id)
+            for user in users:
+                try:
+                    rw_user = await api.find_user_by_telegram_id(user.telegram_id)
 
-                if not rw_user:
-                    failed += 1
-                    continue
+                    if not rw_user:
+                        failed += 1
+                        continue
 
-                sub_url = rw_user.get("subscriptionUrl")
+                    sub_url = rw_user.get("subscriptionUrl")
 
-                if not sub_url:
-                    failed += 1
-                    continue
+                    if not sub_url:
+                        failed += 1
+                        continue
 
-                # =========================
-                # EXTRACT shortUuid
-                # =========================
-                short_uuid = sub_url.rstrip("/").split("/")[-1]
+                    short_uuid = sub_url.rstrip("/").split("/")[-1]
 
-                if not short_uuid:
-                    failed += 1
-                    continue
+                    if not short_uuid:
+                        failed += 1
+                        continue
 
-                db_user = session.query(User).get(user.id)
-
-                if db_user:
-                    db_user.sub_id = short_uuid
-                    db_user.vless_profile_id = rw_user.get("uuid")
-                    db_user.vless_profile_data = sub_url
-
-                    session.commit()
+                    # 🔥 ВАЖНО: ОБНОВЛЯЕМ ТОГО ЖЕ user ИЗ ЭТОЙ СЕССИИ
+                    user.sub_id = short_uuid
+                    user.vless_profile_id = rw_user.get("uuid")
+                    user.vless_profile_data = sub_url
 
                     success += 1
 
-            except Exception as e:
-                logger.error(f"sync error tg={user.telegram_id}: {e}")
-                failed += 1
+                except Exception as e:
+                    logger.error(f"sync error tg={user.telegram_id}: {e}")
+                    failed += 1
+
+            # 🔥 ОДИН COMMIT В КОНЦЕ (самое важное)
+            session.commit()
 
     finally:
         await api.close()
 
     return success, failed
+
+
+
+
+
+
+
+
 
 
 # ==================================================

@@ -186,33 +186,19 @@ async def get_all_users():
 
 
 
-
-
-
-
-
-async def ensure_user(
+async def create_user(
     telegram_id: int,
-    full_name: str = "",
-    username: str | None = None,
-    referrer_telegram_id: int | None = None
-) -> User:
-
+    full_name: str,
+    username: str = None,
+    is_admin: bool = False,
+    referrer_telegram_id: int = None,
+    language: str = "ru"
+):
+    from functions import RemnawaveWrapper
     from urllib.parse import urlparse
 
-    # =========================
-    # 1. ПРОВЕРКА СУЩЕСТВУЕТ ЛИ
-    # =========================
-    user = await get_user(telegram_id)
-    if user:
-        return user
-
-    # =========================
-    # 2. СОЗДАЁМ В REMNAWAVE
-    # =========================
-    from functions import RemnawaveWrapper
-
     api = RemnawaveWrapper()
+
     try:
         await api._ensure_session()
 
@@ -223,10 +209,10 @@ async def ensure_user(
             return None
 
         sub_url = rw_user.get("subscriptionUrl")
-        short_uuid = rw_user.get("shortUuid")
         rw_uuid = rw_user.get("uuid")
+        short_uuid = rw_user.get("shortUuid") 
 
-        # fallback если shortUuid нет
+        # fallback если вдруг shortUuid нет
         if not short_uuid and sub_url:
             short_uuid = urlparse(sub_url).path.strip("/").split("/")[-1]
 
@@ -234,51 +220,54 @@ async def ensure_user(
             logger.error(f"❌ RW invalid data tg={telegram_id}")
             return None
 
+        with Session() as session:
+
+            # =========================
+            # 🔥 РЕФЕРАЛКА (ВОЗВРАЩЕНА)
+            # =========================
+            referrer_id_db = None
+
+            if referrer_telegram_id:
+                ref = session.query(User).filter_by(
+                    telegram_id=referrer_telegram_id
+                ).first()
+
+                if ref:
+                    referrer_id_db = ref.id
+                    ref.referrals_count += 1  # 👈 сразу инкремент
+
+            # =========================
+            # USER
+            # =========================
+            user = User(
+                telegram_id=telegram_id,
+                full_name=full_name,
+                username=username,
+
+                sub_id=short_uuid,
+                subscription_end=now_local() + timedelta(days=2),
+                is_admin=is_admin,
+                referrer_id=referrer_id_db,
+                referrals_count=0,
+                language=language,
+
+                vless_profile_id=rw_uuid,
+
+                # 🔥 ВАЖНО: ТОЛЬКО СТРОКА
+                vless_profile_data=str(sub_url)
+            )
+
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+
+            logger.info(f"✅ USER CREATED tg={telegram_id} sub_id={short_uuid}")
+
+            return user
+
     finally:
         await api.close()
 
-    # =========================
-    # 3. СОХРАНЯЕМ В БД
-    # =========================
-    with Session() as session:
-
-        # --- рефералка ---
-        referrer_id_db = None
-
-        if referrer_telegram_id and referrer_telegram_id != telegram_id:
-            ref = session.query(User).filter_by(
-                telegram_id=referrer_telegram_id
-            ).first()
-
-            if ref:
-                referrer_id_db = ref.id
-                ref.referrals_count = (ref.referrals_count or 0) + 1
-
-        # --- создаём пользователя ---
-        user = User(
-            telegram_id=telegram_id,
-            full_name=full_name,
-            username=username,
-
-            sub_id=short_uuid,                 # ✅ ТОЛЬКО SHORT UUID
-            subscription_end=now_local() + timedelta(days=2),
-
-            referrer_id=referrer_id_db,
-            referrals_count=0,
-            language="ru",
-
-            vless_profile_id=rw_uuid,
-            vless_profile_data=sub_url         # можно хранить полный URL
-        )
-
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-
-    logger.info(f"✅ USER CREATED tg={telegram_id} sub_id={short_uuid}")
-
-    return user
-    
 async def delete_user_profile(telegram_id: int):
     with Session() as session:
         user = session.query(User).filter_by(telegram_id=telegram_id).first()
@@ -304,6 +293,12 @@ async def update_subscription(telegram_id: int, months: int):
         session.commit()
         logger.info(f"✅ Подписка продлена: {telegram_id}")
         return True
+
+
+
+
+
+
 
 
 

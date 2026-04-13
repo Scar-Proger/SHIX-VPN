@@ -182,6 +182,7 @@ def t(user, key: str, **kwargs) -> str:
 
     return lang_dict[key].format(**kwargs)
 
+
 def admin_user_button(user_id):
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -193,6 +194,8 @@ def admin_user_button(user_id):
             ]
         ]
     )
+
+
 def admin_channel_joined_text(user) -> str:
     username = f"@{user.username}" if user.username else "Без имени"
     full_name = user.full_name or "Без имени"
@@ -877,6 +880,15 @@ async def referral_program(callback: CallbackQuery):
 # ------------------------------
 # Помощь по подключению
 # ------------------------------
+BASE_SUB_URL = "https://sub.shix-vpn.space"
+
+
+def build_sub_url(sub_id: str) -> str:
+    if not sub_id:
+        return None
+    return f"{BASE_SUB_URL.rstrip('/')}/{sub_id.lstrip('/')}"
+
+
 @router.callback_query(F.data == "connect")
 async def connect_profile(callback: CallbackQuery):
     user = await get_user(callback.from_user.id)
@@ -890,18 +902,29 @@ async def connect_profile(callback: CallbackQuery):
         await callback.answer(t(user, "connect_sub_expired"))
         return
 
-    # Проверяем наличие ссылки
+    # ------------------------------
+    # Получаем ссылку
+    # ------------------------------
     sub_url = None
+
     if user.vless_profile_data:
         profile_data = safe_json_loads(user.vless_profile_data, default={})
         sub_url = profile_data.get("sub_url") or profile_data.get("subscriptionUrl")
 
+    # если ссылки нет — строим из sub_id
     if not sub_url and user.sub_id:
-        sub_url = f"{user.sub_id}"
+        sub_url = build_sub_url(user.sub_id)
 
+    # если всё ещё пусто — ошибка
     if not sub_url:
         await callback.answer(t(user, "connect_not_ready"))
         return
+
+    # ------------------------------
+    # ВАЖНО: Telegram требует валидный URL
+    # ------------------------------
+    if not sub_url.startswith("http://") and not sub_url.startswith("https://"):
+        sub_url = build_sub_url(sub_url)
 
     await callback.answer()
 
@@ -916,7 +939,10 @@ async def connect_profile(callback: CallbackQuery):
         text=t(user, "btn_connect_now"),
         web_app=WebAppInfo(url=sub_url)
     )
-    builder.button(text=t(user, "back"), callback_data="back_to_menu")
+    builder.button(
+        text=t(user, "back"),
+        callback_data="back_to_menu"
+    )
     builder.adjust(1, 1)
 
     await callback.bot.edit_message_caption(

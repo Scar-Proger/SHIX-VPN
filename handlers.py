@@ -8,6 +8,7 @@ from aiogram.exceptions import (
     TelegramForbiddenError,
     TelegramBadRequest,
 )
+
 from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire
 from payment.platega_payment import get_platega_payment_status
@@ -23,7 +24,7 @@ from config import config
 from locales import TEXTS, TARIFFS, TARIFFS_PEACHES, TARIFFS_STARS
 from database import ( 
     get_user, create_user, apply_promo_code, create_or_update_promo_code, 
-    get_all_promocodes_list, delete_promocode, update_subscription,
+    get_all_promocodes_list, delete_promocode, sync_all_users,
     get_all_users, get_or_create_payment, process_payment_result,
     User, PromoCode, Payment, UserBalance, UserBalanceHistory, Session, get_user_stats as db_user_stats
 )
@@ -804,6 +805,25 @@ async def help_msg(callback: CallbackQuery):
         reply_markup=builder.as_markup(),
         parse_mode="Markdown"
     )
+
+
+# ------------------------------
+# Обновить подписки и профили 
+# ------------------------------
+@router.callback_query(F.data == "reload")
+async def reload_all(callback: CallbackQuery):
+    await callback.answer("⏳ Обновление началось...", show_alert=False)
+
+    success, failed, total = await sync_all_users()
+
+    text = (
+        f"🔄 Обновление завершено\n\n"
+        f"👥 Всего пользователей: {total}\n"
+        f"✅ Успешно: {success}\n"
+        f"❌ Ошибки: {failed}"
+    )
+
+    await callback.message.answer(text)
 
 
 # ------------------------------

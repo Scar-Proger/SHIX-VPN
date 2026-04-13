@@ -8,6 +8,7 @@ from sqlalchemy import (
     BigInteger,
     func
 )
+import asyncio
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime, timedelta
 from typing import Literal
@@ -297,6 +298,58 @@ async def delete_user_completely(telegram_id: int):
             session.delete(user)
             session.commit()
             logger.info(f"🗑 Пользователь полностью удалён из БД: {telegram_id}")
+
+async def sync_all_users():
+    from functions import sync_remnawave_expire
+    from functions import create_vless_profile
+
+    success = 0
+    failed = 0
+
+    with Session() as session:
+        users = session.query(User).all()
+
+    for user in users:
+        try:
+            # -------------------------
+            # Если нет профиля — создаём
+            # -------------------------
+            if not user.vless_profile_id:
+                profile = await create_vless_profile(user.telegram_id)
+
+                if profile:
+                    with Session() as session:
+                        db_user = session.query(User).get(user.id)
+                        db_user.vless_profile_id = profile.get("uuid")
+                        db_user.vless_profile_data = profile.get("sub_url")
+                        session.commit()
+                else:
+                    failed += 1
+                    continue
+
+            # -------------------------
+            # Синхронизация expire
+            # -------------------------
+            if user.subscription_end:
+                ok = await sync_remnawave_expire(
+                    telegram_id=user.telegram_id,
+                    new_end=user.subscription_end
+                )
+
+                if ok:
+                    success += 1
+                else:
+                    failed += 1
+            else:
+                failed += 1
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка sync user {user.telegram_id}: {e}")
+            failed += 1
+
+        await asyncio.sleep(0.3)
+
+    return success, failed, len(users)
 
 # ==================================================
 # Промокоды

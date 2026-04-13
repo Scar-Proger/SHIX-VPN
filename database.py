@@ -326,6 +326,10 @@ async def update_subscription(telegram_id: int, months: int):
 
 
 
+
+
+
+
 async def sync_shortuuid_to_mysql():
     from functions import RemnawaveWrapper
 
@@ -337,7 +341,6 @@ async def sync_shortuuid_to_mysql():
     try:
         await api._ensure_session()
 
-        # 🔥 ОДНА ЖИВАЯ СЕССИЯ НА ВСЮ ОПЕРАЦИЮ
         with Session() as session:
 
             users = session.query(User).all()
@@ -350,22 +353,28 @@ async def sync_shortuuid_to_mysql():
                         failed += 1
                         continue
 
+                    # 🔥 ВАЖНО: берём UUID напрямую (он точный)
+                    rw_uuid = rw_user.get("uuid")
                     sub_url = rw_user.get("subscriptionUrl")
 
-                    if not sub_url:
+                    if not rw_uuid:
                         failed += 1
                         continue
 
-                    short_uuid = sub_url.rstrip("/").split("/")[-1]
+                    # 🔥 ПРАВИЛЬНЫЙ short_uuid
+                    if sub_url:
+                        short_uuid = sub_url.rstrip("/").split("/")[-1]
+                    else:
+                        short_uuid = None
 
-                    if not short_uuid:
-                        failed += 1
-                        continue
-
-                    # 🔥 ВАЖНО: ОБНОВЛЯЕМ ТОГО ЖЕ user ИЗ ЭТОЙ СЕССИИ
-                    user.sub_id = short_uuid
-                    user.vless_profile_id = rw_user.get("uuid")
+                    # 💥 ОБНОВЛЯЕМ ВСЕ ПОЛЯ ЯВНО
+                    user.vless_profile_id = rw_uuid
                     user.vless_profile_data = sub_url
+
+                    if short_uuid:
+                        user.sub_id = short_uuid
+
+                    session.add(user)  # 🔥 важно для SQLAlchemy identity map
 
                     success += 1
 
@@ -373,15 +382,13 @@ async def sync_shortuuid_to_mysql():
                     logger.error(f"sync error tg={user.telegram_id}: {e}")
                     failed += 1
 
-            # 🔥 ОДИН COMMIT В КОНЦЕ (самое важное)
+            # 💥 ОДИН КОМИТ В КОНЦЕ
             session.commit()
 
     finally:
         await api.close()
 
     return success, failed
-
-
 
 
 

@@ -474,7 +474,7 @@ TEXTS = {
         "btn_connect_now": "🚀 Connect",
 
         # ===== Renew =====
-        "renew_text_en": (
+        "renew_text": (
             "🔥 *Fast & Secure VPN*\n\n"
             "• Ad blocking on YouTube\n"
             "• Easy access to banking apps\n"
@@ -762,7 +762,7 @@ TEXTS = {
         "btn_connect_now": "🚀 立即连接",
 
         # ===== Renew =====
-        "renew_text_zh": (
+        "renew_text": (
             "🔥 *快速且安全的 VPN*\n\n"
             "• 屏蔽 YouTube 广告\n"
             "• 轻松访问银行应用\n"

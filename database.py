@@ -191,12 +191,6 @@ async def get_all_users():
 
 
 
-
-
-
-
-
-
 async def create_user(
     telegram_id: int,
     full_name: str,
@@ -304,18 +298,6 @@ async def update_subscription(telegram_id: int, months: int):
         logger.info(f"✅ Подписка продлена: {telegram_id}")
         return True
 
-
-
-
-
-
-
-
-
-
-
-
-
 async def sync_shortuuid_to_mysql():
     from functions import RemnawaveWrapper
 
@@ -394,6 +376,14 @@ async def sync_shortuuid_to_mysql():
     logger.info(f"🏁 DONE success={success}, failed={failed}, skipped={skipped}")
 
     return success, skipped, failed
+
+
+
+
+
+
+
+
 
 
 
@@ -532,6 +522,12 @@ async def sync_from_remnawave_to_db():
         await api.close()
 
     return success, deleted, failed
+
+
+
+
+
+
 
 # ==================================================
 # Промокоды

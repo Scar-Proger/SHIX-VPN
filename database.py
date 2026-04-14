@@ -383,14 +383,6 @@ async def sync_shortuuid_to_mysql():
 
 
 
-
-
-
-
-
-
-
-
 # ==================================================
 # Статистика
 # ==================================================
@@ -524,6 +516,13 @@ async def sync_from_remnawave_to_db():
         await api.close()
 
     return success, deleted, failed
+
+
+
+
+
+
+
 
 
 

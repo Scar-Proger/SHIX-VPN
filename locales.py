@@ -973,6 +973,3 @@ TARIFFS_STARS = {
     "tariff_1y": {"price": 112, "months": 12},
     "tariff_2y": {"price": 93, "months": 24},
 }
-
-
-

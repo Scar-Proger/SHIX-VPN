@@ -2,6 +2,10 @@ import os
 from pydantic import BaseModel
 from typing import List
 
+
+
+
+
 class Config(BaseModel):
 
     BOT_TOKEN: str = os.getenv("BOT_TOKEN")

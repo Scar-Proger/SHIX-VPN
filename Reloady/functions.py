@@ -1,6 +1,7 @@
 import aiohttp
 import uuid
 import logging
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict
 from config import config
@@ -8,17 +9,12 @@ from database import get_user
 
 logger = logging.getLogger(__name__)
 
-
 class RemnawaveWrapper:
     """Обёртка Remnawave API для работы с пользователями и подписками"""
 
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
 
-
-    # -------------------------
-    # Сессия
-    # -------------------------
     async def _ensure_session(self):
         if not self.session or self.session.closed:
             self.session = aiohttp.ClientSession(
@@ -28,45 +24,10 @@ class RemnawaveWrapper:
                 }
             )
 
-
-    async def happ_encrypt_url(self, url: str) -> Optional[str]:
-        await self._ensure_session()
-        
-        try:
-            async with self.session.post(
-                "https://crypto.happ.su/api-v2.php",
-                json={"url": url},
-            ) as resp:
-                if resp.status != 200:
-                    logger.error(f"[HAPP CRYPT] error [{resp.status}]")
-                    return None
-
-                data = await resp.json()
-
-                encrypted_url = (
-                    data.get("url")
-                    or data.get("encrypted")
-                    or data.get("result")
-                )
-
-                if not encrypted_url:
-                    logger.error(f"[HAPP CRYPT]: пустой ответ {data}")
-                    return None
-
-                return encrypted_url
-
-        except Exception as e:
-            logger.error(f"[HAPP CRYPT] exception: {e}")
-            return None
-
-
     def _url(self, path: str) -> str:
         return f"{config.REMNAWAVE_API_URL.rstrip('/')}/{path.lstrip('/')}"
     
 
-    # -------------------------
-    # Поиск пользователя
-    # -------------------------
     async def find_user_by_telegram_id(self, telegram_id: int) -> Optional[Dict]:
         await self._ensure_session()
 
@@ -119,9 +80,6 @@ class RemnawaveWrapper:
         return None
 
 
-    # -------------------------
-    # Обновление пользователя (PATCH)
-    # -------------------------
     async def update_user(self, user_uuid: str, payload: Dict) -> Optional[Dict]:
         await self._ensure_session()
 
@@ -143,9 +101,6 @@ class RemnawaveWrapper:
             return data.get("response")
 
 
-    # -------------------------
-    # CREATE пользователя
-    # -------------------------
     async def create_user(self, telegram_id: int) -> Optional[Dict]:
         await self._ensure_session()
 
@@ -153,9 +108,6 @@ class RemnawaveWrapper:
 
         existing_user = await self.find_user_by_telegram_id(telegram_id)
 
-        # =========================
-        # UPDATE
-        # =========================
         if existing_user and "uuid" in existing_user:
             logger.info(f"🔁 Обновляем пользователя {telegram_id}")
 
@@ -164,7 +116,7 @@ class RemnawaveWrapper:
                 {
                     "expireAt": expire_at,
                     "enabled": True,
-                    "trafficLimitBytes": 1073741824,  # 1 GB
+                    "trafficLimitBytes": 1073741824,
                     "trafficLimitStrategy": "DAY",
                     "activeInternalSquads": [
                         config.REMNAWAVE_DEFAULT_SQUAD_ID
@@ -178,15 +130,12 @@ class RemnawaveWrapper:
             updated["sub_url"] = updated.get("subscriptionUrl")
 
             if updated.get("sub_url"):
-                encrypted = await self.happ_encrypt_url(updated["sub_url"])
+                encrypted = await happ_encrypt_url(updated["sub_url"])
                 if encrypted:
                     updated["sub_url_encrypted"] = encrypted
 
             return updated
-        
-        # =========================
-        # CREATE
-        # =========================
+
         logger.info(f"🆕 Создаём пользователя {telegram_id}")
 
         user_uuid = str(uuid.uuid4())
@@ -198,7 +147,7 @@ class RemnawaveWrapper:
                 "username": f"user_{telegram_id}",
                 "expireAt": expire_at,
                 "enabled": True,
-                "trafficLimitBytes": 1073741824,  # 1 GB
+                "trafficLimitBytes": 1073741824,
                 "trafficLimitStrategy": "DAY",
                 "note": f"tg:{telegram_id}",
             },
@@ -209,7 +158,6 @@ class RemnawaveWrapper:
 
             created = (await resp.json()).get("response")
 
-        # ⚠️ ВАЖНО: squad назначаем ТОЛЬКО через PATCH
         await self.update_user(
             created["uuid"],
             {
@@ -222,7 +170,7 @@ class RemnawaveWrapper:
         created["sub_url"] = created.get("subscriptionUrl")
 
         if created.get("sub_url"):
-            encrypted = await self.happ_encrypt_url(created["sub_url"])
+            encrypted = await happ_encrypt_url(created["sub_url"])
             if encrypted:
                 created["sub_url_encrypted"] = encrypted
 
@@ -231,18 +179,12 @@ class RemnawaveWrapper:
         return created
 
 
-    # -------------------------
-    # DELETE пользователя
-    # -------------------------
     async def delete_user(self, user_id: str) -> bool:
         await self._ensure_session()
         async with self.session.delete(self._url(f"/users/{user_id}/")) as resp:
             return resp.status in (200, 204)
 
 
-    # -------------------------
-    # GET пользователя
-    # -------------------------
     async def get_user(self, user_id: str) -> Optional[Dict]:
         await self._ensure_session()
         async with self.session.get(self._url(f"/users/{user_id}/")) as resp:
@@ -251,9 +193,6 @@ class RemnawaveWrapper:
             return await resp.json()
 
 
-    # -------------------------
-    # Статистика и онлайн
-    # -------------------------
     async def get_user_stats(self, user_id: str) -> Dict:
         await self._ensure_session()
         async with self.session.get(self._url(f"/users/{user_id}/stats/")) as resp:
@@ -283,12 +222,40 @@ class RemnawaveWrapper:
             )
 
 
-    # -------------------------
-    # Закрытие сессии
-    # -------------------------
     async def close(self):
         if self.session and not self.session.closed:
             await self.session.close()
+
+
+# -------------------------
+# HAPP CRYPT5
+# -------------------------
+
+async def happ_encrypt_url(url: str) -> Optional[str]:
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://crypto.happ.su/api-v2.php",
+                json={"url": url},
+                headers={"Content-Type": "application/json"},
+            ) as resp:
+                if resp.status != 200:
+                    logger.error(f"❌ HAPP CRYPT error [{resp.status}]")
+                    return None
+
+                data = await resp.json()
+
+                encrypted_url = data.get("url") or data.get("encrypted") or data.get("result")
+
+                if not encrypted_url:
+                    logger.error(f"❌ HAPP CRYPT: пустой ответ {data}")
+                    return None
+
+                return encrypted_url
+
+    except Exception as e:
+        logger.error(f"❌ HAPP CRYPT exception: {e}")
+        return None
 
 
 # -------------------------
@@ -296,7 +263,6 @@ class RemnawaveWrapper:
 # -------------------------
 
 async def create_vless_profile(telegram_id: int):
-    """Создаёт профиль и возвращает данные с рабочей ссылкой"""
     api = RemnawaveWrapper()
     try:
         profile = await api.create_user(telegram_id)
@@ -327,7 +293,6 @@ async def get_online_users():
         return await api.get_online_users()
     finally:
         await api.close()
-
 
 
 async def sync_remnawave_expire(telegram_id: int, new_end: datetime) -> bool:
@@ -368,4 +333,3 @@ async def sync_remnawave_expire(telegram_id: int, new_end: datetime) -> bool:
 
     finally:
         await api.close()
-

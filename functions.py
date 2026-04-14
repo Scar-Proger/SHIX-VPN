@@ -8,13 +8,11 @@ from database import get_user
 
 logger = logging.getLogger(__name__)
 
-
 class RemnawaveWrapper:
     """Обёртка Remnawave API для работы с пользователями и подписками"""
 
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
-
 
     # -------------------------
     # Сессия
@@ -27,38 +25,6 @@ class RemnawaveWrapper:
                     "Content-Type": "application/json",
                 }
             )
-
-
-    async def happ_encrypt_url(self, url: str) -> Optional[str]:
-        await self._ensure_session()
-        
-        try:
-            async with self.session.post(
-                "https://crypto.happ.su/api-v2.php",
-                json={"url": url},
-            ) as resp:
-                if resp.status != 200:
-                    logger.error(f"[HAPP CRYPT] error [{resp.status}]")
-                    return None
-
-                data = await resp.json()
-
-                encrypted_url = (
-                    data.get("url")
-                    or data.get("encrypted")
-                    or data.get("result")
-                )
-
-                if not encrypted_url:
-                    logger.error(f"[HAPP CRYPT]: пустой ответ {data}")
-                    return None
-
-                return encrypted_url
-
-        except Exception as e:
-            logger.error(f"[HAPP CRYPT] exception: {e}")
-            return None
-
 
     def _url(self, path: str) -> str:
         return f"{config.REMNAWAVE_API_URL.rstrip('/')}/{path.lstrip('/')}"
@@ -176,14 +142,8 @@ class RemnawaveWrapper:
                 return None
 
             updated["sub_url"] = updated.get("subscriptionUrl")
-
-            if updated.get("sub_url"):
-                encrypted = await self.happ_encrypt_url(updated["sub_url"])
-                if encrypted:
-                    updated["sub_url_encrypted"] = encrypted
-
             return updated
-        
+
         # =========================
         # CREATE
         # =========================
@@ -220,12 +180,6 @@ class RemnawaveWrapper:
         )
 
         created["sub_url"] = created.get("subscriptionUrl")
-
-        if created.get("sub_url"):
-            encrypted = await self.happ_encrypt_url(created["sub_url"])
-            if encrypted:
-                created["sub_url_encrypted"] = encrypted
-
         logger.info(f"✅ Пользователь {telegram_id} успешно создан и добавлен в squad")
 
         return created

@@ -3,9 +3,6 @@ from pydantic import BaseModel
 from typing import List
 
 
-
-
-
 class Config(BaseModel):
 
     BOT_TOKEN: str = os.getenv("BOT_TOKEN")
@@ -24,3 +21,8 @@ class Config(BaseModel):
     REQUIRED_CHANNEL_URL: str = os.getenv("REQUIRED_CHANNEL_URL")
 
 config = Config()
+
+
+
+
+

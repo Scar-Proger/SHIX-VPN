@@ -949,11 +949,11 @@ TEXTS = {
 
 
 TARIFFS = {
-    "tariff_1m": {"price": 100, "months": 1},
-    "tariff_3m": {"price": 50, "months": 3},
-    "tariff_6m": {"price": 50, "months": 6},
-    "tariff_1y": {"price": 50, "months": 12},
-    "tariff_2y": {"price": 50, "months": 24},
+    "tariff_1m": {"price": 200, "months": 1},       # 200 * 1 = 200
+    "tariff_3m": {"price": 100, "months": 3},       # 100 * 3 = 300
+    "tariff_6m": {"price": 83.33, "months": 6},     # 83.33 * 6 ≈ 500
+    "tariff_1y": {"price": 83.33, "months": 12},    # 83.33 * 12 ≈ 1000
+    "tariff_2y": {"price": 75, "months": 24},       # 75 * 24 = 1800
 }
 
 

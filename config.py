@@ -21,8 +21,3 @@ class Config(BaseModel):
     REQUIRED_CHANNEL_URL: str = os.getenv("REQUIRED_CHANNEL_URL")
 
 config = Config()
-
-
-
-
-

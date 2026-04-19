@@ -166,11 +166,11 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 Тарифы временно недоступны",
 
-        "tariff_1m": "100 ₽ — 1 месяц",
-        "tariff_3m": "150 ₽ — 3 месяца",
-        "tariff_6m": "300 ₽ — 6 месяцев",
-        "tariff_1y": "600 ₽ — 1 год",
-        "tariff_2y": "1200 ₽ — 2 года",
+        "tariff_1m": "200 ₽ — 1 месяц",
+        "tariff_3m": "300 ₽ — 3 месяца",
+        "tariff_6m": "500 ₽ — 6 месяцев",
+        "tariff_1y": "1000 ₽ — 1 год",
+        "tariff_2y": "1800 ₽ — 2 года",
 
         # ===== Tariffs (Peaches) =====
         "peach_tariff_1m": "299 перс/мес — 1 месяц",
@@ -359,7 +359,6 @@ TEXTS = {
         "confirm": "Подтвердить",
         "cancel": "Отмена"
 
-
     },
 
     "en": {
@@ -506,11 +505,11 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 Tariffs are temporarily unavailable",
 
-        "tariff_1m": "100 ₽ — 1 month",
-        "tariff_3m": "150 ₽ — 3 months",
-        "tariff_6m": "300 ₽ — 6 months",
-        "tariff_1y": "600 ₽ — 1 year",
-        "tariff_2y": "1200 ₽ — 2 years",
+        "tariff_1m": "200 ₽ — 1 month",
+        "tariff_3m": "300 ₽ — 3 months",
+        "tariff_6m": "500 ₽ — 6 months",
+        "tariff_1y": "1000 ₽ — 1 year",
+        "tariff_2y": "1800 ₽ — 2 years",
 
         "pay_tariff": "🧾 *Tariff:* {title}",
         "pay_price": "💰 *Price:* {total} ₽",
@@ -799,11 +798,11 @@ TEXTS = {
         # ===== Tariffs =====
         "renew_unavailable": "🚫 套餐暂时不可用。",
 
-        "tariff_1m": "100 ₽ — 1 个月",
-        "tariff_3m": "150 ₽ — 3 个月",
-        "tariff_6m": "300 ₽ — 6 个月",
-        "tariff_1y": "600 ₽ — 1 年",
-        "tariff_2y": "1200 ₽ — 2 年",
+        "tariff_1m": "200 ₽ — 1 个月",
+        "tariff_3m": "300 ₽ — 3 个月",
+        "tariff_6m": "500 ₽ — 6 个月",
+        "tariff_1y": "1000 ₽ — 1 年",
+        "tariff_2y": "1800 ₽ — 2 年",
 
         "pay_tariff": "🧾 *套餐:* {title}",
         "pay_price": "💰 *价格:* {total} ₽",

@@ -16,7 +16,11 @@ async def encrypt_to_happ(session: aiohttp.ClientSession, sub_url: str) -> str:
     url = f"{config.REMNAWAVE_API_URL}/system/tools/happ/encrypt"
 
     try:
-        async with session.post(url, json={"url": sub_url}) as resp:
+        async with session.post(
+            url,
+            json={"linkToEncrypt": sub_url}  # ✅ ВОТ ЭТО КЛЮЧЕВОЕ
+        ) as resp:
+
             if resp.status != 200:
                 text = await resp.text()
                 logger.error(f"❌ HAPP encrypt error: {resp.status} | {text}")

@@ -30,6 +30,7 @@ from database import (
 
 from sync_mysql_to_rw import sync_all_users_to_rw
 from sync_happ_to_mysql import sync_happ_to_mysql
+from sync_remnawave_full import sync_remnawave_to_mysql_full
 
 logger = logging.getLogger(__name__)
 
@@ -854,6 +855,22 @@ async def reload_happ(message: Message):
     msg = await message.answer("⏳ Обновляю happ ссылки...")
 
     success, skipped, failed = await sync_happ_to_mysql()
+
+    await msg.edit_text(
+        f"✅ Готово\n\n"
+        f"Обновлено: {success}\n"
+        f"Пропущено: {skipped}\n"
+        f"Ошибки: {failed}"
+    )
+
+@router.message(Command("reload_rw"))
+async def reload_remnawave(message: Message):
+    if message.from_user.id not in config.ADMINS:
+        return
+
+    msg = await message.answer("⏳ Синхронизирую Remnawave...")
+
+    success, skipped, failed = await sync_remnawave_to_mysql_full()
 
     await msg.edit_text(
         f"✅ Готово\n\n"

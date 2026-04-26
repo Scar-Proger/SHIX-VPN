@@ -1,34 +1,13 @@
 import logging
-import aiohttp
 import asyncio
 from datetime import datetime
 
 from database import Session, User
-from config import config
+from functions import RemnawaveWrapper
 
 logger = logging.getLogger(__name__)
 
 
-# =========================
-# GET USER BY UUID
-# =========================
-async def get_rw_user(session: aiohttp.ClientSession, uuid: str):
-    url = f"{config.REMNAWAVE_API_URL}/users/{uuid}"
-
-    try:
-        async with session.get(url) as resp:
-            text = await resp.text()
-
-            if resp.status != 200:
-                logger.error(f"❌ RW GET ERROR {resp.status}: {text}")
-                return None
-
-            return await resp.json()
-
-    except Exception as e:
-        logger.error(f"❌ RW REQUEST FAILED: {e}")
-        return None
-
 
 
 
@@ -36,22 +15,17 @@ async def get_rw_user(session: aiohttp.ClientSession, uuid: str):
 
 
 # =========================
-# SYNC RW → MYSQL
+# SYNC RW → MYSQL (FIXED)
 # =========================
-async def sync_remnawave_to_mysql_full():
+async def sync_remnawave_to_mysql_fixed():
+    api = RemnawaveWrapper()
+
     success = 0
     failed = 0
     skipped = 0
 
-    timeout = aiohttp.ClientTimeout(total=15)
-
-    async with aiohttp.ClientSession(
-        timeout=timeout,
-        headers={
-            "Authorization": f"Bearer {config.REMNAWAVE_API_KEY}",
-            "Content-Type": "application/json",
-        }
-    ) as http:
+    try:
+        await api._ensure_session()
 
         with Session() as db:
             users = db.query(User).all()
@@ -59,29 +33,29 @@ async def sync_remnawave_to_mysql_full():
 
             for user in users:
                 try:
-                    # =========================
-                    # НУЖЕН UUID
-                    # =========================
-                    if not user.vless_profile_id:
-                        skipped += 1
-                        continue
+                    tg_id = user.telegram_id
 
-                    rw_user = await get_rw_user(http, user.vless_profile_id)
+                    # =========================
+                    # ИЩЕМ ПОЛЬЗОВАТЕЛЯ В RW
+                    # =========================
+                    rw_user = await api.find_user_by_telegram_id(tg_id)
 
                     if not rw_user:
+                        logger.warning(f"❌ RW NOT FOUND: {tg_id}")
                         failed += 1
                         continue
 
                     # =========================
-                    # ПАРСИНГ
+                    # ПАРСИМ
                     # =========================
                     short_uuid = rw_user.get("shortUuid")
                     expire_at = rw_user.get("expireAt")
                     created_at = rw_user.get("createdAt")
-                    vless_uuid = rw_user.get("vlessUuid")
+                    rw_uuid = rw_user.get("uuid")          # ✅ ВАЖНО
+                    vless_uuid = rw_user.get("vlessUuid")  # просто доп поле
 
                     if not expire_at:
-                        logger.warning(f"⚠️ NO expireAt: {user.telegram_id}")
+                        logger.warning(f"⚠️ NO expireAt: {tg_id}")
                         skipped += 1
                         continue
 
@@ -96,12 +70,12 @@ async def sync_remnawave_to_mysql_full():
                         )
 
                     # =========================
-                    # OLD VALUES
+                    # OLD
                     # =========================
                     old_sub = user.sub_id
                     old_reg = user.registration_date
                     old_expire = user.subscription_end
-                    old_vless = user.vless_profile_id
+                    old_uuid = user.vless_profile_id
 
                     # =========================
                     # UPDATE
@@ -114,34 +88,36 @@ async def sync_remnawave_to_mysql_full():
 
                     user.subscription_end = expire_dt
 
-                    if vless_uuid:
-                        user.vless_profile_id = vless_uuid
+                    # ✅ ВАЖНО: храним UUID пользователя RW
+                    if rw_uuid:
+                        user.vless_profile_id = rw_uuid
+
+                    # ❗ vlessUuid НЕ ТРОГАЕМ (или добавь отдельное поле)
 
                     # =========================
                     # LOG
                     # =========================
                     logger.info(
-                        f"✅ UPDATED {user.telegram_id}\n"
+                        f"✅ UPDATED {tg_id}\n"
                         f"sub_id: {old_sub} → {user.sub_id}\n"
                         f"reg: {old_reg} → {user.registration_date}\n"
                         f"expire: {old_expire} → {user.subscription_end}\n"
-                        f"vless_uuid: {old_vless} → {user.vless_profile_id}"
+                        f"uuid: {old_uuid} → {user.vless_profile_id}"
                     )
 
                     success += 1
 
-                    # анти-флуд API
                     await asyncio.sleep(0.05)
 
                 except Exception as e:
                     logger.error(f"❌ ERROR {user.telegram_id}: {e}")
                     failed += 1
 
-            # =========================
-            # COMMIT
-            # =========================
             db.commit()
             logger.info("💾 DB COMMIT DONE")
+
+    finally:
+        await api.close()
 
     logger.info(
         f"🏁 DONE\n"

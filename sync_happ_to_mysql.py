@@ -16,18 +16,28 @@ async def encrypt_to_happ(session: aiohttp.ClientSession, sub_url: str) -> str:
     url = f"{config.REMNAWAVE_API_URL}/system/tools/happ/encrypt"
 
     try:
+        logger.info(f"🔗 ENCRYPT INPUT: {sub_url}")
+
         async with session.post(
             url,
-            json={"linkToEncrypt": sub_url}  # ✅ ВОТ ЭТО КЛЮЧЕВОЕ
+            json={"linkToEncrypt": sub_url}
         ) as resp:
 
+            text = await resp.text()
+
             if resp.status != 200:
-                text = await resp.text()
-                logger.error(f"❌ HAPP encrypt error: {resp.status} | {text}")
+                logger.error(f"❌ HAPP ERROR {resp.status}: {text}")
                 return None
 
             data = await resp.json()
-            return data.get("encryptedLink")
+            encrypted = data.get("encryptedLink")
+
+            if not encrypted:
+                logger.error(f"❌ NO encryptedLink IN RESPONSE: {data}")
+                return None
+
+            logger.info(f"✅ HAPP OK")
+            return encrypted
 
     except Exception as e:
         logger.error(f"❌ HAPP request failed: {e}")
@@ -47,96 +57,86 @@ async def sync_happ_to_mysql():
     try:
         await api._ensure_session()
 
-        # 🔥 грузим всех пользователей из БД
         with Session() as db:
             users = db.query(User).all()
 
-        logger.info(f"🚀 USERS: {len(users)}")
+            logger.info(f"🚀 USERS: {len(users)}")
 
-        # 🔥 HTTP клиент с таймаутом
-        timeout = aiohttp.ClientTimeout(total=10)
+            timeout = aiohttp.ClientTimeout(total=15)
 
-        async with aiohttp.ClientSession(
-            timeout=timeout,
-            headers={
-                "Authorization": f"Bearer {config.REMNAWAVE_API_KEY}",
-                "Content-Type": "application/json",
-            }
-        ) as http:
+            async with aiohttp.ClientSession(
+                timeout=timeout,
+                headers={
+                    "Authorization": f"Bearer {config.REMNAWAVE_API_KEY}",
+                    "Content-Type": "application/json",
+                }
+            ) as http:
 
-            for user in users:
-                tg_id = user.telegram_id
+                for user in users:
+                    tg_id = user.telegram_id
 
-                try:
-                    # =========================
-                    # ПРОПУСК ЕСЛИ УЖЕ HAPP
-                    # =========================
-                    if (
-                        user.vless_profile_data
-                        and user.vless_profile_data.startswith("happ://")
-                    ):
-                        skipped += 1
-                        continue
+                    try:
+                        # =========================
+                        # SKIP если уже HAPP
+                        # =========================
+                        if user.vless_profile_data and user.vless_profile_data.startswith("happ://"):
+                            skipped += 1
+                            continue
 
-                    # =========================
-                    # RW USER
-                    # =========================
-                    rw_user = await api.find_user_by_telegram_id(tg_id)
+                        # =========================
+                        # RW USER
+                        # =========================
+                        rw_user = await api.find_user_by_telegram_id(tg_id)
 
-                    if not rw_user:
-                        logger.warning(f"❌ RW NOT FOUND: {tg_id}")
-                        failed += 1
-                        continue
-
-                    sub_url = rw_user.get("subscriptionUrl")
-
-                    if not sub_url:
-                        logger.warning(f"⚠️ NO SUB URL: {tg_id}")
-                        skipped += 1
-                        continue
-
-                    # =========================
-                    # ENCRYPT → HAPP
-                    # =========================
-                    happ_link = await encrypt_to_happ(http, sub_url)
-
-                    if not happ_link:
-                        failed += 1
-                        continue
-
-                    # =========================
-                    # UPDATE MYSQL
-                    # =========================
-                    with Session() as db:
-                        db_user = db.query(User).filter_by(
-                            telegram_id=tg_id
-                        ).first()
-
-                        if not db_user:
+                        if not rw_user:
+                            logger.warning(f"❌ RW NOT FOUND: {tg_id}")
                             failed += 1
                             continue
 
-                        old = db_user.vless_profile_data
+                        sub_url = rw_user.get("subscriptionUrl")
 
-                        # 🔥 ОБНОВЛЯЕМ ТОЛЬКО ССЫЛКУ
-                        db_user.vless_profile_data = happ_link
+                        if not sub_url:
+                            logger.warning(f"⚠️ NO SUB URL: {tg_id}")
+                            skipped += 1
+                            continue
 
-                        db.commit()
+                        # =========================
+                        # ENCRYPT → HAPP
+                        # =========================
+                        happ_link = await encrypt_to_happ(http, sub_url)
+
+                        if not happ_link:
+                            logger.error(f"❌ ENCRYPT FAILED: {tg_id}")
+                            failed += 1
+                            continue
+
+                        # =========================
+                        # UPDATE DB
+                        # =========================
+                        old = user.vless_profile_data
+
+                        user.vless_profile_data = happ_link
 
                         logger.info(
                             f"✅ UPDATED {tg_id}\n"
                             f"OLD: {old}\n"
-                            f"NEW: {happ_link[:60]}..."
+                            f"NEW: {happ_link[:80]}..."
                         )
 
                         success += 1
 
-                    # 🔥 защита от перегрузки API
-                    await asyncio.sleep(0.1)
+                        # защита API
+                        await asyncio.sleep(0.05)
 
-                except Exception as e:
-                    logger.error(f"❌ ERROR {tg_id}: {e}")
-                    failed += 1
+                    except Exception as e:
+                        logger.error(f"❌ ERROR {tg_id}: {e}")
+                        failed += 1
+
+            # =========================
+            # COMMIT ОДИН РАЗ
+            # =========================
+            db.commit()
+            logger.info("💾 DB COMMIT DONE")
 
     finally:
         await api.close()

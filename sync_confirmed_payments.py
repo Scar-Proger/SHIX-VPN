@@ -13,35 +13,42 @@ async def sync_confirmed_payments():
     failed = 0
 
     with Session() as session:
-        payments = session.query(Payment).filter_by(
-            status="CONFIRMED",
-            processed=False
-        ).all()
+        payments = session.query(Payment).filter_by(status="CONFIRMED").all()
 
-        logger.info(f"💰 CONFIRMED (NEW) PAYMENTS: {len(payments)}")
+        logger.info(f"💰 CONFIRMED PAYMENTS: {len(payments)}")
 
         for payment in payments:
             try:
                 user = session.query(User).get(payment.user_id)
 
                 if not user:
+                    logger.error(f"❌ USER NOT FOUND id={payment.user_id}")
                     failed += 1
                     continue
 
                 if not payment.confirmed_at:
+                    logger.warning(f"⚠️ NO confirmed_at payment={payment.id}")
+                    skipped += 1
+                    continue
+
+                # =========================
+                # ❗ ПРОВЕРКА: уже применён?
+                # =========================
+                if user.subscription_end and user.subscription_end >= payment.confirmed_at:
                     skipped += 1
                     continue
 
                 now = now_local()
 
                 # =========================
-                # 🔥 ТВОЯ ЛОГИКА (от даты оплаты)
+                # 🔥 ЛОГИКА ПРОДЛЕНИЯ
                 # =========================
-                base_date = payment.confirmed_at
-                calculated_end = base_date + timedelta(days=payment.months * 30)
+                if user.subscription_end and user.subscription_end > now:
+                    base_date = user.subscription_end
+                else:
+                    base_date = payment.confirmed_at
 
-                # ❗ защита от прошлого
-                new_end = max(calculated_end, now)
+                new_end = base_date + timedelta(days=payment.months * 30)
 
                 old_end = user.subscription_end
 
@@ -59,10 +66,9 @@ async def sync_confirmed_payments():
                 )
 
                 if not rw_ok:
+                    logger.error(f"❌ RW UPDATE FAILED tg={user.telegram_id}")
                     failed += 1
                     continue
-
-                payment.processed = True
 
                 logger.info(
                     f"✅ UPDATED tg={user.telegram_id}\n"
@@ -76,6 +82,7 @@ async def sync_confirmed_payments():
                 failed += 1
 
         session.commit()
+        logger.info("💾 DB COMMIT DONE")
 
     logger.info(
         f"🏁 DONE\n"

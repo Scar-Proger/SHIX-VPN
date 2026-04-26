@@ -22,6 +22,3 @@ class Config(BaseModel):
 
 config = Config()
 
-
-
-

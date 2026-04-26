@@ -8,8 +8,6 @@ from aiogram.exceptions import (
     TelegramBadRequest,
 )
 
-
-
 from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire
 from payment.platega_payment import get_platega_payment_status
@@ -29,6 +27,8 @@ from database import (
     get_all_users, get_or_create_payment, process_payment_result,
     User, PromoCode, Payment, UserBalance, UserBalanceHistory, Session, get_user_stats as db_user_stats
 )
+
+from sync_mysql_to_rw import sync_all_users_to_rw
 
 logger = logging.getLogger(__name__)
 
@@ -827,7 +827,23 @@ async def reload_all(message: Message):
 
     await msg.edit_text(text)
 
+@router.message(Command("sync_rw"))
+async def sync_rw_handler(message: Message):
+    if message.from_user.id not in config.ADMINS:
+        return
 
+    msg = await message.answer("⏳ Синхронизация MYSQL → Remnawave...")
+
+    try:
+        await sync_all_users_to_rw()
+
+        await msg.edit_text(
+            "✅ Синхронизация завершена\n\n"
+            "Пользователи из MYSQL добавлены в Remnawave"
+        )
+
+    except Exception as e:
+        await msg.edit_text(f"❌ Ошибка: {e}")
 
 
 

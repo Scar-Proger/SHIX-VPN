@@ -8,6 +8,11 @@ from database import get_user
 
 logger = logging.getLogger(__name__)
 
+
+
+
+
+
 class RemnawaveWrapper:
     """Обёртка Remnawave API для работы с пользователями и подписками"""
 
@@ -28,6 +33,47 @@ class RemnawaveWrapper:
 
     def _url(self, path: str) -> str:
         return f"{config.REMNAWAVE_API_URL.rstrip('/')}/{path.lstrip('/')}"
+    
+
+    async def create_user_only(self, telegram_id: int) -> Optional[Dict]:
+        await self._ensure_session()
+
+        expire_at = (datetime.now(timezone.utc) + timedelta(days=2)).isoformat()
+
+        user_uuid = str(uuid.uuid4())
+
+        async with self.session.post(
+            self._url("/users/"),
+            json={
+                "uuid": user_uuid,
+                "username": f"user_{telegram_id}",
+                "expireAt": expire_at,
+                "enabled": True,
+                "trafficLimitBytes": 1073741824,
+                "trafficLimitStrategy": "DAY",
+                "note": f"tg:{telegram_id}",
+            },
+        ) as resp:
+
+            if resp.status not in (200, 201):
+                logger.error(f"❌ CREATE ONLY ERROR {telegram_id}: {await resp.text()}")
+                return None
+
+            created = (await resp.json()).get("response")
+
+        # squad отдельно
+        await self.update_user(
+            created["uuid"],
+            {
+                "activeInternalSquads": [
+                    config.REMNAWAVE_DEFAULT_SQUAD_ID
+                ]
+            }
+        )
+
+        created["sub_url"] = created.get("subscriptionUrl")
+
+        return created
     
 
     # -------------------------

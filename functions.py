@@ -9,11 +9,6 @@ from database import get_user
 logger = logging.getLogger(__name__)
 
 
-
-
-
-
-
 class RemnawaveWrapper:
     """Обёртка Remnawave API для работы с пользователями и подписками"""
 
@@ -222,7 +217,8 @@ class RemnawaveWrapper:
             created["uuid"],
             {
                 "activeInternalSquads": [
-                    config.REMNAWAVE_DEFAULT_SQUAD_ID
+                    config.REMNAWAVE_DEFAULT_SQUAD_ID,
+                    config.REMNAWAVE_DE_PROFILE_SQUAD_ID
                 ]
             }
         )

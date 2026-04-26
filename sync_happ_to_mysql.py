@@ -52,7 +52,13 @@ async def sync_happ_to_mysql():
         # 🔥 HTTP клиент с таймаутом
         timeout = aiohttp.ClientTimeout(total=10)
 
-        async with aiohttp.ClientSession(timeout=timeout) as http:
+        async with aiohttp.ClientSession(
+            timeout=timeout,
+            headers={
+                "Authorization": f"Bearer {config.REMNAWAVE_API_KEY}",
+                "Content-Type": "application/json",
+            }
+        ) as http:
 
             for user in users:
                 tg_id = user.telegram_id

@@ -16,6 +16,7 @@ class Config(BaseModel):
     REMNAWAVE_API_URL: str = os.getenv("REMNAWAVE_API_URL")
     REMNAWAVE_API_KEY: str = os.getenv("REMNAWAVE_API_KEY")
     REMNAWAVE_DEFAULT_SQUAD_ID: str = os.getenv("REMNAWAVE_DEFAULT_SQUAD_ID")
+    REMNAWAVE_DE_PROFILE_SQUAD_ID: str = os.getenv("REMNAWAVE_DE_PROFILE_SQUAD_ID")
 
     REQUIRED_CHANNEL_ID: int = int(os.getenv("REQUIRED_CHANNEL_ID", "0"))
     REQUIRED_CHANNEL_URL: str = os.getenv("REQUIRED_CHANNEL_URL")

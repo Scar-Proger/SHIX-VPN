@@ -180,7 +180,8 @@ class RemnawaveWrapper:
                     "trafficLimitBytes": 1073741824,  # 1 GB
                     "trafficLimitStrategy": "DAY",
                     "activeInternalSquads": [
-                        config.REMNAWAVE_DEFAULT_SQUAD_ID
+                        config.REMNAWAVE_DEFAULT_SQUAD_ID,
+                        config.REMNAWAVE_DE_PROFILE_SQUAD_ID
                     ],
                 },
             )

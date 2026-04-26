@@ -2,13 +2,15 @@ import os
 import logging
 import json
 import re
-import subprocess
-from urllib.parse import urlparse
 from database import now_local
 from aiogram.exceptions import (
     TelegramForbiddenError,
     TelegramBadRequest,
 )
+from sqlalchemy import text
+
+
+
 
 
 
@@ -30,7 +32,7 @@ from database import (
     get_user, create_user, apply_promo_code, create_or_update_promo_code, 
     get_all_promocodes_list, delete_promocode, sync_shortuuid_to_mysql,
     get_all_users, get_or_create_payment, process_payment_result,
-    User, PromoCode, Payment, UserBalance, UserBalanceHistory, Session, get_user_stats as db_user_stats
+    User, PromoCode, Payment, UserBalance, UserBalanceHistory, Session, engine, get_user_stats as db_user_stats
 )
 
 from sync_mysql_to_rw import sync_all_users_to_rw
@@ -911,52 +913,51 @@ async def dump_db_cmd(message: Message):
     msg = await message.answer("⏳ Делаю дамп базы...")
 
     try:
-        url = os.getenv("MYSQL_URL")
-
-        # =========================
-        # 🔥 НОРМАЛЬНЫЙ ПАРСИНГ URL
-        # =========================
-        parsed = urlparse(url)
-
-        user = parsed.username
-        password = parsed.password
-        host = parsed.hostname
-        port = parsed.port or 3306
-        db = parsed.path.lstrip("/")
-
-        if not all([user, password, host, db]):
-            raise ValueError("❌ MYSQL_URL некорректный")
-
         filename = f"dump_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.sql"
 
-        cmd = [
-            "mysqldump",
-            f"-h{host}",
-            f"-P{port}",
-            f"-u{user}",
-            f"-p{password}",
-            db,
-        ]
+        with Session() as session:
+            conn = engine.connect()
 
-        # =========================
-        # 🔥 ВЫГРУЗКА
-        # =========================
-        with open(filename, "w", encoding="utf-8") as f:
-            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)
+            # получаем список таблиц
+            tables = conn.execute(text("SHOW TABLES")).fetchall()
+            tables = [t[0] for t in tables]
 
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write("-- MYSQL DUMP (SQLAlchemy)\n\n")
+
+                for table in tables:
+                    f.write(f"\n-- =====================\n")
+                    f.write(f"-- TABLE: {table}\n")
+                    f.write(f"-- =====================\n")
+
+                    rows = conn.execute(text(f"SELECT * FROM `{table}`")).fetchall()
+                    columns = conn.execute(text(f"DESCRIBE `{table}`")).fetchall()
+                    col_names = [c[0] for c in columns]
+
+                    for row in rows:
+                        values = []
+                        for v in row:
+                            if v is None:
+                                values.append("NULL")
+                            else:
+                                values.append(f"'{str(v).replace('\'', '\\\'')}'")
+
+                        f.write(
+                            f"INSERT INTO `{table}` ({', '.join(col_names)}) "
+                            f"VALUES ({', '.join(values)});\n"
+                        )
+
+        # отправка файла
         await message.answer_document(
             document=open(filename, "rb"),
             caption="📦 Дамп базы готов"
         )
 
         os.remove(filename)
-
         await msg.delete()
 
     except Exception as e:
-        await message.answer(f"❌ Ошибка дампа:\n{e}")
-
-
+        await msg.edit_text(f"❌ Ошибка дампа:\n{e}")
 
 
 

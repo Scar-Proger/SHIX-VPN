@@ -30,10 +30,12 @@ async def encrypt_to_happ(session: aiohttp.ClientSession, sub_url: str) -> str:
                 return None
 
             data = await resp.json()
-            encrypted = data.get("encryptedLink")
+
+            # 🔥 ВОТ ЭТО КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ
+            encrypted = data.get("response", {}).get("encryptedLink")
 
             if not encrypted:
-                logger.error(f"❌ NO encryptedLink IN RESPONSE: {data}")
+                logger.error(f"❌ encryptedLink NOT FOUND: {data}")
                 return None
 
             logger.info(f"✅ HAPP OK")

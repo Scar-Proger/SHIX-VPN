@@ -2,11 +2,15 @@ import os
 import logging
 import json
 import re
+import subprocess
 from database import now_local
 from aiogram.exceptions import (
     TelegramForbiddenError,
     TelegramBadRequest,
 )
+
+
+
 
 from aiogram.types import FSInputFile
 from functions import create_vless_profile, get_user_stats, get_online_users, sync_remnawave_expire
@@ -896,6 +900,48 @@ async def sync_payments_cmd(message: Message):
         f"Пропущено: {skipped}\n"
         f"Ошибки: {failed}"
     )
+
+
+@router.message(Command("dump_db"))
+async def dump_db_cmd(message: Message):
+    if message.from_user.id not in config.ADMINS:
+        return
+
+    await message.answer("⏳ Делаю дамп базы...")
+
+    try:
+        url = os.getenv("MYSQL_URL")
+
+        # mysql+pymysql://user:pass@host:port/db
+        url = url.replace("mysql+pymysql://", "")
+        creds, host_db = url.split("@")
+        user, password = creds.split(":")
+        host_port, db = host_db.split("/")
+        host, port = host_port.split(":")
+
+        filename = f"dump_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.sql"
+
+        cmd = [
+            "mysqldump",
+            f"-h{host}",
+            f"-P{port}",
+            f"-u{user}",
+            f"-p{password}",
+            db,
+        ]
+
+        with open(filename, "w") as f:
+            subprocess.run(cmd, stdout=f, check=True)
+
+        await message.answer_document(
+            open(filename, "rb"),
+            caption="📦 Дамп базы готов"
+        )
+
+        os.remove(filename)
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка дампа: {e}")
 
 
 

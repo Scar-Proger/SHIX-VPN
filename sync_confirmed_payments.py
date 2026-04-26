@@ -12,7 +12,10 @@ async def sync_confirmed_payments():
     skipped = 0
     failed = 0
 
+    now = now_local()
+
     with Session() as session:
+
         payments = session.query(Payment).filter_by(status="CONFIRMED").all()
 
         logger.info(f"💰 CONFIRMED PAYMENTS: {len(payments)}")
@@ -32,33 +35,31 @@ async def sync_confirmed_payments():
                     continue
 
                 # =========================
-                # ❗ ПРОВЕРКА: уже применён?
-                # =========================
-                if user.subscription_end and user.subscription_end >= payment.confirmed_at:
-                    skipped += 1
-                    continue
-
-                now = now_local()
-
-                # =========================
-                # 🔥 ЛОГИКА ПРОДЛЕНИЯ
+                # БАЗА ДЛЯ ПРОДЛЕНИЯ
                 # =========================
                 if user.subscription_end and user.subscription_end > now:
                     base_date = user.subscription_end
                 else:
-                    base_date = payment.confirmed_at
+                    base_date = now
 
+                # =========================
+                # НОВАЯ ДАТА ПОДПИСКИ
+                # =========================
                 new_end = base_date + timedelta(days=payment.months * 30)
+
+                # 🔥 защита от прошлого
+                if new_end <= now:
+                    new_end = now + timedelta(days=payment.months * 30)
 
                 old_end = user.subscription_end
 
                 # =========================
-                # UPDATE MYSQL
+                # MYSQL UPDATE
                 # =========================
                 user.subscription_end = new_end
 
                 # =========================
-                # UPDATE REMNAWAVE
+                # REMNAWAVE SYNC
                 # =========================
                 rw_ok = await sync_remnawave_expire(
                     telegram_id=user.telegram_id,

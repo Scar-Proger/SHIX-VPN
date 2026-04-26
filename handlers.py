@@ -3,6 +3,7 @@ import logging
 import json
 import re
 import subprocess
+from urllib.parse import urlparse
 from database import now_local
 from aiogram.exceptions import (
     TelegramForbiddenError,
@@ -907,17 +908,24 @@ async def dump_db_cmd(message: Message):
     if message.from_user.id not in config.ADMINS:
         return
 
-    await message.answer("⏳ Делаю дамп базы...")
+    msg = await message.answer("⏳ Делаю дамп базы...")
 
     try:
         url = os.getenv("MYSQL_URL")
 
-        # mysql+pymysql://user:pass@host:port/db
-        url = url.replace("mysql+pymysql://", "")
-        creds, host_db = url.split("@")
-        user, password = creds.split(":")
-        host_port, db = host_db.split("/")
-        host, port = host_port.split(":")
+        # =========================
+        # 🔥 НОРМАЛЬНЫЙ ПАРСИНГ URL
+        # =========================
+        parsed = urlparse(url)
+
+        user = parsed.username
+        password = parsed.password
+        host = parsed.hostname
+        port = parsed.port or 3306
+        db = parsed.path.lstrip("/")
+
+        if not all([user, password, host, db]):
+            raise ValueError("❌ MYSQL_URL некорректный")
 
         filename = f"dump_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.sql"
 
@@ -930,18 +938,28 @@ async def dump_db_cmd(message: Message):
             db,
         ]
 
-        with open(filename, "w") as f:
-            subprocess.run(cmd, stdout=f, check=True)
+        # =========================
+        # 🔥 ВЫГРУЗКА
+        # =========================
+        with open(filename, "w", encoding="utf-8") as f:
+            subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, check=True)
 
         await message.answer_document(
-            open(filename, "rb"),
+            document=open(filename, "rb"),
             caption="📦 Дамп базы готов"
         )
 
         os.remove(filename)
 
+        await msg.delete()
+
     except Exception as e:
-        await message.answer(f"❌ Ошибка дампа: {e}")
+        await message.answer(f"❌ Ошибка дампа:\n{e}")
+
+
+
+
+
 
 
 
